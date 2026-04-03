@@ -12,11 +12,11 @@ Prerequisites:
 ## CPU Backend
 
 Path:
-CPU/smoke_test
+test/smoke/CPU
 
 Build and run:
 ```
-cd CPU/smoke_test
+cd test/smoke/CPU
 cmake --fresh -S . -B build -G Ninja
 cmake --build build
 ./build/smoke
@@ -28,7 +28,7 @@ CPU top-k smoke test: PASS
 ## GPU Backend
 
 Path:
-GPU/smoke_test
+test/smoke/GPU
 
 Optional pre-check:
 ```
@@ -38,7 +38,7 @@ nvidia-smi
 
 Build and run:
 ```
-cd GPU/smoke_test
+cd test/smoke/GPU
 cmake --fresh -S . -B build -G Ninja
 cmake --build build
 ./build/smoke
@@ -50,7 +50,7 @@ CUDA top-k smoke test: PASS
 ## NPU Backend (AMD XDNA)
 
 Path:
-NPU/smoke_test
+test/smoke/NPU
 
 Optional pre-check:
 ```
@@ -60,7 +60,7 @@ xrt-smi examine
 
 Build and run:
 ```
-cd NPU/smoke_test
+cd test/smoke/NPU
 cmake --fresh -S . -B build -G Ninja
 cmake --build build
 ./build/smoke

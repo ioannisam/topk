@@ -4,8 +4,8 @@ set -euo pipefail
 usage() {
     cat <<'EOF'
 Usage:
-    ./test/analysis/measure_smi.sh [--gpu-index <idx>] [--interval-ms <ms>] -- <command> [args...]
-    ./test/analysis/measure_smi.sh --list-gpus
+    ./test/perf/measure_smi.sh [--gpu-index <idx>] [--interval-ms <ms>] -- <command> [args...]
+    ./test/perf/measure_smi.sh --list-gpus
 
 Options:
     --gpu-index <idx>    Select GPU index to sample (default: 0).
@@ -15,8 +15,8 @@ Options:
     --                   End script options; remaining args are the command to run.
 
 Examples:
-    ./test/analysis/measure_smi.sh -- ./GPU/smoke_test/build/smoke
-    ./test/analysis/measure_smi.sh --gpu-index 0 --interval-ms 100 -- sleep 1
+    ./test/perf/measure_smi.sh -- ./test/smoke/GPU/build/smoke
+    ./test/perf/measure_smi.sh --gpu-index 0 --interval-ms 100 -- sleep 1
 
 Notes:
     - Uses nvidia-smi power.draw telemetry (Watts).

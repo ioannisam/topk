@@ -5,7 +5,7 @@ This test validates that user-space code can open the AMD XDNA NPU through XRT.
 ## Build
 
 ```bash
-cd /home/ioannis/Development/Thesis/NPU/smoke_test
+cd /home/ioannis/Development/Thesis/test/smoke/NPU
 cmake --fresh -S . -B build -G Ninja
 cmake --build build
 ```

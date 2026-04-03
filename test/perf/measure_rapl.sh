@@ -4,8 +4,8 @@ set -euo pipefail
 usage() {
     cat <<'EOF'
 Usage:
-    sudo ./test/analysis/measure_rapl.sh [--path <energy_uj_path>] -- <command> [args...]
-    sudo ./test/analysis/measure_rapl.sh --list-paths
+    sudo ./test/perf/measure_rapl.sh [--path <energy_uj_path>] -- <command> [args...]
+    sudo ./test/perf/measure_rapl.sh --list-paths
 
 Options:
     --path <energy_uj_path>  Use a specific RAPL energy counter file.
@@ -14,8 +14,8 @@ Options:
     --                       End script options; remaining args are the command to run.
 
 Examples:
-    sudo ./test/analysis/measure_rapl.sh -- ./CPU/smoke_test/build/smoke
-    sudo ./test/analysis/measure_rapl.sh --path /sys/class/powercap/intel-rapl:0/energy_uj -- sleep 1
+    sudo ./test/perf/measure_rapl.sh -- ./test/smoke/CPU/build/smoke
+    sudo ./test/perf/measure_rapl.sh --path /sys/class/powercap/intel-rapl:0/energy_uj -- sleep 1
 
 Notes:
     - Uses Linux RAPL energy_uj counters (microjoules) (may need sudo).
@@ -103,7 +103,7 @@ fi
 if [[ -z "${ENERGY_PATH}" ]]; then
     if ! ENERGY_PATH="$(find_default_energy_path)"; then
         echo "error: could not find a readable energy_uj path under /sys/class/powercap" >&2
-        echo "hint: run ./test/analysis/measure_rapl.sh --list-paths to inspect availability" >&2
+        echo "hint: run ./test/perf/measure_rapl.sh --list-paths to inspect availability" >&2
         echo "hint: pass --path explicitly, or run with sufficient permissions (for example with sudo)" >&2
         exit 1
     fi
