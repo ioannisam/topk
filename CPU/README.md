@@ -6,6 +6,16 @@ It supports:
 - Full bitonic sorting network (reference path)
 - Truncated bitonic execution for top-k output
 
+## Layout
+
+- `include/config.hpp` + `src/config.cpp`: `Config` object, argument parsing and config construction
+- `include/layers.hpp` + `src/layers.cpp`: `Layer` object and bitonic layer schedule generation
+- `include/algorithm.hpp` + `src/algorithm.cpp`: keep-mask generation and parallel network execution
+- `include/utils.hpp` + `src/utils.cpp`: comparator counting utilities
+- `include/reporting.hpp` + `src/reporting.cpp`: run/debug/timing/output print helpers
+- `include/runner.hpp` + `src/runner.cpp`: top-k run pipeline and flow orchestration
+- `src/main.cpp`: CLI entrypoint and error handling
+
 ## Build
 
 ```bash
@@ -28,12 +38,10 @@ cmake -S . -B build \
 ## Run
 
 ```bash
-./build/topk <q> <p> [k] [seed] [min|max] [sort|nosort] [debug|nodebug] [check|nocheck] [threads=<num>]
+./build/topk <q> [k] [seed] [min|max] [sort|nosort] [debug|nodebug] [check|nocheck] [threads=<num>]
 ```
 
-- `N = 2^(q+p)` total elements
-- `2^p` virtual bitonic ranks (algorithm layout)
-- `2^q` elements per virtual rank
+- `N = 2^q` total elements
 - execution threads default to hardware concurrency (capped by `N`)
 - `k` defaults to `N`
 - `seed` defaults to `42`
@@ -46,7 +54,7 @@ cmake -S . -B build \
 Example:
 
 ```bash
-./build/topk 10 3 128 42 min sort debug check threads=16
+./build/topk 13 128 42 min sort debug check threads=16
 ```
 
 Runtime tokens:
