@@ -33,13 +33,37 @@ bool starts_with(const std::string& text, const std::string& prefix) {
 	return text.rfind(prefix, 0) == 0;
 }
 
+bool is_dtype_token(const std::string& token) {
+	return starts_with(token, "dtype=");
+}
+
+DataType parse_dtype(const std::string& token) {
+	const std::string value = token.substr(std::string("dtype=").size());
+	if (value == "int") {
+		return DataType::Int;
+	}
+	if (value == "uint") {
+		return DataType::UInt;
+	}
+	if (value == "float") {
+		return DataType::Float;
+	}
+	if (value == "double") {
+		return DataType::Double;
+	}
+	if (value == "fp16") {
+		return DataType::Fp16;
+	}
+	throw std::invalid_argument("Unsupported dtype. Use one of: int, uint, float, double, fp16");
+}
+
 } // namespace
 
 Config parse_args(int argc, char** argv) {
 
-	if (argc < 2 || argc > 10) {
+	if (argc < 2 || argc > 11) {
 		throw std::invalid_argument("Usage: ./topk <q> [k] [seed] [min|max] [sort|nosort] "
-									"[debug|nodebug] [check|nocheck] [threads=<num>]");
+									"[debug|nodebug] [check|nocheck] [threads=<num>] [dtype=<type>]");
 	}
 
 	const int q = std::stoi(argv[1]);
@@ -55,6 +79,7 @@ Config parse_args(int argc, char** argv) {
 	bool debug_output = DEBUG != 0;
 	bool run_check = CHECK != 0;
 	std::size_t ex_threads = 0;
+	DataType dtype = DataType::Int;
 	int numeric_seen = 0;
 
 	for (int i = 2; i < argc; i++) {
@@ -84,6 +109,10 @@ Config parse_args(int argc, char** argv) {
 			ex_threads = static_cast<std::size_t>(parsed_threads);
 			continue;
 		}
+		if (is_dtype_token(token)) {
+			dtype = parse_dtype(token);
+			continue;
+		}
 
 		const long long parsed = std::stoll(token);
 		if (numeric_seen == 0) {
@@ -105,5 +134,5 @@ Config parse_args(int argc, char** argv) {
 		numeric_seen++;
 	}
 
-	return Config{q, k, seed, want_max, sort_output, debug_output, run_check, ex_threads};
+	return Config{q, k, seed, want_max, sort_output, debug_output, run_check, ex_threads, dtype};
 }

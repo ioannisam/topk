@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
 #include <vector>
 
 #include "config.hpp"
@@ -15,4 +16,4 @@ void print_debug_metrics(const Config& cfg, std::size_t hw_threads, std::size_t 
 
 void print_correctness_summary(bool run_check, bool ok);
 
-void print_topk_output(const Config& cfg, const std::vector<int>& output);
+void print_topk_output(const Config& cfg, const std::vector<std::string>& output);

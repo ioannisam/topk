@@ -1,6 +1,7 @@
 #include "algorithm.hpp"
 
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 #include <thread>
 
@@ -65,7 +66,8 @@ std::vector<std::vector<unsigned char>> build_masks(const std::vector<Layer>& la
 	return keep;
 }
 
-void run_network_parallel(std::vector<int>& data, const std::vector<Layer>& layers,
+template <typename T>
+void run_network_parallel(std::vector<T>& data, const std::vector<Layer>& layers,
 						  const std::vector<std::vector<unsigned char>>& keep, bool truncated, std::size_t workers) {
 
 	const std::size_t n = data.size();
@@ -113,3 +115,23 @@ void run_network_parallel(std::vector<int>& data, const std::vector<Layer>& laye
 		t.join();
 	}
 }
+
+template void run_network_parallel<std::int32_t>(std::vector<std::int32_t>& data, const std::vector<Layer>& layers,
+														 const std::vector<std::vector<unsigned char>>& keep,
+														 bool truncated, std::size_t workers);
+template void run_network_parallel<std::uint32_t>(std::vector<std::uint32_t>& data,
+														  const std::vector<Layer>& layers,
+														  const std::vector<std::vector<unsigned char>>& keep,
+														  bool truncated, std::size_t workers);
+template void run_network_parallel<float>(std::vector<float>& data, const std::vector<Layer>& layers,
+												 const std::vector<std::vector<unsigned char>>& keep, bool truncated,
+												 std::size_t workers);
+template void run_network_parallel<double>(std::vector<double>& data, const std::vector<Layer>& layers,
+												  const std::vector<std::vector<unsigned char>>& keep, bool truncated,
+												  std::size_t workers);
+
+#if defined(__FLT16_MANT_DIG__)
+template void run_network_parallel<_Float16>(std::vector<_Float16>& data, const std::vector<Layer>& layers,
+													   const std::vector<std::vector<unsigned char>>& keep,
+													   bool truncated, std::size_t workers);
+#endif

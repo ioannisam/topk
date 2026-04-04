@@ -3,7 +3,13 @@
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
+#include <stdexcept>
+#include <limits>
+#include <sstream>
+#include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 #include "algorithm.hpp"
@@ -36,17 +42,37 @@ Context build_context(const Config& cfg) {
 	return Context{n, hw_threads, ex_threads};
 }
 
-void apply_mode_transform(std::vector<int>& data, bool want_max) {
+template <typename T>
+T transform_for_max(T value) {
+	if constexpr (std::is_unsigned_v<T>) {
+		return static_cast<T>(std::numeric_limits<T>::max() - value);
+	} else {
+		return static_cast<T>(-value);
+	}
+}
+
+template <typename T>
+T restore_from_max(T value) {
+	if constexpr (std::is_unsigned_v<T>) {
+		return static_cast<T>(std::numeric_limits<T>::max() - value);
+	} else {
+		return static_cast<T>(-value);
+	}
+}
+
+template <typename T>
+void apply_mode_transform(std::vector<T>& data, bool want_max) {
 	if (!want_max) {
 		return;
 	}
 
 	for (std::size_t i = 0; i < data.size(); i++) {
-		data[i] = -data[i];
+		data[i] = transform_for_max(data[i]);
 	}
 }
 
-double run_truncated_network(std::vector<int>& truncated, const std::vector<Layer>& layers,
+template <typename T>
+double run_truncated_network(std::vector<T>& truncated, const std::vector<Layer>& layers,
 							 const std::vector<std::vector<unsigned char>>& keep, std::size_t ex_threads) {
 
 	auto t0 = std::chrono::high_resolution_clock::now();
@@ -55,7 +81,8 @@ double run_truncated_network(std::vector<int>& truncated, const std::vector<Laye
 	return std::chrono::duration<double, std::milli>(t1 - t0).count();
 }
 
-Check run_check(const Config& cfg, const std::vector<int>& input, const std::vector<int>& truncated,
+template <typename T>
+Check run_check(const Config& cfg, const std::vector<T>& input, const std::vector<T>& truncated,
 				const std::vector<Layer>& layers, const std::vector<std::vector<unsigned char>>& keep,
 				std::size_t ex_threads) {
 
@@ -63,7 +90,7 @@ Check run_check(const Config& cfg, const std::vector<int>& input, const std::vec
 		return Check{true, 0.0};
 	}
 
-	std::vector<int> full = input;
+	std::vector<T> full = input;
 	auto t0 = std::chrono::high_resolution_clock::now();
 	run_network_parallel(full, layers, keep, false, ex_threads);
 	auto t1 = std::chrono::high_resolution_clock::now();
@@ -78,10 +105,11 @@ Check run_check(const Config& cfg, const std::vector<int>& input, const std::vec
 	return Check{true, full_ms};
 }
 
-std::vector<int> build_output(const std::vector<int>& truncated, const Config& cfg) {
-	std::vector<int> output(cfg.k);
+template <typename T>
+std::vector<T> build_output(const std::vector<T>& truncated, const Config& cfg) {
+	std::vector<T> output(cfg.k);
 	for (std::size_t i = 0; i < cfg.k; i++) {
-		output[i] = cfg.want_max ? -truncated[i] : truncated[i];
+		output[i] = cfg.want_max ? restore_from_max(truncated[i]) : truncated[i];
 	}
 
 	if (cfg.sort_output) {
@@ -95,9 +123,32 @@ std::vector<int> build_output(const std::vector<int>& truncated, const Config& c
 	return output;
 }
 
-} // namespace
+template <typename T>
+std::string format_value(T value) {
+	if constexpr (std::is_integral_v<T>) {
+		if constexpr (std::is_unsigned_v<T>) {
+			return std::to_string(static_cast<unsigned long long>(value));
+		}
+		return std::to_string(static_cast<long long>(value));
+	} else {
+		std::ostringstream out;
+		out << static_cast<double>(value);
+		return out.str();
+	}
+}
 
-int run_topk(const Config& cfg) {
+template <typename T>
+std::vector<std::string> format_output(const std::vector<T>& values) {
+	std::vector<std::string> out;
+	out.reserve(values.size());
+	for (const T value : values) {
+		out.push_back(format_value(value));
+	}
+	return out;
+}
+
+template <typename T>
+int run_topk_typed(const Config& cfg) {
 	const Context ctx = build_context(cfg);
 
 	print_configuration(cfg, ctx.ex_threads, ctx.n);
@@ -107,10 +158,10 @@ int run_topk(const Config& cfg) {
 	const std::size_t full_cmp = count_full_comparators(layers, ctx.n);
 	const std::size_t trunc_cmp = count_truncated_comparators(layers, keep, ctx.n);
 
-	std::vector<int> input = generate_random_input(ctx.n, cfg.seed, randMin, randMax);
+	std::vector<T> input = generate_random_input<T>(ctx.n, cfg.seed, randMin, randMax);
 	apply_mode_transform(input, cfg.want_max);
 
-	std::vector<int> truncated = input;
+	std::vector<T> truncated = input;
 	const double trunc_ms = run_truncated_network(truncated, layers, keep, ctx.ex_threads);
 	const Check check = run_check(cfg, input, truncated, layers, keep, ctx.ex_threads);
 
@@ -125,8 +176,31 @@ int run_topk(const Config& cfg) {
 		}
 	}
 
-	std::vector<int> output = build_output(truncated, cfg);
-	print_topk_output(cfg, output);
+	std::vector<T> output = build_output(truncated, cfg);
+	print_topk_output(cfg, format_output(output));
 
 	return 0;
+}
+
+} // namespace
+
+int run_topk(const Config& cfg) {
+	switch (cfg.dtype) {
+	case DataType::Int:
+		return run_topk_typed<std::int32_t>(cfg);
+	case DataType::UInt:
+		return run_topk_typed<std::uint32_t>(cfg);
+	case DataType::Float:
+		return run_topk_typed<float>(cfg);
+	case DataType::Double:
+		return run_topk_typed<double>(cfg);
+	case DataType::Fp16:
+#if defined(__FLT16_MANT_DIG__)
+		return run_topk_typed<_Float16>(cfg);
+#else
+		throw std::invalid_argument("dtype=fp16 is not supported by this compiler target");
+#endif
+	}
+
+	throw std::invalid_argument("Unsupported dtype");
 }

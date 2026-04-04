@@ -23,12 +23,28 @@ std::string format_fixed(double value, int decimals, const char* suffix = "") {
 	return out.str();
 }
 
-std::size_t number_width(const std::vector<int>& values) {
+std::size_t number_width(const std::vector<std::string>& values) {
 	std::size_t width = 1;
-	for (int value : values) {
-		width = std::max(width, std::to_string(value).size());
+	for (const std::string& value : values) {
+		width = std::max(width, value.size());
 	}
 	return width;
+}
+
+const char* dtype_name(DataType dtype) {
+	switch (dtype) {
+	case DataType::Int:
+		return "int";
+	case DataType::UInt:
+		return "uint";
+	case DataType::Float:
+		return "float";
+	case DataType::Double:
+		return "double";
+	case DataType::Fp16:
+		return "fp16";
+	}
+	return "unknown";
 }
 
 } // namespace
@@ -38,6 +54,7 @@ void print_configuration(const Config& cfg, std::size_t ex_threads, std::size_t 
 	print_key_value("Input size N (2^q)", n);
 	print_key_value("Execution threads", ex_threads);
 	print_key_value("Requested top-k", cfg.k);
+	print_key_value("Data type", dtype_name(cfg.dtype));
 	print_key_value("Mode", (cfg.want_max ? "max" : "min"));
 	print_key_value("Final sort", (cfg.sort_output ? "on" : "off"));
 	print_key_value("Debug output", (cfg.debug_output ? "on" : "off"));
@@ -87,7 +104,7 @@ void print_correctness_summary(bool run_check, bool ok) {
 	std::cout << "Top-k correctness vs full network: " << (ok ? "OK" : "FAIL") << "\n";
 }
 
-void print_topk_output(const Config& cfg, const std::vector<int>& output) {
+void print_topk_output(const Config& cfg, const std::vector<std::string>& output) {
 	print_section_header("Top-k Output");
 	print_key_value("Mode", (cfg.want_max ? "max" : "min"));
 	print_key_value("Order", (cfg.sort_output ? "sorted" : "network-order"));

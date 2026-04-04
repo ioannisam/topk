@@ -38,7 +38,7 @@ cmake -S . -B build \
 ## Run
 
 ```bash
-./build/topk <q> [k] [seed] [min|max] [sort|nosort] [debug|nodebug] [check|nocheck] [threads=<num>]
+./build/topk <q> [k] [seed] [min|max] [sort|nosort] [debug|nodebug] [check|nocheck] [threads=<num>] [dtype=<type>]
 ```
 
 - `N = 2^q` total elements
@@ -50,11 +50,12 @@ cmake -S . -B build \
 - `debug` defaults from `DEBUG`
 - `check` defaults from `CHECK`
 - `threads=<num>` optionally overrides execution threads
+- `dtype=<type>` selects value type: `int`, `uint`, `float`, `double`, `fp16` (fp16 requires compiler support)
 
 Example:
 
 ```bash
-./build/topk 13 128 42 min sort debug check threads=16
+./build/topk 13 128 42 min sort debug check threads=16 dtype=float
 ```
 
 Runtime tokens:
