@@ -38,7 +38,7 @@ cmake -S . -B build \
 ## Run
 
 ```bash
-./build/topk <q> [k] [seed] [min|max] [sort|nosort] [debug|nodebug] [check|nocheck] [threads=<num>] [dtype=<type>]
+./build/topk <q> [k] [seed] [min|max] [debug|nodebug] [check|nocheck] [threads=<num>] [dtype=<type>]
 ```
 
 - `N = 2^q` total elements
@@ -46,7 +46,6 @@ cmake -S . -B build \
 - `k` defaults to `N`
 - `seed` defaults to `42`
 - `mode` defaults to `max`
-- `sort` defaults to `nosort`
 - `debug` defaults from `DEBUG`
 - `check` defaults from `CHECK`
 - `threads=<num>` optionally overrides execution threads
@@ -55,14 +54,12 @@ cmake -S . -B build \
 Example:
 
 ```bash
-./build/topk 13 128 42 min sort debug check threads=16 dtype=float
+./build/topk 13 128 42 min debug check threads=16 dtype=float
 ```
 
 Runtime tokens:
 - `min`: smallest k values
 - `max`: largest k values
-- `sort`: sort final reported top-k values
-- `nosort`: keep network order in final report
 - `debug`: print diagnostics (threads, layers, comparator counts, skip ratio, speedup)
 - `nodebug`: keep diagnostics minimal
 - `check`: run full bitonic reference and validate top-k correctness

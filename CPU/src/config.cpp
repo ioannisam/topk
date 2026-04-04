@@ -17,10 +17,6 @@ bool is_mode_token(const std::string& token) {
 	return token == "min" || token == "max";
 }
 
-bool is_sort_token(const std::string& token) {
-	return token == "sort" || token == "nosort";
-}
-
 bool is_debug_token(const std::string& token) {
 	return token == "debug" || token == "nodebug";
 }
@@ -62,7 +58,7 @@ DataType parse_dtype(const std::string& token) {
 Config parse_args(int argc, char** argv) {
 
 	if (argc < 2 || argc > 11) {
-		throw std::invalid_argument("Usage: ./topk <q> [k] [seed] [min|max] [sort|nosort] "
+		throw std::invalid_argument("Usage: ./topk <q> [k] [seed] [min|max] "
 									"[debug|nodebug] [check|nocheck] [threads=<num>] [dtype=<type>]");
 	}
 
@@ -75,7 +71,6 @@ Config parse_args(int argc, char** argv) {
 	std::size_t k = n;
 	std::uint64_t seed = 42;
 	bool want_max = true;
-	bool sort_output = false;
 	bool debug_output = DEBUG != 0;
 	bool run_check = CHECK != 0;
 	std::size_t ex_threads = 0;
@@ -86,10 +81,6 @@ Config parse_args(int argc, char** argv) {
 		const std::string token = argv[i];
 		if (is_mode_token(token)) {
 			want_max = (token == "max");
-			continue;
-		}
-		if (is_sort_token(token)) {
-			sort_output = (token == "sort");
 			continue;
 		}
 		if (is_debug_token(token)) {
@@ -134,5 +125,5 @@ Config parse_args(int argc, char** argv) {
 		numeric_seen++;
 	}
 
-	return Config{q, k, seed, want_max, sort_output, debug_output, run_check, ex_threads, dtype};
+	return Config{q, k, seed, want_max, debug_output, run_check, ex_threads, dtype};
 }

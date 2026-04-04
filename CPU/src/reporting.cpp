@@ -56,7 +56,6 @@ void print_configuration(const Config& cfg, std::size_t ex_threads, std::size_t 
 	print_key_value("Requested top-k", cfg.k);
 	print_key_value("Data type", dtype_name(cfg.dtype));
 	print_key_value("Mode", (cfg.want_max ? "max" : "min"));
-	print_key_value("Final sort", (cfg.sort_output ? "on" : "off"));
 	print_key_value("Debug output", (cfg.debug_output ? "on" : "off"));
 	print_key_value("Full reference check", (cfg.run_check ? "on" : "off"));
 }
@@ -107,7 +106,7 @@ void print_correctness_summary(bool run_check, bool ok) {
 void print_topk_output(const Config& cfg, const std::vector<std::string>& output) {
 	print_section_header("Top-k Output");
 	print_key_value("Mode", (cfg.want_max ? "max" : "min"));
-	print_key_value("Order", (cfg.sort_output ? "sorted" : "network-order"));
+	print_key_value("Order", "sorted");
 	print_key_value("Values reported", output.size());
 
 	if (output.empty()) {

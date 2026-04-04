@@ -112,12 +112,10 @@ std::vector<T> build_output(const std::vector<T>& truncated, const Config& cfg) 
 		output[i] = cfg.want_max ? restore_from_max(truncated[i]) : truncated[i];
 	}
 
-	if (cfg.sort_output) {
-		if (cfg.want_max) {
-			std::sort(output.begin(), output.end(), std::greater<int>());
-		} else {
-			std::sort(output.begin(), output.end());
-		}
+	if (cfg.want_max) {
+		std::sort(output.begin(), output.end(), std::greater<T>());
+	} else {
+		std::sort(output.begin(), output.end());
 	}
 
 	return output;

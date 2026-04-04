@@ -16,7 +16,6 @@ struct Config {
 	std::size_t k;
 	std::uint64_t seed;
 	bool want_max;
-	bool sort_output;
 	bool debug_output;
 	bool run_check;
 	std::size_t ex_threads;
