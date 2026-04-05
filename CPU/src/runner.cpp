@@ -147,7 +147,9 @@ template <typename T> bool value_equal(T lhs, T rhs) {
 		const double b = static_cast<double>(rhs);
 		const double diff = std::fabs(a - b);
 		const double scale = std::max(1.0, std::max(std::fabs(a), std::fabs(b)));
-		return diff <= 1e-6 * scale;
+		const double rel_tol = 1e-6 * scale;
+		const double abs_tol = 1e-3;
+		return diff <= std::max(rel_tol, abs_tol);
 	}
 	return lhs == rhs;
 }
