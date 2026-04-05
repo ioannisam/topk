@@ -1,0 +1,2 @@
+q=1 k=2 mode=max dtype=int run=trunc debug=false threads=2 seed=101 check=true
+553 516

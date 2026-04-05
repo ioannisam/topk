@@ -1,2 +1,0 @@
-q=4 k=5 mode=max dtype=int run=trunc debug=false threads=4 seed=7 check=true
-979 978 780 724 539

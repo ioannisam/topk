@@ -1,0 +1,2 @@
+q=20 k=8 mode=max dtype=float run=trunc debug=false threads=8 seed=120 check=true
+999.999 999.999 999.998 999.992  999.99 999.987 999.984 999.983

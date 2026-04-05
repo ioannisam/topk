@@ -1,0 +1,2 @@
+q=3 k=8 mode=max dtype=float run=trunc debug=false threads=8 seed=103 check=true
+895.176 883.394 809.469 480.972 259.094 88.7231  81.387 53.8934

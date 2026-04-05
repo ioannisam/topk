@@ -1,2 +1,0 @@
-q=3 k=4 mode=min dtype=int run=trunc debug=false threads=2 seed=99 check=true
-31 488 672 701

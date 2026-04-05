@@ -1,0 +1,2 @@
+q=6 k=8 mode=max dtype=int run=trunc debug=false threads=8 seed=106 check=true
+997 996 996 975 975 955 912 903
