@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+namespace common {
+
 enum class DataType {
 	Int,
 	UInt,
@@ -22,12 +24,12 @@ enum class RunMode {
 struct Config {
 	int q;
 	std::size_t k;
-	std::uint64_t seed;
 	bool want_max;
-	bool debug_output;
-	RunMode run_mode;
-	std::size_t ex_threads;
 	DataType dtype;
+	RunMode run_mode;
+	bool debug_output;
+	std::size_t ex_threads;
+	std::uint64_t seed;
 
 	std::string testcase_path;
 	bool run_check;
@@ -36,3 +38,5 @@ struct Config {
 };
 
 Config parse_args(int argc, char** argv);
+
+} // namespace common

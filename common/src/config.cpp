@@ -1,4 +1,4 @@
-#include "config.hpp"
+#include "common/config.hpp"
 
 #include <cctype>
 #include <filesystem>
@@ -11,6 +11,7 @@
 #define DEBUG 0
 #endif
 
+namespace common {
 namespace {
 
 struct ParsedCase {
@@ -206,8 +207,8 @@ Config parse_tokens(const std::vector<std::string>& tokens, const std::string& t
 
 	if (tokens.empty() || tokens.size() > 11) {
 		throw std::invalid_argument("Usage: ./topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] "
-									"[run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>] "
-									"[check=true|false] (testcase mode only, key=value only)");
+								"[run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>] "
+								"[check=true|false] (testcase mode only, key=value only)");
 	}
 
 	int q = -1;
@@ -364,11 +365,11 @@ RunMode parse_run_mode(const std::string& token) {
 Config parse_args(int argc, char** argv) {
 	if (argc < 2) {
 		throw std::invalid_argument("Usage: ./topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] "
-									"[run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>]\n"
-									"   or: ./topk <testcase-file>\n"
-									"   or: ./topk --case <testcase-file>\n"
-									"   or: ./topk case=<testcase-file>\n"
-									"In testcase mode only: [check=true|false]");
+								"[run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>]\n"
+								"   or: ./topk <testcase-file>\n"
+								"   or: ./topk --case <testcase-file>\n"
+								"   or: ./topk case=<testcase-file>\n"
+								"In testcase mode only: [check=true|false]");
 	}
 
 	std::vector<std::string> cli_tokens;
@@ -399,3 +400,5 @@ Config parse_args(int argc, char** argv) {
 
 	return parse_tokens(cli_tokens, "", {}, false, false);
 }
+
+} // namespace common

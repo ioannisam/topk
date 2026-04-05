@@ -8,13 +8,19 @@ It supports:
 
 ## Layout
 
-- `include/config.hpp` + `src/config.cpp`: `Config` object, argument parsing and config construction
 - `include/layers.hpp` + `src/layers.cpp`: `Layer` object and bitonic layer schedule generation
 - `include/algorithm.hpp` + `src/algorithm.cpp`: keep-mask generation and parallel network execution
-- `include/utils.hpp` + `src/utils.cpp`: comparator counting utilities
+- `include/utils.hpp` + `src/utils.cpp`: comparator counting utilities (CPU-specific)
 - `include/reporting.hpp` + `src/reporting.cpp`: run/debug/timing/output print helpers
 - `include/runner.hpp` + `src/runner.cpp`: top-k run pipeline and flow orchestration
-- `src/main.cpp`: CLI entrypoint and error handling
+- `src/main.cpp`: CLI entrypoint and error handling (uses shared common parser)
+
+Shared backend-agnostic foundation now lives in `../common`:
+
+- `../common/include/common/config.hpp` + `../common/src/config.cpp`: config types and CLI/testcase parsing
+- `../common/include/common/random.hpp` + `../common/src/random.cpp`: deterministic random input generation
+- `../common/include/common/validation.hpp`: output formatting and testcase-answer validation helpers
+- `../common/include/common/reporting.hpp` + `../common/src/reporting.cpp`: reusable reporting primitives (configuration, timing, output)
 
 ## Build
 

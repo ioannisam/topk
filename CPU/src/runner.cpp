@@ -2,24 +2,28 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
 #include <limits>
 #include <iostream>
-#include <sstream>
 #include <string>
 #include <thread>
 #include <type_traits>
 #include <vector>
 
 #include "algorithm.hpp"
+#include "common/random.hpp"
+#include "common/validation.hpp"
 #include "layers.hpp"
 #include "reporting.hpp"
 #include "utils.hpp"
 
 namespace {
+
+using common::Config;
+using common::DataType;
+using common::RunMode;
 
 constexpr int randMin = 0;
 constexpr int randMax = 1000;
@@ -108,71 +112,6 @@ template <typename T> std::vector<T> build_output(const std::vector<T>& trunc, c
 	return output;
 }
 
-template <typename T> std::string format_value(T value) {
-	if constexpr (std::is_integral_v<T>) {
-		if constexpr (std::is_unsigned_v<T>) {
-			return std::to_string(static_cast<unsigned long long>(value));
-		}
-		return std::to_string(static_cast<long long>(value));
-	} else {
-		std::ostringstream out;
-		out << static_cast<double>(value);
-		return out.str();
-	}
-}
-
-template <typename T> std::vector<std::string> format_output(const std::vector<T>& values) {
-	std::vector<std::string> out;
-	out.reserve(values.size());
-	for (const T value : values) {
-		out.push_back(format_value(value));
-	}
-	return out;
-}
-
-template <typename T> T parse_expected_value(const std::string& token) {
-	if constexpr (std::is_integral_v<T>) {
-		if constexpr (std::is_unsigned_v<T>) {
-			return static_cast<T>(std::stoull(token));
-		}
-		return static_cast<T>(std::stoll(token));
-	} else {
-		return static_cast<T>(std::stod(token));
-	}
-}
-
-template <typename T> bool value_equal(T lhs, T rhs) {
-	if constexpr (std::is_floating_point_v<T>) {
-		const double a = static_cast<double>(lhs);
-		const double b = static_cast<double>(rhs);
-		const double diff = std::fabs(a - b);
-		const double scale = std::max(1.0, std::max(std::fabs(a), std::fabs(b)));
-		const double rel_tol = 1e-6 * scale;
-		const double abs_tol = 1e-3;
-		return diff <= std::max(rel_tol, abs_tol);
-	}
-	return lhs == rhs;
-}
-
-template <typename T> bool validate_output(const Config& cfg, const std::vector<T>& output) {
-	if (!cfg.has_expected_output) {
-		return true;
-	}
-
-	if (cfg.expected_output_tokens.size() != output.size()) {
-		return false;
-	}
-
-	for (std::size_t i = 0; i < output.size(); ++i) {
-		const T expected = parse_expected_value<T>(cfg.expected_output_tokens[i]);
-		if (!value_equal(output[i], expected)) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
 template <typename T> int run_topk_typed(const Config& cfg) {
 	const Context ctx = build_context(cfg);
 
@@ -183,7 +122,7 @@ template <typename T> int run_topk_typed(const Config& cfg) {
 	const std::size_t full_cmp = count_full_comparators(layers, ctx.n);
 	const std::size_t trunc_cmp = count_trunc_comparators(layers, keep, ctx.n);
 
-	std::vector<T> input = generate_random_input<T>(ctx.n, cfg.seed, randMin, randMax);
+	std::vector<T> input = common::generate_random_input<T>(ctx.n, cfg.seed, randMin, randMax);
 	apply_mode_transform(input, cfg.want_max);
 
 	const bool run_trunc = cfg.run_mode != RunMode::Full;
@@ -221,20 +160,20 @@ template <typename T> int run_topk_typed(const Config& cfg) {
 	const std::vector<T>& chosen_network_output = (cfg.run_mode == RunMode::Full) ? full : trunc;
 	std::vector<T> output = build_output(chosen_network_output, cfg);
 	if (cfg.run_check && cfg.has_expected_output) {
-		const bool expected_ok = validate_output(cfg, output);
+		const bool expected_ok = common::validate_expected_output(cfg, output);
 		std::cout << "Top-k correctness vs testcase answer: " << (expected_ok ? "OK" : "FAIL") << "\n";
 		if (!expected_ok) {
 			return 3;
 		}
 	}
-	print_topk_output(cfg, format_output(output));
+	print_output(cfg, common::format_output(output));
 
 	return 0;
 }
 
 } // namespace
 
-int run_topk(const Config& cfg) {
+int run_topk(const common::Config& cfg) {
 	switch (cfg.dtype) {
 	case DataType::Int:
 		return run_topk_typed<std::int32_t>(cfg);

@@ -1,5 +1,5 @@
 #pragma once
 
-#include "config.hpp"
+#include "common/config.hpp"
 
-int run_topk(const Config& cfg);
+int run_topk(const common::Config& cfg);
