@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT_DIR="${ROOT_DIR}/results"
+OUT_DIR="${ROOT_DIR}/test/results"
 mkdir -p "${OUT_DIR}"
 
 OUT_FILE="${OUT_DIR}/specs_validation.md"
