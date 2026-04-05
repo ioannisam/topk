@@ -7,8 +7,9 @@ usage() {
     echo "Usage: scripts/run_testcases.sh <backends> [types]"
     echo "Examples:"
     echo "  scripts/run_testcases.sh cpu"
+    echo "  scripts/run_testcases.sh gt"
     echo "  scripts/run_testcases.sh cpu float,int,uint"
-    echo "  scripts/run_testcases.sh '{cpu,npu}' '{float,int,uint}'"
+    echo "  scripts/run_testcases.sh '{cpu,gt,npu}' '{float,int,uint}'"
 }
 
 normalize_list() {
@@ -21,6 +22,9 @@ normalize_list() {
 resolve_binary_path() {
     local backend="$1"
     case "${backend}" in
+        gt)
+            printf '%s' "${ROOT_DIR}/test/perf/ground_truth/build/topk"
+            ;;
         cpu)
             printf '%s' "${ROOT_DIR}/CPU/build/topk"
             ;;
@@ -36,6 +40,12 @@ resolve_binary_path() {
     esac
 }
 
+is_backend_token() {
+    local token
+    token="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+    [[ "${token}" == "cpu" || "${token}" == "gt" || "${token}" == "gpu" || "${token}" == "npu" ]]
+}
+
 if [[ $# -lt 1 ]]; then
     usage
     exit 2
@@ -49,36 +59,58 @@ ARGS=("$@")
 ARGC=${#ARGS[@]}
 IDX=0
 
-BACKEND_EXPR="${ARGS[0]}"
-if [[ "${BACKEND_EXPR}" == \{* ]]; then
-    IDX=1
-    while [[ "${BACKEND_EXPR}" != *\} && ${IDX} -lt ${ARGC} ]]; do
-        BACKEND_EXPR+=" ${ARGS[${IDX}]}"
+BACKEND_TOKENS=()
+TYPE_TOKENS=()
+
+if is_backend_token "${ARGS[0]}"; then
+    while [[ ${IDX} -lt ${ARGC} ]] && is_backend_token "${ARGS[${IDX}]}"; do
+        BACKEND_TOKENS+=("$(printf '%s' "${ARGS[${IDX}]}" | tr '[:upper:]' '[:lower:]')")
         IDX=$((IDX + 1))
     done
-    if [[ "${BACKEND_EXPR}" != *\} ]]; then
-        echo "Malformed backend list: missing closing }"
-        usage
-        exit 2
+
+    while [[ ${IDX} -lt ${ARGC} ]]; do
+        TYPE_TOKENS+=("${ARGS[${IDX}]}")
+        IDX=$((IDX + 1))
+    done
+
+    BACKENDS_RAW="$(IFS=,; printf '%s' "${BACKEND_TOKENS[*]}")"
+    TYPES_RAW=""
+    if [[ ${#TYPE_TOKENS[@]} -gt 0 ]]; then
+        TYPE_EXPR="$(IFS=,; printf '%s' "${TYPE_TOKENS[*]}")"
+        TYPES_RAW="$(normalize_list "${TYPE_EXPR}")"
     fi
 else
-    IDX=1
-fi
+    BACKEND_EXPR="${ARGS[0]}"
+    if [[ "${BACKEND_EXPR}" == \{* ]]; then
+        IDX=1
+        while [[ "${BACKEND_EXPR}" != *\} && ${IDX} -lt ${ARGC} ]]; do
+            BACKEND_EXPR+=" ${ARGS[${IDX}]}"
+            IDX=$((IDX + 1))
+        done
+        if [[ "${BACKEND_EXPR}" != *\} ]]; then
+            echo "Malformed backend list: missing closing }"
+            usage
+            exit 2
+        fi
+    else
+        IDX=1
+    fi
 
-TYPE_EXPR=""
-if [[ ${IDX} -lt ${ARGC} ]]; then
-    TYPE_EXPR="${ARGS[${IDX}]}"
-    IDX=$((IDX + 1))
-    while [[ ${IDX} -lt ${ARGC} ]]; do
-        TYPE_EXPR+=" ${ARGS[${IDX}]}"
+    TYPE_EXPR=""
+    if [[ ${IDX} -lt ${ARGC} ]]; then
+        TYPE_EXPR="${ARGS[${IDX}]}"
         IDX=$((IDX + 1))
-    done
-fi
+        while [[ ${IDX} -lt ${ARGC} ]]; do
+            TYPE_EXPR+=" ${ARGS[${IDX}]}"
+            IDX=$((IDX + 1))
+        done
+    fi
 
-BACKENDS_RAW="$(normalize_list "${BACKEND_EXPR}")"
-TYPES_RAW=""
-if [[ -n "${TYPE_EXPR}" ]]; then
-    TYPES_RAW="$(normalize_list "${TYPE_EXPR}")"
+    BACKENDS_RAW="$(normalize_list "${BACKEND_EXPR}")"
+    TYPES_RAW=""
+    if [[ -n "${TYPE_EXPR}" ]]; then
+        TYPES_RAW="$(normalize_list "${TYPE_EXPR}")"
+    fi
 fi
 
 IFS=',' read -r -a BACKENDS <<< "${BACKENDS_RAW}"
