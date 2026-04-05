@@ -8,6 +8,6 @@ std::vector<Layer> build_layers(std::size_t n) {
 			layers.push_back(Layer{k, j});
 		}
 	}
-    
+
 	return layers;
 }

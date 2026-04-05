@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.16)
 project(cpu_topk LANGUAGES CXX)
 
 option(DEBUG "Enable debug output by default at runtime" ON)
-option(CHECK "Run full bitonic reference path by default" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,10 +25,4 @@ if(DEBUG)
 	target_compile_definitions(cpu_topk PRIVATE DEBUG=1)
 else()
 	target_compile_definitions(cpu_topk PRIVATE DEBUG=0)
-endif()
-
-if(CHECK)
-	target_compile_definitions(cpu_topk PRIVATE CHECK=1)
-else()
-	target_compile_definitions(cpu_topk PRIVATE CHECK=0)
 endif()

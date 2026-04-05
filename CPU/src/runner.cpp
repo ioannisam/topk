@@ -2,10 +2,12 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
 #include <limits>
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -28,11 +30,6 @@ struct Context {
 	std::size_t ex_threads;
 };
 
-struct Check {
-	bool ok;
-	double full_ms;
-};
-
 Context build_context(const Config& cfg) {
 	const std::size_t n = std::size_t{1} << cfg.q;
 	const std::size_t hw_threads = std::max<std::size_t>(1, std::thread::hardware_concurrency());
@@ -42,8 +39,7 @@ Context build_context(const Config& cfg) {
 	return Context{n, hw_threads, ex_threads};
 }
 
-template <typename T>
-T transform_for_max(T value) {
+template <typename T> T transform_for_max(T value) {
 	if constexpr (std::is_unsigned_v<T>) {
 		return static_cast<T>(std::numeric_limits<T>::max() - value);
 	} else {
@@ -51,8 +47,7 @@ T transform_for_max(T value) {
 	}
 }
 
-template <typename T>
-T restore_from_max(T value) {
+template <typename T> T restore_from_max(T value) {
 	if constexpr (std::is_unsigned_v<T>) {
 		return static_cast<T>(std::numeric_limits<T>::max() - value);
 	} else {
@@ -60,8 +55,7 @@ T restore_from_max(T value) {
 	}
 }
 
-template <typename T>
-void apply_mode_transform(std::vector<T>& data, bool want_max) {
+template <typename T> void apply_mode_transform(std::vector<T>& data, bool want_max) {
 	if (!want_max) {
 		return;
 	}
@@ -72,44 +66,37 @@ void apply_mode_transform(std::vector<T>& data, bool want_max) {
 }
 
 template <typename T>
-double run_truncated_network(std::vector<T>& truncated, const std::vector<Layer>& layers,
-							 const std::vector<std::vector<unsigned char>>& keep, std::size_t ex_threads) {
+double run_trunc_network(std::vector<T>& trunc, const std::vector<Layer>& layers,
+						 const std::vector<std::vector<unsigned char>>& keep, std::size_t ex_threads) {
 
 	auto t0 = std::chrono::high_resolution_clock::now();
-	run_network_parallel(truncated, layers, keep, true, ex_threads);
+	run_network_parallel(trunc, layers, keep, true, ex_threads);
 	auto t1 = std::chrono::high_resolution_clock::now();
 	return std::chrono::duration<double, std::milli>(t1 - t0).count();
 }
 
 template <typename T>
-Check run_check(const Config& cfg, const std::vector<T>& input, const std::vector<T>& truncated,
-				const std::vector<Layer>& layers, const std::vector<std::vector<unsigned char>>& keep,
-				std::size_t ex_threads) {
-
-	if (!cfg.run_check) {
-		return Check{true, 0.0};
-	}
-
-	std::vector<T> full = input;
+double run_full_network(std::vector<T>& full, const std::vector<Layer>& layers,
+						const std::vector<std::vector<unsigned char>>& keep, std::size_t ex_threads) {
 	auto t0 = std::chrono::high_resolution_clock::now();
 	run_network_parallel(full, layers, keep, false, ex_threads);
 	auto t1 = std::chrono::high_resolution_clock::now();
-	const double full_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-
-	for (std::size_t i = 0; i < cfg.k; i++) {
-		if (truncated[i] != full[i]) {
-			return Check{false, full_ms};
-		}
-	}
-
-	return Check{true, full_ms};
+	return std::chrono::duration<double, std::milli>(t1 - t0).count();
 }
 
-template <typename T>
-std::vector<T> build_output(const std::vector<T>& truncated, const Config& cfg) {
+template <typename T> bool compare_topk_prefix(const std::vector<T>& lhs, const std::vector<T>& rhs, std::size_t k) {
+	for (std::size_t i = 0; i < k; i++) {
+		if (lhs[i] != rhs[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+template <typename T> std::vector<T> build_output(const std::vector<T>& trunc, const Config& cfg) {
 	std::vector<T> output(cfg.k);
 	for (std::size_t i = 0; i < cfg.k; i++) {
-		output[i] = cfg.want_max ? restore_from_max(truncated[i]) : truncated[i];
+		output[i] = cfg.want_max ? restore_from_max(trunc[i]) : trunc[i];
 	}
 
 	if (cfg.want_max) {
@@ -121,8 +108,7 @@ std::vector<T> build_output(const std::vector<T>& truncated, const Config& cfg) 
 	return output;
 }
 
-template <typename T>
-std::string format_value(T value) {
+template <typename T> std::string format_value(T value) {
 	if constexpr (std::is_integral_v<T>) {
 		if constexpr (std::is_unsigned_v<T>) {
 			return std::to_string(static_cast<unsigned long long>(value));
@@ -135,8 +121,7 @@ std::string format_value(T value) {
 	}
 }
 
-template <typename T>
-std::vector<std::string> format_output(const std::vector<T>& values) {
+template <typename T> std::vector<std::string> format_output(const std::vector<T>& values) {
 	std::vector<std::string> out;
 	out.reserve(values.size());
 	for (const T value : values) {
@@ -145,8 +130,48 @@ std::vector<std::string> format_output(const std::vector<T>& values) {
 	return out;
 }
 
-template <typename T>
-int run_topk_typed(const Config& cfg) {
+template <typename T> T parse_expected_value(const std::string& token) {
+	if constexpr (std::is_integral_v<T>) {
+		if constexpr (std::is_unsigned_v<T>) {
+			return static_cast<T>(std::stoull(token));
+		}
+		return static_cast<T>(std::stoll(token));
+	} else {
+		return static_cast<T>(std::stod(token));
+	}
+}
+
+template <typename T> bool value_equal(T lhs, T rhs) {
+	if constexpr (std::is_floating_point_v<T>) {
+		const double a = static_cast<double>(lhs);
+		const double b = static_cast<double>(rhs);
+		const double diff = std::fabs(a - b);
+		const double scale = std::max(1.0, std::max(std::fabs(a), std::fabs(b)));
+		return diff <= 1e-6 * scale;
+	}
+	return lhs == rhs;
+}
+
+template <typename T> bool validate_output(const Config& cfg, const std::vector<T>& output) {
+	if (!cfg.has_expected_output) {
+		return true;
+	}
+
+	if (cfg.expected_output_tokens.size() != output.size()) {
+		return false;
+	}
+
+	for (std::size_t i = 0; i < output.size(); ++i) {
+		const T expected = parse_expected_value<T>(cfg.expected_output_tokens[i]);
+		if (!value_equal(output[i], expected)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+template <typename T> int run_topk_typed(const Config& cfg) {
 	const Context ctx = build_context(cfg);
 
 	print_configuration(cfg, ctx.ex_threads, ctx.n);
@@ -154,27 +179,52 @@ int run_topk_typed(const Config& cfg) {
 	auto keep = build_masks(layers, ctx.n, cfg.k);
 
 	const std::size_t full_cmp = count_full_comparators(layers, ctx.n);
-	const std::size_t trunc_cmp = count_truncated_comparators(layers, keep, ctx.n);
+	const std::size_t trunc_cmp = count_trunc_comparators(layers, keep, ctx.n);
 
 	std::vector<T> input = generate_random_input<T>(ctx.n, cfg.seed, randMin, randMax);
 	apply_mode_transform(input, cfg.want_max);
 
-	std::vector<T> truncated = input;
-	const double trunc_ms = run_truncated_network(truncated, layers, keep, ctx.ex_threads);
-	const Check check = run_check(cfg, input, truncated, layers, keep, ctx.ex_threads);
+	const bool run_trunc = cfg.run_mode != RunMode::Full;
+	const bool run_full = cfg.run_mode != RunMode::Trunc;
 
-	print_timing_summary(cfg.run_check, check.full_ms, trunc_ms);
-	print_debug_metrics(cfg, ctx.hw_threads, ctx.ex_threads, layers.size(), full_cmp, trunc_cmp,
-						check.full_ms, trunc_ms);
+	std::vector<T> trunc;
+	std::vector<T> full;
+	double trunc_ms = 0.0;
+	double full_ms = 0.0;
 
-	if (cfg.run_check) {
-		print_correctness_summary(cfg.run_check, check.ok);
-		if (!check.ok) {
+	if (run_trunc) {
+		trunc = input;
+		trunc_ms = run_trunc_network(trunc, layers, keep, ctx.ex_threads);
+	}
+
+	if (run_full) {
+		full = input;
+		full_ms = run_full_network(full, layers, keep, ctx.ex_threads);
+	}
+
+	const bool run_both = cfg.run_mode == RunMode::Both;
+	const bool both_ok = run_both ? compare_topk_prefix(trunc, full, cfg.k) : true;
+
+	print_timing_summary(run_full, run_trunc, full_ms, trunc_ms);
+	print_skipped_summary(run_trunc, full_cmp, trunc_cmp);
+	print_debug_metrics(cfg, ctx.hw_threads, ctx.ex_threads, layers.size(), full_cmp, trunc_cmp, full_ms, trunc_ms);
+
+	if (run_both) {
+		print_correctness_summary(true, both_ok);
+		if (!both_ok) {
 			return 2;
 		}
 	}
 
-	std::vector<T> output = build_output(truncated, cfg);
+	const std::vector<T>& chosen_network_output = (cfg.run_mode == RunMode::Full) ? full : trunc;
+	std::vector<T> output = build_output(chosen_network_output, cfg);
+	if (cfg.run_check && cfg.has_expected_output) {
+		const bool expected_ok = validate_output(cfg, output);
+		std::cout << "Top-k correctness vs testcase answer: " << (expected_ok ? "OK" : "FAIL") << "\n";
+		if (!expected_ok) {
+			return 3;
+		}
+	}
 	print_topk_output(cfg, format_output(output));
 
 	return 0;

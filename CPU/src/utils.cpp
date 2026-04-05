@@ -9,8 +9,8 @@ std::size_t count_full_comparators(const std::vector<Layer>& layers, std::size_t
 	return layers.size() * (n / 2);
 }
 
-std::size_t count_truncated_comparators(const std::vector<Layer>& layers,
-										const std::vector<std::vector<unsigned char>>& keep, std::size_t n) {
+std::size_t count_trunc_comparators(const std::vector<Layer>& layers,
+									const std::vector<std::vector<unsigned char>>& keep, std::size_t n) {
 
 	std::size_t active = 0;
 	for (std::size_t layer_idx = 0; layer_idx < layers.size(); ++layer_idx) {
@@ -57,16 +57,16 @@ std::vector<T> generate_random_input(std::size_t n, std::uint64_t seed, int min_
 	return input;
 }
 
-template std::vector<std::int32_t> generate_random_input<std::int32_t>(std::size_t n, std::uint64_t seed,
-																	int min_value, int max_value);
+template std::vector<std::int32_t> generate_random_input<std::int32_t>(std::size_t n, std::uint64_t seed, int min_value,
+																	   int max_value);
 template std::vector<std::uint32_t> generate_random_input<std::uint32_t>(std::size_t n, std::uint64_t seed,
-																	 int min_value, int max_value);
+																		 int min_value, int max_value);
 template std::vector<float> generate_random_input<float>(std::size_t n, std::uint64_t seed, int min_value,
-															  int max_value);
+														 int max_value);
 template std::vector<double> generate_random_input<double>(std::size_t n, std::uint64_t seed, int min_value,
-															   int max_value);
+														   int max_value);
 
 #if defined(__FLT16_MANT_DIG__)
 template std::vector<_Float16> generate_random_input<_Float16>(std::size_t n, std::uint64_t seed, int min_value,
-																	int max_value);
+															   int max_value);
 #endif

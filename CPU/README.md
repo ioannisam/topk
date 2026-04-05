@@ -4,7 +4,7 @@ This directory contains a parallel CPU implementation of bitonic top-k using C++
 
 It supports:
 - Full bitonic sorting network (reference path)
-- Truncated bitonic execution for top-k output
+- Trunc bitonic execution for top-k output
 
 ## Layout
 
@@ -28,17 +28,28 @@ Optional CMake flags:
 
 ```bash
 cmake -S . -B build \
-  -DDEBUG=ON \
-  -DCHECK=OFF
+  -DDEBUG=ON
 ```
 
 - `DEBUG`: default runtime debug mode (`debug`/`nodebug`)
-- `CHECK`: default runtime full-reference run + correctness check (`check`/`nocheck`)
 
 ## Run
 
 ```bash
-./build/topk <q> [k] [seed] [min|max] [debug|nodebug] [check|nocheck] [threads=<num>] [dtype=<type>]
+./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>]
+```
+
+Only `key=value` arguments are accepted. Required key: `q`.
+Arguments are accepted in any order, but examples below use the canonical order above for consistency.
+
+Or run from a testcase file:
+
+```bash
+./build/topk <testcase-file>
+# or
+./build/topk --case <testcase-file>
+# or
+./build/topk case=<testcase-file>
 ```
 
 - `N = 2^q` total elements
@@ -47,20 +58,46 @@ cmake -S . -B build \
 - `seed` defaults to `42`
 - `mode` defaults to `max`
 - `debug` defaults from `DEBUG`
-- `check` defaults from `CHECK`
+- run mode defaults to `trunc`
 - `threads=<num>` optionally overrides execution threads
 - `dtype=<type>` selects value type: `int`, `uint`, `float`, `double`, `fp16` (fp16 requires compiler support)
 
 Example:
 
 ```bash
-./build/topk 13 128 42 min debug check threads=16 dtype=float
+./build/topk q=13 k=128 mode=min dtype=float run=both debug=true threads=16 seed=42
 ```
 
 Runtime tokens:
-- `min`: smallest k values
-- `max`: largest k values
-- `debug`: print diagnostics (threads, layers, comparator counts, skip ratio, speedup)
-- `nodebug`: keep diagnostics minimal
-- `check`: run full bitonic reference and validate top-k correctness
-- `nocheck`: skip full-reference path for faster runs
+- `mode=min|max`: smallest or largest k values
+- `debug=true|false`: enable/disable debug metrics
+- `run=trunc|full|both`: select network execution mode
+
+## Testcase File Format
+
+Testcase files can hold everything a full CLI command includes.
+
+Rules:
+- First non-comment line: command arguments (same tokens you would pass to `./build/topk`, without the program name).
+- Last non-comment line: expected top-k output values in sorted order.
+- Lines starting with `#` are ignored.
+- `check=true|false` is allowed only in testcase mode.
+
+Minimal example:
+
+```text
+q=4 k=5 mode=max dtype=int run=both debug=false threads=4 seed=7 check=true
+979 978 780 724 539
+```
+
+Optional tagged format is also supported:
+
+```text
+command: q=4 k=5 mode=max dtype=int run=both debug=false threads=4 seed=7 check=true
+answer: 979 978 780 724 539
+```
+
+Validation behavior:
+- `both` compares trunc top-k vs full-network top-k.
+- If testcase command includes `check=true`, output is also validated against testcase expected-answer line.
+- If testcase command includes `check=false`, testcase expected-answer validation is skipped.

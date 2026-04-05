@@ -1,0 +1,2 @@
+q=5 k=8 mode=min dtype=uint run=trunc debug=false threads=4 seed=123 check=true
+59 140 227 245 286 324 343 392
