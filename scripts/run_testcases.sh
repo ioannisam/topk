@@ -5,11 +5,21 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 usage() {
     echo "Usage: scripts/run_testcases.sh <backends> [types]"
+    echo "       scripts/run_testcases.sh [options] <backends> [types]"
     echo "Examples:"
     echo "  scripts/run_testcases.sh cpu"
     echo "  scripts/run_testcases.sh gt"
     echo "  scripts/run_testcases.sh cpu float,int,uint"
     echo "  scripts/run_testcases.sh '{cpu,gt,npu}' '{float,int,uint}'"
+    echo "  scripts/run_testcases.sh --energy auto '{cpu,gpu,gt}' int"
+    echo "Options:"
+    echo "  --energy <none|auto|rapl|gpu>   Enable optional energy measurement wrappers (default: none)"
+    echo "  --energy-out-dir <path>         Directory for measurement output files"
+    echo "                                  (default: test/prof/results/measurements)"
+    echo "  --rapl-path <path>              Optional explicit RAPL energy_uj path for rapl mode"
+    echo "  --gpu-index <idx>               GPU index for gpu mode (default: 0)"
+    echo "  --gpu-interval-ms <ms>          Sample interval for gpu mode (default: 100)"
+    echo "  --help, -h                      Show this help"
 }
 
 normalize_list() {
@@ -46,13 +56,128 @@ is_backend_token() {
     [[ "${token}" == "cpu" || "${token}" == "gt" || "${token}" == "gpu" || "${token}" == "npu" ]]
 }
 
+resolve_energy_mode() {
+    local backend="$1"
+    local mode="$2"
+
+    case "${mode}" in
+        none)
+            printf '%s' "none"
+            ;;
+        rapl)
+            printf '%s' "rapl"
+            ;;
+        gpu)
+            printf '%s' "gpu"
+            ;;
+        auto)
+            if [[ "${backend}" == "gpu" ]]; then
+                printf '%s' "gpu"
+            else
+                printf '%s' "rapl"
+            fi
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+ENERGY_MODE="none"
+ENERGY_OUT_DIR="${ROOT_DIR}/test/prof/results/measurements"
+RAPL_PATH=""
+GPU_INDEX="0"
+GPU_INTERVAL_MS="100"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --energy)
+            if [[ $# -lt 2 ]]; then
+                echo "error: --energy needs a value"
+                usage
+                exit 2
+            fi
+            ENERGY_MODE="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
+            shift 2
+            ;;
+        --energy-out-dir)
+            if [[ $# -lt 2 ]]; then
+                echo "error: --energy-out-dir needs a value"
+                usage
+                exit 2
+            fi
+            ENERGY_OUT_DIR="$2"
+            shift 2
+            ;;
+        --rapl-path)
+            if [[ $# -lt 2 ]]; then
+                echo "error: --rapl-path needs a value"
+                usage
+                exit 2
+            fi
+            RAPL_PATH="$2"
+            shift 2
+            ;;
+        --gpu-index)
+            if [[ $# -lt 2 ]]; then
+                echo "error: --gpu-index needs a value"
+                usage
+                exit 2
+            fi
+            GPU_INDEX="$2"
+            shift 2
+            ;;
+        --gpu-interval-ms)
+            if [[ $# -lt 2 ]]; then
+                echo "error: --gpu-interval-ms needs a value"
+                usage
+                exit 2
+            fi
+            GPU_INTERVAL_MS="$2"
+            shift 2
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            echo "error: unknown option: $1"
+            usage
+            exit 2
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+if [[ "${ENERGY_MODE}" != "none" && "${ENERGY_MODE}" != "auto" && "${ENERGY_MODE}" != "rapl" && "${ENERGY_MODE}" != "gpu" ]]; then
+    echo "error: invalid --energy value '${ENERGY_MODE}' (expected: none|auto|rapl|gpu)"
+    usage
+    exit 2
+fi
+
+if [[ ! "${GPU_INDEX}" =~ ^[0-9]+$ ]]; then
+    echo "error: --gpu-index must be a non-negative integer"
+    exit 2
+fi
+
+if [[ ! "${GPU_INTERVAL_MS}" =~ ^[0-9]+$ ]] || [[ "${GPU_INTERVAL_MS}" -le 0 ]]; then
+    echo "error: --gpu-interval-ms must be a positive integer"
+    exit 2
+fi
+
 if [[ $# -lt 1 ]]; then
     usage
     exit 2
 fi
 
 EXPECTED_PASS_MARKER="Top-k correctness vs testcase answer: OK"
-RESULTS_DIR="${ROOT_DIR}/test/results"
+RESULTS_DIR="${ROOT_DIR}/test/prof/results"
 RESULT_FILE="${RESULTS_DIR}/test_output.txt"
 
 ARGS=("$@")
@@ -128,8 +253,12 @@ fi
 
 TOTAL_PASS=0
 TOTAL_FAIL=0
+RUN_ID="$(date +%Y%m%d_%H%M%S)"
 
 mkdir -p "${RESULTS_DIR}"
+if [[ "${ENERGY_MODE}" != "none" ]]; then
+    mkdir -p "${ENERGY_OUT_DIR}"
+fi
 {
     echo "Testcase Run Output"
     echo "Backends: ${BACKENDS_RAW}"
@@ -137,6 +266,10 @@ mkdir -p "${RESULTS_DIR}"
         echo "Types   : ${TYPES_RAW}"
     else
         echo "Types   : auto-detected from test/cases"
+    fi
+    echo "Energy  : ${ENERGY_MODE}"
+    if [[ "${ENERGY_MODE}" != "none" ]]; then
+        echo "Energy out dir: ${ENERGY_OUT_DIR}"
     fi
     echo
 } >"${RESULT_FILE}"
@@ -147,6 +280,10 @@ if [[ -n "${TYPES_RAW}" ]]; then
     echo "Types   : ${TYPES_RAW}"
 else
     echo "Types   : auto-detected from test/cases"
+fi
+echo "Energy  : ${ENERGY_MODE}"
+if [[ "${ENERGY_MODE}" != "none" ]]; then
+    echo "Energy out dir: ${ENERGY_OUT_DIR}"
 fi
 
 for backend_raw in "${BACKENDS[@]}"; do
@@ -236,8 +373,31 @@ for backend_raw in "${BACKENDS[@]}"; do
             OUTPUT="$(mktemp)"
             CASE_STATUS="FAIL"
             CASE_REASON="non-zero exit"
+            ENERGY_CASE_FILE=""
 
-            if "${BINARY_PATH}" "${CASE}" >"${OUTPUT}" 2>&1; then
+            CASE_ENERGY_MODE="$(resolve_energy_mode "${BACKEND}" "${ENERGY_MODE}")" || {
+                echo "error: unsupported energy mode '${ENERGY_MODE}'"
+                exit 2
+            }
+
+            if [[ "${CASE_ENERGY_MODE}" == "rapl" || "${CASE_ENERGY_MODE}" == "gpu" ]]; then
+                CASE_STEM="${NAME%.case}"
+                ENERGY_CASE_FILE="${ENERGY_OUT_DIR}/${RUN_ID}_${BACKEND}_${TYPE}_${CASE_STEM}_${CASE_ENERGY_MODE}.txt"
+            fi
+
+            if [[ "${CASE_ENERGY_MODE}" == "none" ]]; then
+                RUN_CMD=("${BINARY_PATH}" "${CASE}")
+            elif [[ "${CASE_ENERGY_MODE}" == "rapl" ]]; then
+                RUN_CMD=("${ROOT_DIR}/test/perf/measure_rapl.sh" "--out" "${ENERGY_CASE_FILE}")
+                if [[ -n "${RAPL_PATH}" ]]; then
+                    RUN_CMD+=("--path" "${RAPL_PATH}")
+                fi
+                RUN_CMD+=("--" "${BINARY_PATH}" "${CASE}")
+            else
+                RUN_CMD=("${ROOT_DIR}/test/perf/measure_smi.sh" "--out" "${ENERGY_CASE_FILE}" "--gpu-index" "${GPU_INDEX}" "--interval-ms" "${GPU_INTERVAL_MS}" "--" "${BINARY_PATH}" "${CASE}")
+            fi
+
+            if "${RUN_CMD[@]}" >"${OUTPUT}" 2>&1; then
                 if grep -Fq "${EXPECTED_PASS_MARKER}" "${OUTPUT}"; then
                     echo "    [PASS] ${NAME}"
                     TYPE_PASS=$((TYPE_PASS + 1))
@@ -259,7 +419,10 @@ for backend_raw in "${BACKENDS[@]}"; do
                 echo "### Case: ${NAME}"
                 echo "Status: ${CASE_STATUS}"
                 echo "Reason: ${CASE_REASON}"
-                echo "Command: ${BINARY_PATH} ${CASE}"
+                echo "Command: ${RUN_CMD[*]}"
+                if [[ -n "${ENERGY_CASE_FILE}" ]]; then
+                    echo "Measurement file: ${ENERGY_CASE_FILE}"
+                fi
                 echo "Output:"
                 cat "${OUTPUT}"
                 echo
