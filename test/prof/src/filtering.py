@@ -1,0 +1,47 @@
+from __future__ import annotations
+
+from typing import Iterable, Optional
+
+from .models import CaseRecord, MeasurementRecord
+
+
+def filter_records(
+    records: Iterable[CaseRecord],
+    dtypes: set[str],
+    mode: Optional[str],
+    k_value: Optional[int],
+    backends: set[str],
+) -> list[CaseRecord]:
+    out: list[CaseRecord] = []
+    for rec in records:
+        if dtypes and rec.dtype not in dtypes:
+            continue
+        if mode and rec.mode != mode:
+            continue
+        if k_value is not None and rec.k != k_value:
+            continue
+        if backends and rec.backend not in backends:
+            continue
+        out.append(rec)
+    return out
+
+
+def filter_measurements(
+    records: Iterable[MeasurementRecord],
+    dtypes: set[str],
+    mode: Optional[str],
+    k_value: Optional[int],
+    backends: set[str],
+) -> list[MeasurementRecord]:
+    out: list[MeasurementRecord] = []
+    for rec in records:
+        if dtypes and rec.dtype and rec.dtype not in dtypes:
+            continue
+        if mode and rec.mode and rec.mode != mode:
+            continue
+        if k_value is not None and rec.k is not None and rec.k != k_value:
+            continue
+        if backends and rec.backend and rec.backend not in backends:
+            continue
+        out.append(rec)
+    return out
