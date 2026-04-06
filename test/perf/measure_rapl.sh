@@ -5,9 +5,11 @@ usage() {
     cat <<'EOF'
 Usage:
     sudo ./test/perf/measure_rapl.sh [--path <energy_uj_path>] -- <command> [args...]
+    sudo ./test/perf/measure_rapl.sh [--out <file>] [--path <energy_uj_path>] -- <command> [args...]
     sudo ./test/perf/measure_rapl.sh --list-paths
 
 Options:
+    --out <file>              Also write report to file (for profiler ingestion).
     --path <energy_uj_path>  Use a specific RAPL energy counter file.
     --list-paths             List discovered energy_uj paths and readability.
     --help, -h               Show this help message.
@@ -15,6 +17,7 @@ Options:
 
 Examples:
     sudo ./test/perf/measure_rapl.sh -- ./test/smoke/CPU/build/smoke
+    sudo ./test/perf/measure_rapl.sh --out ./test/prof/results/measurements/rapl_run1.txt -- ./CPU/build/topk ./test/cases/int/q10_k8_max.case
     sudo ./test/perf/measure_rapl.sh --path /sys/class/powercap/intel-rapl:0/energy_uj -- sleep 1
 
 Notes:
@@ -57,9 +60,19 @@ list_energy_paths() {
 
 ENERGY_PATH=""
 LIST_ONLY="no"
+OUT_FILE=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --out)
+            if [[ $# -lt 2 ]]; then
+                echo "error: --out needs a value" >&2
+                usage
+                exit 2
+            fi
+            OUT_FILE="$2"
+            shift 2
+            ;;
         --path)
             if [[ $# -lt 2 ]]; then
                 echo "error: --path needs a value" >&2
@@ -129,7 +142,7 @@ CMD_STATUS=$?
 END_TS="$(date +%s.%N)"
 END_UJ="$(<"${ENERGY_PATH}")"
 
-awk \
+REPORT="$(awk \
     -v path="${ENERGY_PATH}" \
     -v start_uj="${START_UJ}" \
     -v end_uj="${END_UJ}" \
@@ -169,5 +182,13 @@ awk \
     print "- command_exit_code: " cmd_status
 }
 '
+ )"
+
+if [[ -n "${OUT_FILE}" ]]; then
+    mkdir -p "$(dirname "${OUT_FILE}")"
+    printf '%s\n' "${REPORT}" | tee "${OUT_FILE}"
+else
+    printf '%s\n' "${REPORT}"
+fi
 
 exit "${CMD_STATUS}"

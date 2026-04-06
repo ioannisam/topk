@@ -5,9 +5,11 @@ usage() {
     cat <<'EOF'
 Usage:
     ./test/perf/measure_smi.sh [--gpu-index <idx>] [--interval-ms <ms>] -- <command> [args...]
+    ./test/perf/measure_smi.sh [--out <file>] [--gpu-index <idx>] [--interval-ms <ms>] -- <command> [args...]
     ./test/perf/measure_smi.sh --list-gpus
 
 Options:
+    --out <file>          Also write report to file (for profiler ingestion).
     --gpu-index <idx>    Select GPU index to sample (default: 0).
     --interval-ms <ms>   Sampling interval in milliseconds (default: 100).
     --list-gpus          List available GPUs and power-management info.
@@ -16,6 +18,7 @@ Options:
 
 Examples:
     ./test/perf/measure_smi.sh -- ./test/smoke/GPU/build/smoke
+    ./test/perf/measure_smi.sh --out ./test/prof/results/measurements/gpu_run1.txt -- ./GPU/build/topk ./test/cases/int/q10_k8_max.case
     ./test/perf/measure_smi.sh --gpu-index 0 --interval-ms 100 -- sleep 1
 
 Notes:
@@ -49,9 +52,19 @@ read_gpu_power_w() {
 GPU_INDEX="0"
 INTERVAL_MS="100"
 LIST_ONLY="no"
+OUT_FILE=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --out)
+            if [[ $# -lt 2 ]]; then
+                echo "error: --out needs a value" >&2
+                usage
+                exit 2
+            fi
+            OUT_FILE="$2"
+            shift 2
+            ;;
         --gpu-index)
             if [[ $# -lt 2 ]]; then
                 echo "error: --gpu-index needs a value" >&2
@@ -149,7 +162,7 @@ end_ts="$(date +%s.%N)"
 # One last sample at end boundary to improve integration for short runs.
 sample_once
 
-awk \
+REPORT="$(awk \
     -v start_ts="${start_ts}" \
     -v end_ts="${end_ts}" \
     -v gpu_index="${GPU_INDEX}" \
@@ -198,5 +211,13 @@ END {
     print "- command_exit_code: " cmd_status
 }
 ' "${samples_file}"
+ )"
+
+if [[ -n "${OUT_FILE}" ]]; then
+    mkdir -p "$(dirname "${OUT_FILE}")"
+    printf '%s\n' "${REPORT}" | tee "${OUT_FILE}"
+else
+    printf '%s\n' "${REPORT}"
+fi
 
 exit "${cmd_status}"
