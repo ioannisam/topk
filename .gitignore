@@ -1,4 +1,6 @@
-test/results
+test/prof/results
 
 npu_env
+.venv
+__pycache__
 build

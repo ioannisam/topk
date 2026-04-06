@@ -1,0 +1,2 @@
+# Dependencies for test/prof/profiler.py
+matplotlib>=3.10
