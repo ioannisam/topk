@@ -1,9 +1,11 @@
-#include "algorithm.hpp"
+#include "../include/algorithm.hpp"
 
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
 #include <thread>
+
+namespace cpu::bitonic {
 
 namespace {
 
@@ -35,39 +37,8 @@ class Barrier {
 
 } // namespace
 
-std::vector<std::vector<unsigned char>> build_masks(const std::vector<Layer>& layers, std::size_t n, std::size_t k) {
-
-	std::vector<std::vector<unsigned char>> keep(layers.size(), std::vector<unsigned char>(n, 0));
-	std::vector<unsigned char> needed(n, 0);
-	for (std::size_t i = 0; i < k; i++) {
-		needed[i] = 1;
-	}
-
-	for (std::size_t idx = layers.size(); idx-- > 0;) {
-		const std::size_t j = layers[idx].j;
-		std::vector<unsigned char> prev_needed = needed;
-
-		for (std::size_t i = 0; i < n; ++i) {
-			const std::size_t ixj = i ^ j;
-			if (ixj <= i) {
-				continue;
-			}
-			if (needed[i] || needed[ixj]) {
-				keep[idx][i] = 1;
-				keep[idx][ixj] = 1;
-				prev_needed[i] = 1;
-				prev_needed[ixj] = 1;
-			}
-		}
-
-		needed.swap(prev_needed);
-	}
-
-	return keep;
-}
-
 template <typename T>
-void run_network_parallel(std::vector<T>& data, const std::vector<Layer>& layers,
+void run_network_parallel(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
 						  const std::vector<std::vector<unsigned char>>& keep, bool trunc, std::size_t workers) {
 
 	const std::size_t n = data.size();
@@ -116,21 +87,23 @@ void run_network_parallel(std::vector<T>& data, const std::vector<Layer>& layers
 	}
 }
 
-template void run_network_parallel<std::int32_t>(std::vector<std::int32_t>& data, const std::vector<Layer>& layers,
+template void run_network_parallel<std::int32_t>(std::vector<std::int32_t>& data, const std::vector<common::bitonic::Layer>& layers,
 												 const std::vector<std::vector<unsigned char>>& keep, bool trunc,
 												 std::size_t workers);
-template void run_network_parallel<std::uint32_t>(std::vector<std::uint32_t>& data, const std::vector<Layer>& layers,
+template void run_network_parallel<std::uint32_t>(std::vector<std::uint32_t>& data, const std::vector<common::bitonic::Layer>& layers,
 												  const std::vector<std::vector<unsigned char>>& keep, bool trunc,
 												  std::size_t workers);
-template void run_network_parallel<float>(std::vector<float>& data, const std::vector<Layer>& layers,
+template void run_network_parallel<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
 										  const std::vector<std::vector<unsigned char>>& keep, bool trunc,
 										  std::size_t workers);
-template void run_network_parallel<double>(std::vector<double>& data, const std::vector<Layer>& layers,
+template void run_network_parallel<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers,
 										   const std::vector<std::vector<unsigned char>>& keep, bool trunc,
 										   std::size_t workers);
 
 #if defined(__FLT16_MANT_DIG__)
-template void run_network_parallel<_Float16>(std::vector<_Float16>& data, const std::vector<Layer>& layers,
+template void run_network_parallel<_Float16>(std::vector<_Float16>& data, const std::vector<common::bitonic::Layer>& layers,
 											 const std::vector<std::vector<unsigned char>>& keep, bool trunc,
 											 std::size_t workers);
 #endif
+
+} // namespace cpu::bitonic

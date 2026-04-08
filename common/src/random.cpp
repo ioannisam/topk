@@ -5,7 +5,7 @@
 #include <random>
 #include <type_traits>
 
-namespace common {
+namespace common::utils {
 
 template <typename T>
 std::vector<T> generate_random_input(std::size_t n, std::uint64_t seed, int min_value, int max_value) {
@@ -50,4 +50,4 @@ template std::vector<_Float16> generate_random_input<_Float16>(std::size_t n, st
 																						 int max_value);
 #endif
 
-} // namespace common
+} // namespace common::utils

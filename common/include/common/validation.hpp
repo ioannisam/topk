@@ -10,7 +10,7 @@
 
 #include "common/config.hpp"
 
-namespace common {
+namespace common::utils {
 
 template <typename T> std::string format_value(T value) {
 	if constexpr (std::is_integral_v<T>) {
@@ -58,7 +58,7 @@ template <typename T> bool value_equal(T lhs, T rhs) {
 	return lhs == rhs;
 }
 
-template <typename T> bool validate_expected_output(const Config& cfg, const std::vector<T>& output) {
+template <typename T> bool validate_expected_output(const config::Config& cfg, const std::vector<T>& output) {
 	if (!cfg.has_expected_output) {
 		return true;
 	}
@@ -77,4 +77,4 @@ template <typename T> bool validate_expected_output(const Config& cfg, const std
 	return true;
 }
 
-} // namespace common
+} // namespace common::utils

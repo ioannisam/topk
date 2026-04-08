@@ -8,19 +8,19 @@ It supports:
 
 ## Layout
 
-- `include/layers.hpp` + `src/layers.cpp`: `Layer` object and bitonic layer schedule generation
-- `include/algorithm.hpp` + `src/algorithm.cpp`: keep-mask generation and parallel network execution
-- `include/utils.hpp` + `src/utils.cpp`: comparator counting utilities (CPU-specific)
-- `include/reporting.hpp` + `src/reporting.cpp`: run/debug/timing/output print helpers
-- `include/runner.hpp` + `src/runner.cpp`: top-k run pipeline and flow orchestration
+- `include/algorithm.hpp` + `src/algorithm.cpp`: CPU parallel network execution kernels
+- `include/reporting.hpp` + `src/reporting.cpp`: CPU-specific configuration/debug reporting hooks
+- `include/runner.hpp` + `src/runner.cpp`: CPU backend hook wiring into shared top-k pipeline
 - `src/main.cpp`: CLI entrypoint and error handling (uses shared common parser)
 
 Shared backend-agnostic foundation now lives in `../common`:
 
 - `../common/include/common/config.hpp` + `../common/src/config.cpp`: config types and CLI/testcase parsing
+- `../common/include/common/bitonic.hpp` + `../common/src/bitonic.cpp`: bitonic layers, masks, and comparator counting
 - `../common/include/common/random.hpp` + `../common/src/random.cpp`: deterministic random input generation
 - `../common/include/common/validation.hpp`: output formatting and testcase-answer validation helpers
 - `../common/include/common/reporting.hpp` + `../common/src/reporting.cpp`: reusable reporting primitives (configuration, timing, output)
+- `../common/include/common/runner.hpp`: shared top-k runner flow and hook interface reused by CPU/GPU
 
 ## Build
 

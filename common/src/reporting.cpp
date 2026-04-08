@@ -20,29 +20,29 @@ std::size_t number_width(const std::vector<std::string>& values) {
 
 } // namespace
 
-const char* dtype_name(common::DataType dtype) {
+const char* dtype_name(common::config::DataType dtype) {
 	switch (dtype) {
-	case common::DataType::Int:
+	case common::config::DataType::Int:
 		return "int";
-	case common::DataType::UInt:
+	case common::config::DataType::UInt:
 		return "uint";
-	case common::DataType::Float:
+	case common::config::DataType::Float:
 		return "float";
-	case common::DataType::Double:
+	case common::config::DataType::Double:
 		return "double";
-	case common::DataType::Fp16:
+	case common::config::DataType::Fp16:
 		return "fp16";
 	}
 	return "unknown";
 }
 
-const char* run_mode_name(common::RunMode mode) {
+const char* run_mode_name(common::config::RunMode mode) {
 	switch (mode) {
-	case common::RunMode::Trunc:
+	case common::config::RunMode::Trunc:
 		return "trunc";
-	case common::RunMode::Full:
+	case common::config::RunMode::Full:
 		return "full";
-	case common::RunMode::Both:
+	case common::config::RunMode::Both:
 		return "both";
 	}
 	return "unknown";
@@ -76,7 +76,7 @@ void print_key_value(const char* key, double value, int precision) {
 	print_key_value(key, out.str());
 }
 
-void print_configuration(const common::Config& cfg, std::size_t n, std::optional<std::size_t> ex_threads,
+void print_configuration(const common::config::Config& cfg, std::size_t n, std::optional<std::size_t> ex_threads,
 						 const char* run_mode_label, const char* backend_tag) {
 	print_section_header("Configuration");
 	if (backend_tag != nullptr && backend_tag[0] != '\0') {
@@ -115,7 +115,7 @@ void print_check_result(const char* label, bool enabled, bool ok) {
 	std::cout << label << ": " << (ok ? "OK" : "FAIL") << "\n";
 }
 
-void print_output(const common::Config& cfg, const std::vector<std::string>& output) {
+void print_output(const common::config::Config& cfg, const std::vector<std::string>& output) {
 	print_section_header("Top-k Output");
 	print_key_value("Mode", (cfg.want_max ? "max" : "min"));
 	print_key_value("Order", "sorted");

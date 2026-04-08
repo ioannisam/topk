@@ -1,35 +1,14 @@
-#include "reporting.hpp"
-
-#include <sstream>
-#include <string>
+#include "../include/reporting.hpp"
 
 #include "common/reporting.hpp"
 
-void print_configuration(const common::Config& cfg, std::size_t ex_threads, std::size_t n) {
+namespace cpu::reporting {
+
+void print_configuration(const common::config::Config& cfg, std::size_t ex_threads, std::size_t n) {
 	common::reporting::print_configuration(cfg, n, ex_threads, "Network run mode", "cpu");
 }
 
-void print_timing_summary(bool ran_full, bool ran_trunc, double full_ms, double trunc_ms) {
-	common::reporting::print_timing_lines({
-		{"Full bitonic time (ms)", ran_full ? std::optional<double>(full_ms) : std::nullopt},
-		{"Trunc bitonic time (ms)", ran_trunc ? std::optional<double>(trunc_ms) : std::nullopt},
-	});
-}
-
-void print_skipped_summary(bool ran_trunc, std::size_t full_cmp, std::size_t trunc_cmp) {
-	if (!ran_trunc) {
-		return;
-	}
-
-	const std::size_t skipped = full_cmp >= trunc_cmp ? (full_cmp - trunc_cmp) : 0;
-	const double skipped_pct =
-		full_cmp == 0 ? 0.0 : (100.0 * static_cast<double>(skipped) / static_cast<double>(full_cmp));
-	std::ostringstream value;
-	value << skipped << "/" << full_cmp << " (" << common::reporting::format_fixed(skipped_pct, 2, "%") << ")";
-	common::reporting::print_key_value("Skipped comparators", value.str());
-}
-
-void print_debug_metrics(const common::Config& cfg, std::size_t hw_threads, std::size_t ex_threads,
+void print_debug_metrics(const common::config::Config& cfg, std::size_t hw_threads, std::size_t ex_threads,
 						 std::size_t layer_count,
 						 std::size_t full_cmp, std::size_t trunc_cmp, double full_ms, double trunc_ms) {
 	if (!cfg.debug_output) {
@@ -38,7 +17,7 @@ void print_debug_metrics(const common::Config& cfg, std::size_t hw_threads, std:
 
 	const double skipped_pct =
 		full_cmp == 0 ? 0.0 : (100.0 * static_cast<double>(full_cmp - trunc_cmp) / static_cast<double>(full_cmp));
-	const bool ran_both = cfg.run_mode == common::RunMode::Both;
+	const bool ran_both = cfg.run_mode == common::config::RunMode::Both;
 	const double speedup = (ran_both && trunc_ms > 0.0) ? (full_ms / trunc_ms) : 0.0;
 
 	common::reporting::print_section_header("Debug Metrics");
@@ -54,10 +33,4 @@ void print_debug_metrics(const common::Config& cfg, std::size_t hw_threads, std:
 	}
 }
 
-void print_correctness_summary(bool run_check, bool ok) {
-	common::reporting::print_check_result("Top-k correctness vs full network", run_check, ok);
-}
-
-void print_output(const common::Config& cfg, const std::vector<std::string>& output) {
-	common::reporting::print_output(cfg, output);
-}
+} // namespace cpu::reporting

@@ -2,4 +2,8 @@
 
 #include "common/config.hpp"
 
-int run_topk(const common::Config& cfg);
+namespace cpu::topk {
+
+int execute(const common::config::Config& cfg);
+
+} // namespace cpu::topk

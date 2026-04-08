@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace common {
+namespace common::config {
 
 enum class DataType {
 	Int,
@@ -39,4 +39,4 @@ struct Config {
 
 Config parse_args(int argc, char** argv);
 
-} // namespace common
+} // namespace common::config

@@ -11,7 +11,7 @@
 #define DEBUG 0
 #endif
 
-namespace common {
+namespace common::config {
 namespace {
 
 struct ParsedCase {
@@ -401,4 +401,4 @@ Config parse_args(int argc, char** argv) {
 	return parse_tokens(cli_tokens, "", {}, false, false);
 }
 
-} // namespace common
+} // namespace common::config

@@ -9,6 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(common STATIC
 	../common/src/config.cpp
+	../common/src/bitonic.cpp
 	../common/src/random.cpp
 	../common/src/reporting.cpp
 )
@@ -19,9 +20,7 @@ target_include_directories(common PUBLIC
 add_executable(cpu_topk)
 target_sources(cpu_topk PRIVATE
 	src/main.cpp
-	src/layers.cpp
 	src/algorithm.cpp
-	src/utils.cpp
 	src/reporting.cpp
 	src/runner.cpp
 )
