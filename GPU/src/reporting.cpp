@@ -37,7 +37,8 @@ void print_debug_metrics(const common::config::Config& cfg, const std::string& d
 	if (full_stats != nullptr && trunc_stats != nullptr && trunc_stats->elapsed_ms > 0.0) {
 		const double speedup = full_stats->elapsed_ms / trunc_stats->elapsed_ms;
 		common::reporting::print_key_value("Full/Trunc speedup", common::reporting::format_fixed(speedup, 3, "x"));
-		common::reporting::print_key_value("Speedup interpretation", (speedup >= 1.0 ? "trunc faster" : "trunc slower"));
+		common::reporting::print_key_value("Speedup interpretation",
+										   (speedup >= 1.0 ? "trunc faster" : "trunc slower"));
 	}
 }
 

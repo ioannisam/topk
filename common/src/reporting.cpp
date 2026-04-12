@@ -36,6 +36,16 @@ const char* dtype_name(common::config::DataType dtype) {
 	return "unknown";
 }
 
+const char* algorithm_name(common::config::Algorithm algorithm) {
+	switch (algorithm) {
+	case common::config::Algorithm::Bitonic:
+		return "bitonic";
+	case common::config::Algorithm::MapReduce:
+		return "map_reduce";
+	}
+	return "unknown";
+}
+
 const char* run_mode_name(common::config::RunMode mode) {
 	switch (mode) {
 	case common::config::RunMode::Trunc:
@@ -88,6 +98,7 @@ void print_configuration(const common::config::Config& cfg, std::size_t n, std::
 	}
 	print_key_value("Requested top-k", cfg.k);
 	print_key_value("Data type", dtype_name(cfg.dtype));
+	print_key_value("Algorithm", algorithm_name(cfg.algorithm));
 	print_key_value("Mode", (cfg.want_max ? "max" : "min"));
 	print_key_value(run_mode_label, run_mode_name(cfg.run_mode));
 	print_key_value("Debug output", (cfg.debug_output ? "on" : "off"));

@@ -21,11 +21,17 @@ enum class RunMode {
 	Both,
 };
 
+enum class Algorithm {
+	Bitonic,
+	MapReduce,
+};
+
 struct Config {
 	int q;
 	std::size_t k;
 	bool want_max;
 	DataType dtype;
+	Algorithm algorithm;
 	RunMode run_mode;
 	bool debug_output;
 	std::size_t ex_threads;

@@ -24,18 +24,32 @@ struct BasicRunStats {
 	double elapsed_ms = 0.0;
 };
 
-template <typename T> class RunnerHooks {
+struct MapReduceRunStats {
+	double elapsed_ms = 0.0;
+	std::size_t tiles_used = 0;
+	std::size_t aggregated_candidates = 0;
+};
+
+template <typename T> class BitonicRunnerHooks {
   public:
-	virtual ~RunnerHooks() = default;
+	virtual ~BitonicRunnerHooks() = default;
 
 	virtual void print_configuration(const common::config::Config& cfg, std::size_t n) = 0;
-	virtual BasicRunStats run_network(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-										  const std::vector<std::vector<unsigned char>>& keep,
-										  bool trunc) = 0;
-	virtual void print_debug_metrics(const common::config::Config& cfg, std::size_t layer_count,
-									 std::size_t full_cmp, std::size_t trunc_cmp,
-									 const BasicRunStats* full_stats,
+	virtual BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
+							  const std::vector<std::vector<unsigned char>>& keep, bool trunc) = 0;
+	virtual void print_debug_metrics(const common::config::Config& cfg, std::size_t layer_count, std::size_t full_cmp,
+									 std::size_t trunc_cmp, const BasicRunStats* full_stats,
 									 const BasicRunStats* trunc_stats) = 0;
+};
+
+template <typename T> class MapReduceRunnerHooks {
+  public:
+	virtual ~MapReduceRunnerHooks() = default;
+
+	virtual void print_configuration(const common::config::Config& cfg, std::size_t n) = 0;
+	virtual std::vector<T> run(const std::vector<T>& input, const common::config::Config& cfg,
+							   MapReduceRunStats* stats) = 0;
+	virtual void print_debug_metrics(const common::config::Config& cfg, const MapReduceRunStats& stats) = 0;
 };
 
 template <typename T> T transform_for_max(T value) {
@@ -70,7 +84,41 @@ template <typename T> bool compare_topk_prefix(const std::vector<T>& lhs, const 
 	return true;
 }
 
-template <typename T> std::vector<T> build_output(const std::vector<T>& network_out, const common::config::Config& cfg) {
+template <typename T> std::vector<T> build_reference_topk(const std::vector<T>& input, std::size_t k, bool want_max) {
+	std::vector<T> ref = input;
+	k = std::min(k, ref.size());
+	if (k == 0) {
+		return {};
+	}
+
+	if (want_max) {
+		std::nth_element(ref.begin(), ref.begin() + static_cast<std::ptrdiff_t>(k), ref.end(), std::greater<T>());
+		ref.resize(k);
+		std::sort(ref.begin(), ref.end(), std::greater<T>());
+	} else {
+		std::nth_element(ref.begin(), ref.begin() + static_cast<std::ptrdiff_t>(k), ref.end(), std::less<T>());
+		ref.resize(k);
+		std::sort(ref.begin(), ref.end(), std::less<T>());
+	}
+
+	return ref;
+}
+
+template <typename T> bool equal_output(const std::vector<T>& lhs, const std::vector<T>& rhs) {
+	if (lhs.size() != rhs.size()) {
+		return false;
+	}
+
+	for (std::size_t i = 0; i < lhs.size(); ++i) {
+		if (!common::utils::value_equal(lhs[i], rhs[i])) {
+			return false;
+		}
+	}
+	return true;
+}
+
+template <typename T>
+std::vector<T> build_output(const std::vector<T>& network_out, const common::config::Config& cfg) {
 	std::vector<T> output(cfg.k);
 	for (std::size_t i = 0; i < cfg.k; ++i) {
 		output[i] = cfg.want_max ? restore_from_max(network_out[i]) : network_out[i];
@@ -84,7 +132,7 @@ template <typename T> std::vector<T> build_output(const std::vector<T>& network_
 	return output;
 }
 
-template <typename T> int execute(const common::config::Config& cfg, RunnerHooks<T>& hooks) {
+template <typename T> int execute_bitonic(const common::config::Config& cfg, BitonicRunnerHooks<T>& hooks) {
 	const std::size_t n = std::size_t{1} << cfg.q;
 	hooks.print_configuration(cfg, n);
 
@@ -106,11 +154,11 @@ template <typename T> int execute(const common::config::Config& cfg, RunnerHooks
 
 	if (run_trunc) {
 		trunc = input;
-		trunc_stats = hooks.run_network(trunc, layers, keep, true);
+		trunc_stats = hooks.run(trunc, layers, keep, true);
 	}
 	if (run_full) {
 		full = input;
-		full_stats = hooks.run_network(full, layers, keep, false);
+		full_stats = hooks.run(full, layers, keep, false);
 	}
 
 	const bool run_both = cfg.run_mode == common::config::RunMode::Both;
@@ -125,15 +173,13 @@ template <typename T> int execute(const common::config::Config& cfg, RunnerHooks
 		const std::size_t skipped = full_cmp >= trunc_cmp ? (full_cmp - trunc_cmp) : 0;
 		const double skipped_pct =
 			full_cmp == 0 ? 0.0 : (100.0 * static_cast<double>(skipped) / static_cast<double>(full_cmp));
-		common::reporting::print_key_value(
-			"Skipped comparators",
-			std::to_string(skipped) + "/" + std::to_string(full_cmp) + " (" +
-				common::reporting::format_fixed(skipped_pct, 2, "%") + ")");
+		common::reporting::print_key_value("Skipped comparators",
+										   std::to_string(skipped) + "/" + std::to_string(full_cmp) + " (" +
+											   common::reporting::format_fixed(skipped_pct, 2, "%") + ")");
 	}
 
-	hooks.print_debug_metrics(cfg, layers.size(), full_cmp, trunc_cmp,
-							 run_full ? &full_stats : nullptr,
-							 run_trunc ? &trunc_stats : nullptr);
+	hooks.print_debug_metrics(cfg, layers.size(), full_cmp, trunc_cmp, run_full ? &full_stats : nullptr,
+							  run_trunc ? &trunc_stats : nullptr);
 
 	if (run_both) {
 		common::reporting::print_check_result("Top-k correctness vs full network", true, both_ok);
@@ -144,6 +190,45 @@ template <typename T> int execute(const common::config::Config& cfg, RunnerHooks
 
 	const std::vector<T>& chosen_network_output = (cfg.run_mode == common::config::RunMode::Full) ? full : trunc;
 	std::vector<T> output = build_output(chosen_network_output, cfg);
+	if (cfg.run_check && cfg.has_expected_output) {
+		const bool expected_ok = common::utils::validate_expected_output(cfg, output);
+		std::cout << "Top-k correctness vs testcase answer: " << (expected_ok ? "OK" : "FAIL") << "\n";
+		if (!expected_ok) {
+			return 3;
+		}
+	}
+
+	common::reporting::print_output(cfg, common::utils::format_output(output));
+	return 0;
+}
+
+template <typename T> int execute_map_reduce(const common::config::Config& cfg, MapReduceRunnerHooks<T>& hooks) {
+	const std::size_t n = std::size_t{1} << cfg.q;
+	hooks.print_configuration(cfg, n);
+
+	std::vector<T> input = common::utils::generate_random_input<T>(n, cfg.seed, kDefaultRandMin, kDefaultRandMax);
+
+	MapReduceRunStats run_stats{};
+	std::vector<T> output = hooks.run(input, cfg, &run_stats);
+
+	common::reporting::print_timing_lines({
+		{"Map-reduce top-k time (ms)", std::optional<double>(run_stats.elapsed_ms)},
+	});
+
+	const bool check_vs_reference = cfg.run_mode == common::config::RunMode::Both;
+	bool reference_ok = true;
+	if (check_vs_reference) {
+		const std::vector<T> ref = build_reference_topk(input, cfg.k, cfg.want_max);
+		reference_ok = equal_output(output, ref);
+	}
+	common::reporting::print_check_result("Top-k correctness vs nth_element reference", check_vs_reference,
+										  reference_ok);
+	if (!reference_ok) {
+		return 2;
+	}
+
+	hooks.print_debug_metrics(cfg, run_stats);
+
 	if (cfg.run_check && cfg.has_expected_output) {
 		const bool expected_ok = common::utils::validate_expected_output(cfg, output);
 		std::cout << "Top-k correctness vs testcase answer: " << (expected_ok ? "OK" : "FAIL") << "\n";

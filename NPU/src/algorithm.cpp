@@ -25,8 +25,8 @@ namespace {
 
 template <typename T>
 std::vector<std::size_t> build_offsets(const std::vector<std::vector<unsigned char>>& keep,
-						   const std::vector<common::bitonic::Layer>& layers,
-						   std::vector<std::uint32_t>& pairs_out, std::size_t n) {
+									   const std::vector<common::bitonic::Layer>& layers,
+									   std::vector<std::uint32_t>& pairs_out, std::size_t n) {
 	std::vector<std::size_t> offsets;
 	offsets.reserve(layers.size() + 1);
 	offsets.push_back(0);
@@ -73,8 +73,7 @@ bool xclbin_uses_dpu_abi(const std::string& xclbin_path) {
 	}
 
 	std::string xml((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-	return xml.find("type=\"dpu\"") != std::string::npos &&
-		   xml.find("name=\"opcode\"") != std::string::npos &&
+	return xml.find("type=\"dpu\"") != std::string::npos && xml.find("name=\"opcode\"") != std::string::npos &&
 		   xml.find("name=\"ninstr\"") != std::string::npos;
 }
 
@@ -113,13 +112,13 @@ std::uint64_t read_opcode() {
 	return 3;
 }
 
-	bool ninstr_is_bytes() {
-		if (const char* mode = read_env("NPU_OFFLOAD_NINSTR_BYTES")) {
-			const std::string token(mode);
-			return token == "1" || token == "true" || token == "TRUE" || token == "on";
-		}
-		return false;
+bool ninstr_is_bytes() {
+	if (const char* mode = read_env("NPU_OFFLOAD_NINSTR_BYTES")) {
+		const std::string token(mode);
+		return token == "1" || token == "true" || token == "TRUE" || token == "on";
 	}
+	return false;
+}
 
 unsigned int read_wait_timeout_ms() {
 	if (const char* timeout = read_env("NPU_OFFLOAD_WAIT_MS")) {
@@ -168,8 +167,8 @@ void wait_for_run_or_throw(xrt::run& run, unsigned int timeout_ms, const char* l
 	}
 
 	std::ostringstream oss;
-	oss << "NPU " << launch_kind << " command failed: state=" << cmd_state_name(state)
-		<< " (" << static_cast<int>(state) << ")"
+	oss << "NPU " << launch_kind << " command failed: state=" << cmd_state_name(state) << " ("
+		<< static_cast<int>(state) << ")"
 		<< ", wait_ms=" << timeout_ms;
 	throw std::runtime_error(oss.str());
 }
@@ -183,8 +182,7 @@ void wait_for_runlist_or_throw(const xrt::runlist& rl, unsigned int timeout_ms, 
 	}
 }
 
-std::vector<std::uint32_t> read_dpu_instr_words(const std::string& xclbin_path,
-										const std::string& kernel_name) {
+std::vector<std::uint32_t> read_dpu_instr_words(const std::string& xclbin_path, const std::string& kernel_name) {
 	if (const char* instr_override = read_env("NPU_OFFLOAD_INSTR")) {
 		std::ifstream in(instr_override, std::ios::binary);
 		if (in.good()) {
@@ -220,8 +218,8 @@ std::vector<std::uint32_t> read_dpu_instr_words(const std::string& xclbin_path,
 	return words;
 }
 
-xrt::bo alloc_bo_for_kernel(const std::optional<xrt::hw_context>& hwctx, const xrt::device& dev,
-							size_t bytes, std::size_t group_id, bool dpu_abi) {
+xrt::bo alloc_bo_for_kernel(const std::optional<xrt::hw_context>& hwctx, const xrt::device& dev, size_t bytes,
+							std::size_t group_id, bool dpu_abi) {
 	(void)hwctx;
 	(void)dpu_abi;
 	return xrt::bo(dev, bytes, xrt::bo::flags::host_only, group_id);
@@ -282,7 +280,8 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 		const std::vector<std::uint32_t> instr_words =
 			read_dpu_instr_words(offload_cfg.xclbin_path, offload_cfg.kernel_name);
 		ninstr = static_cast<std::uint32_t>(instr_words.size());
-		const std::size_t instr_bytes = std::max<std::size_t>(sizeof(std::uint32_t), instr_words.size() * sizeof(std::uint32_t));
+		const std::size_t instr_bytes =
+			std::max<std::size_t>(sizeof(std::uint32_t), instr_words.size() * sizeof(std::uint32_t));
 		if (ninstr_is_bytes()) {
 			ninstr = static_cast<std::uint32_t>(instr_bytes);
 		}
@@ -377,8 +376,7 @@ bool is_offload_configured() {
 
 template <typename T>
 RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-						 const std::vector<std::vector<unsigned char>>& keep, bool trunc,
-						 std::size_t workers) {
+						 const std::vector<std::vector<unsigned char>>& keep, bool trunc, std::size_t workers) {
 	(void)workers;
 
 	if (data.empty()) {
@@ -390,20 +388,21 @@ RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic
 
 	const OffloadConfig offload_cfg = load_offload_config();
 	if (!offload_cfg.enabled) {
-		throw std::runtime_error("NPU offload is required for this backend. Set NPU_OFFLOAD_XCLBIN to a valid xclbin path.");
+		throw std::runtime_error(
+			"NPU offload is required for this backend. Set NPU_OFFLOAD_XCLBIN to a valid xclbin path.");
 	}
 
 	return run_network_offload_xrt(data, layers, keep, trunc, offload_cfg);
 }
 
 template RunStats run_network_npu<std::int32_t>(std::vector<std::int32_t>& data,
-										 const std::vector<common::bitonic::Layer>& layers,
-										 const std::vector<std::vector<unsigned char>>& keep, bool trunc,
-										 std::size_t workers);
+												const std::vector<common::bitonic::Layer>& layers,
+												const std::vector<std::vector<unsigned char>>& keep, bool trunc,
+												std::size_t workers);
 template RunStats run_network_npu<std::uint32_t>(std::vector<std::uint32_t>& data,
-										  const std::vector<common::bitonic::Layer>& layers,
-										  const std::vector<std::vector<unsigned char>>& keep, bool trunc,
-										  std::size_t workers);
+												 const std::vector<common::bitonic::Layer>& layers,
+												 const std::vector<std::vector<unsigned char>>& keep, bool trunc,
+												 std::size_t workers);
 template RunStats run_network_npu<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
 										 const std::vector<std::vector<unsigned char>>& keep, bool trunc,
 										 std::size_t workers);
@@ -413,9 +412,9 @@ template RunStats run_network_npu<double>(std::vector<double>& data, const std::
 
 #if defined(__FLT16_MANT_DIG__)
 template RunStats run_network_npu<_Float16>(std::vector<_Float16>& data,
-										const std::vector<common::bitonic::Layer>& layers,
-										const std::vector<std::vector<unsigned char>>& keep, bool trunc,
-										std::size_t workers);
+											const std::vector<common::bitonic::Layer>& layers,
+											const std::vector<std::vector<unsigned char>>& keep, bool trunc,
+											std::size_t workers);
 #endif
 
 } // namespace npu::bitonic

@@ -15,10 +15,10 @@ namespace {
 
 #define CUDA_CHECK(expr)                                                                                               \
 	do {                                                                                                               \
-		cudaError_t _err = (expr);                                                                                       \
-		if (_err != cudaSuccess) {                                                                                       \
-			throw std::runtime_error(std::string("CUDA error: ") + cudaGetErrorString(_err));                             \
-		}                                                                                                                \
+		cudaError_t _err = (expr);                                                                                     \
+		if (_err != cudaSuccess) {                                                                                     \
+			throw std::runtime_error(std::string("CUDA error: ") + cudaGetErrorString(_err));                          \
+		}                                                                                                              \
 	} while (false)
 
 template <typename T> __device__ __forceinline__ bool greater_than(T a, T b) {
@@ -109,8 +109,8 @@ __global__ void bitonic_layer_trunc(T* data, const std::uint32_t* pair_i, std::s
 }
 
 std::vector<std::size_t> build_offsets(const std::vector<std::vector<unsigned char>>& keep,
-									   const std::vector<common::bitonic::Layer>& layers, std::vector<std::uint32_t>& pairs_out,
-									   std::size_t n) {
+									   const std::vector<common::bitonic::Layer>& layers,
+									   std::vector<std::uint32_t>& pairs_out, std::size_t n) {
 	std::vector<std::size_t> offsets;
 	offsets.reserve(layers.size() + 1);
 	offsets.push_back(0);
@@ -162,7 +162,7 @@ int query_device_sm_count() {
 
 template <typename T>
 RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-									  const std::vector<std::vector<unsigned char>>& keep, bool trunc) {
+						  const std::vector<std::vector<unsigned char>>& keep, bool trunc) {
 	if (data.empty()) {
 		return RunStats{0.0, 0, 0, 0};
 	}
@@ -184,7 +184,8 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
 		active_comparators = pair_i.size();
 		if (!pair_i.empty()) {
 			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_pairs), pair_i.size() * sizeof(std::uint32_t)));
-			CUDA_CHECK(cudaMemcpy(d_pairs, pair_i.data(), pair_i.size() * sizeof(std::uint32_t), cudaMemcpyHostToDevice));
+			CUDA_CHECK(
+				cudaMemcpy(d_pairs, pair_i.data(), pair_i.size() * sizeof(std::uint32_t), cudaMemcpyHostToDevice));
 		}
 	}
 
@@ -246,7 +247,7 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
 }
 
 RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
-									   const std::vector<std::vector<unsigned char>>& keep, bool trunc) {
+							   const std::vector<std::vector<unsigned char>>& keep, bool trunc) {
 	std::vector<__half> half_data(data.size());
 	for (std::size_t i = 0; i < data.size(); ++i) {
 		half_data[i] = __float2half(data[i]);
@@ -262,16 +263,16 @@ RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<commo
 }
 
 template RunStats run_network_cuda<std::int32_t>(std::vector<std::int32_t>& data,
-											 const std::vector<common::bitonic::Layer>& layers,
-											 const std::vector<std::vector<unsigned char>>& keep, bool trunc);
+												 const std::vector<common::bitonic::Layer>& layers,
+												 const std::vector<std::vector<unsigned char>>& keep, bool trunc);
 template RunStats run_network_cuda<std::uint32_t>(std::vector<std::uint32_t>& data,
-											  const std::vector<common::bitonic::Layer>& layers,
-											  const std::vector<std::vector<unsigned char>>& keep, bool trunc);
+												  const std::vector<common::bitonic::Layer>& layers,
+												  const std::vector<std::vector<unsigned char>>& keep, bool trunc);
 template RunStats run_network_cuda<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
-											  const std::vector<std::vector<unsigned char>>& keep, bool trunc);
+										  const std::vector<std::vector<unsigned char>>& keep, bool trunc);
 template RunStats run_network_cuda<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers,
-											   const std::vector<std::vector<unsigned char>>& keep, bool trunc);
+										   const std::vector<std::vector<unsigned char>>& keep, bool trunc);
 template RunStats run_network_cuda<__half>(std::vector<__half>& data, const std::vector<common::bitonic::Layer>& layers,
-											   const std::vector<std::vector<unsigned char>>& keep, bool trunc);
+										   const std::vector<std::vector<unsigned char>>& keep, bool trunc);
 
 } // namespace gpu::bitonic

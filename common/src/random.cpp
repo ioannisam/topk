@@ -37,17 +37,17 @@ std::vector<T> generate_random_input(std::size_t n, std::uint64_t seed, int min_
 }
 
 template std::vector<std::int32_t> generate_random_input<std::int32_t>(std::size_t n, std::uint64_t seed, int min_value,
-																								 int max_value);
+																	   int max_value);
 template std::vector<std::uint32_t> generate_random_input<std::uint32_t>(std::size_t n, std::uint64_t seed,
-																								 int min_value, int max_value);
+																		 int min_value, int max_value);
 template std::vector<float> generate_random_input<float>(std::size_t n, std::uint64_t seed, int min_value,
-																					 int max_value);
+														 int max_value);
 template std::vector<double> generate_random_input<double>(std::size_t n, std::uint64_t seed, int min_value,
-																					  int max_value);
+														   int max_value);
 
 #if defined(__FLT16_MANT_DIG__)
 template std::vector<_Float16> generate_random_input<_Float16>(std::size_t n, std::uint64_t seed, int min_value,
-																						 int max_value);
+															   int max_value);
 #endif
 
 } // namespace common::utils

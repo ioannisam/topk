@@ -16,6 +16,7 @@ namespace npu::topk {
 
 namespace {
 
+using common::config::Algorithm;
 using common::config::Config;
 using common::config::DataType;
 
@@ -35,20 +36,20 @@ Context build_context(const Config& cfg) {
 				   npu::bitonic::is_offload_configured()};
 }
 
-template <typename T> class NpuRunnerHooks final : public common::topk::RunnerHooks<T> {
+template <typename T> class NpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
   public:
-	explicit NpuRunnerHooks(const Context& ctx) : context(ctx) {
+	explicit NpuBitonicRunnerHooks(const Context& ctx) : context(ctx) {
 	}
 
 	void print_configuration(const Config& cfg, std::size_t n) override {
 		npu::reporting::print_configuration(cfg, n, context.ex_threads, context.device_name, context.device_bdf,
-							   context.offload_enabled);
+											context.offload_enabled);
 	}
 
-	common::topk::BasicRunStats run_network(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-										const std::vector<std::vector<unsigned char>>& keep,
-										bool trunc) override {
-		const npu::bitonic::RunStats stats = npu::bitonic::run_network_npu(data, layers, keep, trunc, context.ex_threads);
+	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
+									const std::vector<std::vector<unsigned char>>& keep, bool trunc) override {
+		const npu::bitonic::RunStats stats =
+			npu::bitonic::run_network_npu(data, layers, keep, trunc, context.ex_threads);
 		if (trunc) {
 			last_trunc_stats = stats;
 		} else {
@@ -57,12 +58,13 @@ template <typename T> class NpuRunnerHooks final : public common::topk::RunnerHo
 		return common::topk::BasicRunStats{stats.elapsed_ms};
 	}
 
-	void print_debug_metrics(const Config& cfg, std::size_t layer_count, std::size_t full_cmp,
-						 std::size_t trunc_cmp, const common::topk::BasicRunStats* full_stats,
-						 const common::topk::BasicRunStats* trunc_stats) override {
+	void print_debug_metrics(const Config& cfg, std::size_t layer_count, std::size_t full_cmp, std::size_t trunc_cmp,
+							 const common::topk::BasicRunStats* full_stats,
+							 const common::topk::BasicRunStats* trunc_stats) override {
 		const npu::bitonic::RunStats* full_run = (full_stats != nullptr) ? &last_full_stats : nullptr;
 		const npu::bitonic::RunStats* trunc_run = (trunc_stats != nullptr) ? &last_trunc_stats : nullptr;
-		npu::reporting::print_debug_metrics(cfg, context.device_name, full_run, trunc_run, layer_count, full_cmp, trunc_cmp);
+		npu::reporting::print_debug_metrics(cfg, context.device_name, full_run, trunc_run, layer_count, full_cmp,
+											trunc_cmp);
 	}
 
   private:
@@ -73,13 +75,17 @@ template <typename T> class NpuRunnerHooks final : public common::topk::RunnerHo
 
 template <typename T> int topk_typed(const Config& cfg) {
 	const Context ctx = build_context(cfg);
-	NpuRunnerHooks<T> hooks(ctx);
-	return common::topk::execute<T>(cfg, hooks);
+	NpuBitonicRunnerHooks<T> hooks(ctx);
+	return common::topk::execute_bitonic<T>(cfg, hooks);
 }
 
 } // namespace
 
 int execute(const common::config::Config& cfg) {
+	if (cfg.algorithm != Algorithm::Bitonic) {
+		throw std::invalid_argument("NPU backend currently supports only algo=bitonic");
+	}
+
 	switch (cfg.dtype) {
 	case DataType::Int:
 		return topk_typed<std::int32_t>(cfg);

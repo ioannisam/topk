@@ -11,6 +11,7 @@
 namespace common::reporting {
 
 const char* dtype_name(common::config::DataType dtype);
+const char* algorithm_name(common::config::Algorithm algorithm);
 const char* run_mode_name(common::config::RunMode mode);
 std::string format_fixed(double value, int decimals, const char* suffix = "");
 

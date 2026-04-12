@@ -20,9 +20,9 @@ int query_device_sm_count();
 
 template <typename T>
 RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-											  const std::vector<std::vector<unsigned char>>& keep, bool trunc);
+						  const std::vector<std::vector<unsigned char>>& keep, bool trunc);
 
 RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
-											   const std::vector<std::vector<unsigned char>>& keep, bool trunc);
+							   const std::vector<std::vector<unsigned char>>& keep, bool trunc);
 
 } // namespace gpu::bitonic

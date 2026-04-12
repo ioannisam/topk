@@ -21,6 +21,7 @@ struct ParsedCase {
 };
 
 DataType parse_dtype(const std::string& token);
+Algorithm parse_algorithm(const std::string& token);
 RunMode parse_run_mode(const std::string& token);
 
 bool starts_with(const std::string& text, const std::string& prefix) {
@@ -205,10 +206,11 @@ Config parse_tokens(const std::vector<std::string>& tokens, const std::string& t
 					const std::vector<std::string>& expected_output_tokens, bool has_expected_output,
 					bool from_testcase) {
 
-	if (tokens.empty() || tokens.size() > 11) {
+	if (tokens.empty() || tokens.size() > 12) {
 		throw std::invalid_argument("Usage: ./topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] "
-								"[run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>] "
-								"[check=true|false] (testcase mode only, key=value only)");
+									"[algo=bitonic|map_reduce] [run=full|trunc|both] [debug=true|false] "
+									"[threads=<num>] [seed=<seed>] "
+									"[check=true|false] (testcase mode only, key=value only)");
 	}
 
 	int q = -1;
@@ -220,6 +222,7 @@ Config parse_tokens(const std::vector<std::string>& tokens, const std::string& t
 	bool debug_output = DEBUG != 0;
 	bool run_check = false;
 	RunMode run_mode = RunMode::Trunc;
+	Algorithm algorithm = Algorithm::Bitonic;
 	std::size_t ex_threads = 0;
 	DataType dtype = DataType::Int;
 
@@ -275,6 +278,10 @@ Config parse_tokens(const std::vector<std::string>& tokens, const std::string& t
 			dtype = parse_dtype(token);
 			continue;
 		}
+		if (starts_with(token, "algo=")) {
+			algorithm = parse_algorithm(token);
+			continue;
+		}
 		if (starts_with(token, "debug=")) {
 			debug_output = parse_bool_value(token.substr(6), "debug");
 			continue;
@@ -316,6 +323,7 @@ Config parse_tokens(const std::vector<std::string>& tokens, const std::string& t
 	cfg.k = k;
 	cfg.want_max = want_max;
 	cfg.dtype = dtype;
+	cfg.algorithm = algorithm;
 	cfg.run_mode = run_mode;
 	cfg.debug_output = debug_output;
 	cfg.ex_threads = ex_threads;
@@ -347,6 +355,17 @@ DataType parse_dtype(const std::string& token) {
 	throw std::invalid_argument("Unsupported dtype. Use one of: int, uint, float, double, fp16");
 }
 
+Algorithm parse_algorithm(const std::string& token) {
+	const std::string value = token.substr(std::string("algo=").size());
+	if (value == "bitonic") {
+		return Algorithm::Bitonic;
+	}
+	if (value == "map_reduce" || value == "mapreduce") {
+		return Algorithm::MapReduce;
+	}
+	throw std::invalid_argument("Unsupported algorithm. Use one of: bitonic, map_reduce");
+}
+
 RunMode parse_run_mode(const std::string& token) {
 	if (token == "trunc") {
 		return RunMode::Trunc;
@@ -365,11 +384,12 @@ RunMode parse_run_mode(const std::string& token) {
 Config parse_args(int argc, char** argv) {
 	if (argc < 2) {
 		throw std::invalid_argument("Usage: ./topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] "
-								"[run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>]\n"
-								"   or: ./topk <testcase-file>\n"
-								"   or: ./topk --case <testcase-file>\n"
-								"   or: ./topk case=<testcase-file>\n"
-								"In testcase mode only: [check=true|false]");
+									"[algo=bitonic|map_reduce] [run=full|trunc|both] [debug=true|false] "
+									"[threads=<num>] [seed=<seed>]\n"
+									"   or: ./topk <testcase-file>\n"
+									"   or: ./topk --case <testcase-file>\n"
+									"   or: ./topk case=<testcase-file>\n"
+									"In testcase mode only: [check=true|false]");
 	}
 
 	std::vector<std::string> cli_tokens;
@@ -394,8 +414,8 @@ Config parse_args(int argc, char** argv) {
 		return parse_tokens(testcase.args, testcase_path, testcase.expected, testcase.has_expected, true);
 	}
 
-	if (argc > 12) {
-		throw std::invalid_argument("Too many arguments. Expected at most 11 CLI tokens after program name.");
+	if (argc > 13) {
+		throw std::invalid_argument("Too many arguments. Expected at most 12 CLI tokens after program name.");
 	}
 
 	return parse_tokens(cli_tokens, "", {}, false, false);

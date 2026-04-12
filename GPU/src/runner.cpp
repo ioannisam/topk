@@ -15,11 +15,12 @@ namespace gpu::topk {
 
 namespace {
 
+using common::config::Algorithm;
 using common::config::Config;
 using common::config::DataType;
-template <typename T> class GpuRunnerHooks final : public common::topk::RunnerHooks<T> {
+template <typename T> class GpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
   public:
-	explicit GpuRunnerHooks(bool fp16_emulation)
+	explicit GpuBitonicRunnerHooks(bool fp16_emulation)
 		: device_name(gpu::bitonic::query_device_name()), use_fp16_path(fp16_emulation) {
 	}
 
@@ -27,9 +28,8 @@ template <typename T> class GpuRunnerHooks final : public common::topk::RunnerHo
 		gpu::reporting::print_configuration(cfg, n, device_name);
 	}
 
-	common::topk::BasicRunStats run_network(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-										const std::vector<std::vector<unsigned char>>& keep,
-										bool trunc) override {
+	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
+									const std::vector<std::vector<unsigned char>>& keep, bool trunc) override {
 		gpu::bitonic::RunStats stats{0.0, 0, 0, 0};
 		if constexpr (std::is_same_v<T, float>) {
 			if (use_fp16_path) {
@@ -49,9 +49,9 @@ template <typename T> class GpuRunnerHooks final : public common::topk::RunnerHo
 		return common::topk::BasicRunStats{stats.elapsed_ms};
 	}
 
-	void print_debug_metrics(const Config& cfg, std::size_t layer_count, std::size_t full_cmp,
-						 std::size_t trunc_cmp, const common::topk::BasicRunStats* full_stats,
-						 const common::topk::BasicRunStats* trunc_stats) override {
+	void print_debug_metrics(const Config& cfg, std::size_t layer_count, std::size_t full_cmp, std::size_t trunc_cmp,
+							 const common::topk::BasicRunStats* full_stats,
+							 const common::topk::BasicRunStats* trunc_stats) override {
 		const gpu::bitonic::RunStats* full_run = (full_stats != nullptr) ? &last_full_stats : nullptr;
 		const gpu::bitonic::RunStats* trunc_run = (trunc_stats != nullptr) ? &last_trunc_stats : nullptr;
 		gpu::reporting::print_debug_metrics(cfg, device_name, full_run, trunc_run, layer_count, full_cmp, trunc_cmp);
@@ -65,18 +65,22 @@ template <typename T> class GpuRunnerHooks final : public common::topk::RunnerHo
 };
 
 template <typename T> int topk_typed(const Config& cfg) {
-	GpuRunnerHooks<T> hooks(false);
-	return common::topk::execute<T>(cfg, hooks);
+	GpuBitonicRunnerHooks<T> hooks(false);
+	return common::topk::execute_bitonic<T>(cfg, hooks);
 }
 
 int topk_fp16(const Config& cfg) {
-	GpuRunnerHooks<float> hooks(true);
-	return common::topk::execute<float>(cfg, hooks);
+	GpuBitonicRunnerHooks<float> hooks(true);
+	return common::topk::execute_bitonic<float>(cfg, hooks);
 }
 
 } // namespace
 
 int execute(const common::config::Config& cfg) {
+	if (cfg.algorithm != Algorithm::Bitonic) {
+		throw std::invalid_argument("GPU backend currently supports only algo=bitonic");
+	}
+
 	switch (cfg.dtype) {
 	case DataType::Int:
 		return topk_typed<std::int32_t>(cfg);
