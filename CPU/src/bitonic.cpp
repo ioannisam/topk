@@ -7,6 +7,7 @@
 #include <mutex>
 #include <thread>
 #include <type_traits>
+#include <vector>
 
 namespace cpu::bitonic {
 
@@ -26,7 +27,7 @@ bool cpu_supports_avx512f() {
 }
 
 __attribute__((target("avx512f"))) void run_layer_j1_avx512_i32(std::int32_t* ptr, std::size_t begin, std::size_t end,
-											  std::size_t k) {
+																std::size_t k) {
 	const __m512i swap_idx = _mm512_setr_epi32(1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14);
 	const __m512i lane_idx = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
 	const __m512i one = _mm512_set1_epi32(1);
@@ -68,8 +69,8 @@ __attribute__((target("avx512f"))) void run_layer_j1_avx512_i32(std::int32_t* pt
 	}
 }
 
-__attribute__((target("avx512f"))) void run_layer_j1_avx512_u32(std::uint32_t* ptr, std::size_t begin,
-											   std::size_t end, std::size_t k) {
+__attribute__((target("avx512f"))) void run_layer_j1_avx512_u32(std::uint32_t* ptr, std::size_t begin, std::size_t end,
+																std::size_t k) {
 	const __m512i swap_idx = _mm512_setr_epi32(1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14);
 	const __m512i lane_idx = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
 	const __m512i one = _mm512_set1_epi32(1);
@@ -112,7 +113,7 @@ __attribute__((target("avx512f"))) void run_layer_j1_avx512_u32(std::uint32_t* p
 }
 
 __attribute__((target("avx512f"))) void run_layer_j1_avx512_f32(float* ptr, std::size_t begin, std::size_t end,
-											  std::size_t k) {
+																std::size_t k) {
 	const __m512i swap_idx = _mm512_setr_epi32(1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14);
 	const __m512i lane_idx = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
 	const __m512i one = _mm512_set1_epi32(1);
@@ -155,7 +156,7 @@ __attribute__((target("avx512f"))) void run_layer_j1_avx512_f32(float* ptr, std:
 }
 
 __attribute__((target("avx512f"))) void run_layer_j1_avx512_f64(double* ptr, std::size_t begin, std::size_t end,
-											  std::size_t k) {
+																std::size_t k) {
 	const __m512i swap_idx = _mm512_setr_epi64(1, 0, 3, 2, 5, 4, 7, 6);
 	const __m512i lane_idx = _mm512_setr_epi64(0, 1, 2, 3, 4, 5, 6, 7);
 	const __m512i one = _mm512_set1_epi64(1);
@@ -260,9 +261,8 @@ class Barrier {
 } // namespace
 
 template <typename T>
-void run_network_parallel(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-						  const std::vector<std::vector<unsigned char>>& keep, bool trunc, std::size_t workers) {
-
+void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
+			  const std::vector<std::vector<unsigned char>>& keep, bool trunc, std::size_t workers) {
 	const std::size_t n = data.size();
 	Barrier barrier(workers);
 	std::vector<std::thread> pool;
@@ -314,23 +314,21 @@ void run_network_parallel(std::vector<T>& data, const std::vector<common::bitoni
 	}
 }
 
-template void run_network_parallel<std::int32_t>(std::vector<std::int32_t>& data, const std::vector<common::bitonic::Layer>& layers,
-												 const std::vector<std::vector<unsigned char>>& keep, bool trunc,
-												 std::size_t workers);
-template void run_network_parallel<std::uint32_t>(std::vector<std::uint32_t>& data, const std::vector<common::bitonic::Layer>& layers,
-												  const std::vector<std::vector<unsigned char>>& keep, bool trunc,
-												  std::size_t workers);
-template void run_network_parallel<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
-										  const std::vector<std::vector<unsigned char>>& keep, bool trunc,
-										  std::size_t workers);
-template void run_network_parallel<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers,
-										   const std::vector<std::vector<unsigned char>>& keep, bool trunc,
-										   std::size_t workers);
+template void run_topk<std::int32_t>(std::vector<std::int32_t>& data, const std::vector<common::bitonic::Layer>& layers,
+									 const std::vector<std::vector<unsigned char>>& keep, bool trunc,
+									 std::size_t workers);
+template void run_topk<std::uint32_t>(std::vector<std::uint32_t>& data,
+									  const std::vector<common::bitonic::Layer>& layers,
+									  const std::vector<std::vector<unsigned char>>& keep, bool trunc,
+									  std::size_t workers);
+template void run_topk<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
+							  const std::vector<std::vector<unsigned char>>& keep, bool trunc, std::size_t workers);
+template void run_topk<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers,
+							   const std::vector<std::vector<unsigned char>>& keep, bool trunc, std::size_t workers);
 
 #if defined(__FLT16_MANT_DIG__)
-template void run_network_parallel<_Float16>(std::vector<_Float16>& data, const std::vector<common::bitonic::Layer>& layers,
-											 const std::vector<std::vector<unsigned char>>& keep, bool trunc,
-											 std::size_t workers);
+template void run_topk<_Float16>(std::vector<_Float16>& data, const std::vector<common::bitonic::Layer>& layers,
+								 const std::vector<std::vector<unsigned char>>& keep, bool trunc, std::size_t workers);
 #endif
 
 } // namespace cpu::bitonic

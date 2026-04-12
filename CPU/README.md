@@ -5,6 +5,7 @@ This directory contains a parallel CPU implementation of bitonic top-k using C++
 It supports:
 - Full bitonic sorting network (reference path)
 - Trunc bitonic execution for top-k output
+- Map-reduce top-k execution (`algo=map_reduce`): per-tile heap top-k + final nth_element reduction
 
 ## Layout
 
@@ -20,7 +21,7 @@ Shared backend-agnostic foundation now lives in `../common`:
 - `../common/include/common/random.hpp` + `../common/src/random.cpp`: deterministic random input generation
 - `../common/include/common/validation.hpp`: output formatting and testcase-answer validation helpers
 - `../common/include/common/reporting.hpp` + `../common/src/reporting.cpp`: reusable reporting primitives (configuration, timing, output)
-- `../common/include/common/runner.hpp`: shared top-k runner flow and hook interface reused by CPU/GPU
+- `../common/include/common/runner.hpp`: shared top-k runner flow and hook interface reused by CPU/GPU/NPU.
 
 ## Build
 
@@ -42,7 +43,7 @@ cmake -S . -B build \
 ## Run
 
 ```bash
-./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>]
+./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [algo=bitonic|map_reduce] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>]
 ```
 
 Only `key=value` arguments are accepted. Required key: `q`.
@@ -67,17 +68,21 @@ Or run from a testcase file:
 - run mode defaults to `trunc`
 - `threads=<num>` optionally overrides execution threads
 - `dtype=<type>` selects value type: `int`, `uint`, `float`, `double`, `fp16` (fp16 requires compiler support)
+- `algo=<name>` chooses backend algorithm: `bitonic` (default) or `map_reduce`
 
 Example:
 
 ```bash
-./build/topk q=13 k=128 mode=min dtype=float run=both debug=true threads=16 seed=42
+./build/topk q=13 k=128 mode=min dtype=float algo=map_reduce run=both debug=true threads=16 seed=42
 ```
 
 Runtime tokens:
 - `mode=min|max`: smallest or largest k values
+- `algo=bitonic|map_reduce`: sorting-network path or map-reduce path
 - `debug=true|false`: enable/disable debug metrics
 - `run=trunc|full|both`: select network execution mode
+
+For `algo=map_reduce`, the runtime is a single map-reduce pass; `run=both` enables an internal correctness check against an `nth_element` reference.
 
 ## Testcase File Format
 

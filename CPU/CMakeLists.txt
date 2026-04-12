@@ -20,7 +20,8 @@ target_include_directories(common PUBLIC
 add_executable(cpu_topk)
 target_sources(cpu_topk PRIVATE
 	src/main.cpp
-	src/algorithm.cpp
+	src/bitonic.cpp
+	src/map_reduce.cpp
 	src/reporting.cpp
 	src/runner.cpp
 )

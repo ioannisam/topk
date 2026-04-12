@@ -8,7 +8,20 @@
 namespace cpu::bitonic {
 
 template <typename T>
-void run_network_parallel(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-						  const std::vector<std::vector<unsigned char>>& keep, bool trunc, std::size_t workers);
+void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
+			  const std::vector<std::vector<unsigned char>>& keep, bool trunc, std::size_t workers);
 
 } // namespace cpu::bitonic
+
+namespace cpu::map_reduce {
+
+struct RunStats {
+	std::size_t tiles_used = 0;
+	std::size_t aggregated_candidates = 0;
+};
+
+template <typename T>
+std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers,
+						RunStats* stats = nullptr);
+
+} // namespace cpu::map_reduce

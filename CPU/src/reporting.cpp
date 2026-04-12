@@ -9,8 +9,8 @@ void print_configuration(const common::config::Config& cfg, std::size_t ex_threa
 }
 
 void print_debug_metrics(const common::config::Config& cfg, std::size_t hw_threads, std::size_t ex_threads,
-						 std::size_t layer_count,
-						 std::size_t full_cmp, std::size_t trunc_cmp, double full_ms, double trunc_ms) {
+						 std::size_t layer_count, std::size_t full_cmp, std::size_t trunc_cmp, double full_ms,
+						 double trunc_ms) {
 	if (!cfg.debug_output) {
 		return;
 	}
@@ -29,7 +29,8 @@ void print_debug_metrics(const common::config::Config& cfg, std::size_t hw_threa
 	common::reporting::print_key_value("Comparator skip ratio", common::reporting::format_fixed(skipped_pct, 2, "%"));
 	if (ran_both) {
 		common::reporting::print_key_value("Full/Trunc speedup", common::reporting::format_fixed(speedup, 3, "x"));
-		common::reporting::print_key_value("Speedup interpretation", (speedup >= 1.0 ? "trunc faster" : "trunc slower"));
+		common::reporting::print_key_value("Speedup interpretation",
+										   (speedup >= 1.0 ? "trunc faster" : "trunc slower"));
 	}
 }
 
