@@ -25,7 +25,8 @@ target_sources(gpu_topk PRIVATE
 	src/main.cpp
 	src/reporting.cpp
 	src/runner.cpp
-	src/algorithm.cu
+	src/bitonic.cu
+	src/map_reduce.cu
 )
 target_include_directories(gpu_topk PRIVATE include ../common/include)
 target_link_libraries(gpu_topk PRIVATE common)

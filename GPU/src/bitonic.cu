@@ -86,7 +86,6 @@ __global__ void bitonic_layer_full_v2(T* data, std::size_t total_pairs, std::siz
 		return;
 	}
 
-	// step is always a power of two in bitonic networks.
 	const std::size_t low = tid & (step - 1);
 	const std::size_t i = ((tid - low) << 1) + low;
 	const std::size_t ixj = i + step;
@@ -263,11 +262,11 @@ RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<commo
 }
 
 template RunStats run_network_cuda<std::int32_t>(std::vector<std::int32_t>& data,
-												 const std::vector<common::bitonic::Layer>& layers,
-												 const std::vector<std::vector<unsigned char>>& keep, bool trunc);
+											 const std::vector<common::bitonic::Layer>& layers,
+											 const std::vector<std::vector<unsigned char>>& keep, bool trunc);
 template RunStats run_network_cuda<std::uint32_t>(std::vector<std::uint32_t>& data,
-												  const std::vector<common::bitonic::Layer>& layers,
-												  const std::vector<std::vector<unsigned char>>& keep, bool trunc);
+											  const std::vector<common::bitonic::Layer>& layers,
+											  const std::vector<std::vector<unsigned char>>& keep, bool trunc);
 template RunStats run_network_cuda<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
 										  const std::vector<std::vector<unsigned char>>& keep, bool trunc);
 template RunStats run_network_cuda<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers,

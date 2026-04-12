@@ -26,3 +26,18 @@ RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<commo
 							   const std::vector<std::vector<unsigned char>>& keep, bool trunc);
 
 } // namespace gpu::bitonic
+
+namespace gpu::map_reduce {
+
+struct RunStats {
+	double elapsed_ms;
+	std::size_t tiles_used;
+	std::size_t aggregated_candidates;
+	std::size_t block_size;
+};
+
+template <typename T>
+std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers,
+						RunStats* stats = nullptr);
+
+} // namespace gpu::map_reduce

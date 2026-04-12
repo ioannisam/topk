@@ -64,9 +64,55 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 	gpu::bitonic::RunStats last_trunc_stats{0.0, 0, 0, 0};
 };
 
+template <typename T> class GpuMapReduceHooks final : public common::topk::MapReduceRunnerHooks<T> {
+  public:
+	explicit GpuMapReduceHooks() : device_name(gpu::bitonic::query_device_name()) {
+	}
+
+	void print_configuration(const Config& cfg, std::size_t n) override {
+		gpu::reporting::print_configuration(cfg, n, device_name);
+	}
+
+	std::vector<T> run(const std::vector<T>& input, const Config& cfg,
+					   common::topk::MapReduceRunStats* stats) override {
+		gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
+		std::vector<T> output = gpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
+
+		if (stats != nullptr) {
+			stats->elapsed_ms = map_stats.elapsed_ms;
+			stats->tiles_used = map_stats.tiles_used;
+			stats->aggregated_candidates = map_stats.aggregated_candidates;
+		}
+
+		last_stats = map_stats;
+		return output;
+	}
+
+	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
+		if (!cfg.debug_output) {
+			return;
+		}
+
+		common::reporting::print_section_header("Debug Metrics");
+		common::reporting::print_key_value("CUDA device", device_name);
+		common::reporting::print_key_value("Tiles used", stats.tiles_used);
+		common::reporting::print_key_value("Aggregated candidates", stats.aggregated_candidates);
+		common::reporting::print_key_value("CUDA block size", last_stats.block_size);
+	}
+
+  private:
+	std::string device_name;
+	gpu::map_reduce::RunStats last_stats{0.0, 0, 0, 0};
+};
+
 template <typename T> int topk_typed(const Config& cfg) {
 	GpuBitonicRunnerHooks<T> hooks(false);
 	return common::topk::execute_bitonic<T>(cfg, hooks);
+}
+
+template <typename T> int topk_typed_map_reduce(const Config& cfg) {
+	GpuMapReduceHooks<T> hooks;
+	return common::topk::execute_map_reduce<T>(cfg, hooks);
 }
 
 int topk_fp16(const Config& cfg) {
@@ -77,20 +123,21 @@ int topk_fp16(const Config& cfg) {
 } // namespace
 
 int execute(const common::config::Config& cfg) {
-	if (cfg.algorithm != Algorithm::Bitonic) {
-		throw std::invalid_argument("GPU backend currently supports only algo=bitonic");
-	}
-
 	switch (cfg.dtype) {
 	case DataType::Int:
-		return topk_typed<std::int32_t>(cfg);
+		return cfg.algorithm == Algorithm::MapReduce ? topk_typed_map_reduce<std::int32_t>(cfg)
+													 : topk_typed<std::int32_t>(cfg);
 	case DataType::UInt:
-		return topk_typed<std::uint32_t>(cfg);
+		return cfg.algorithm == Algorithm::MapReduce ? topk_typed_map_reduce<std::uint32_t>(cfg)
+													 : topk_typed<std::uint32_t>(cfg);
 	case DataType::Float:
-		return topk_typed<float>(cfg);
+		return cfg.algorithm == Algorithm::MapReduce ? topk_typed_map_reduce<float>(cfg) : topk_typed<float>(cfg);
 	case DataType::Double:
-		return topk_typed<double>(cfg);
+		return cfg.algorithm == Algorithm::MapReduce ? topk_typed_map_reduce<double>(cfg) : topk_typed<double>(cfg);
 	case DataType::Fp16:
+		if (cfg.algorithm == Algorithm::MapReduce) {
+			throw std::invalid_argument("GPU map-reduce currently supports dtype=int|uint|float|double");
+		}
 		return topk_fp16(cfg);
 	}
 
