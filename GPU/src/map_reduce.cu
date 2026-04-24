@@ -2,12 +2,16 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <vector>
 
 #include <cuda_runtime.h>
+#include <thrust/device_ptr.h>
+#include <thrust/execution_policy.h>
+#include <thrust/sort.h>
 
 namespace gpu::map_reduce {
 
@@ -27,6 +31,22 @@ template <bool WantMax, typename T> __device__ __forceinline__ bool candidate(T 
 	}
 	return value < threshold;
 }
+
+template <bool WantMax, typename T> __host__ __forceinline__ T worst_value() {
+	if constexpr (WantMax) {
+		return std::numeric_limits<T>::lowest();
+	}
+	return std::numeric_limits<T>::max();
+}
+
+template <bool WantMax, typename T> struct DeviceOrder {
+	__host__ __device__ bool operator()(const T& lhs, const T& rhs) const {
+		if constexpr (WantMax) {
+			return lhs > rhs;
+		}
+		return lhs < rhs;
+	}
+};
 
 template <bool WantMax, typename T> __device__ __forceinline__ bool heap_less(T lhs, T rhs) {
 	if constexpr (WantMax) {
@@ -70,7 +90,7 @@ template <bool WantMax, typename T> __device__ void make_heap(T* heap, std::size
 
 template <bool WantMax, typename T>
 __global__ void map_topk_kernel(const T* input, std::size_t n, std::size_t k, std::size_t tiles, T* tile_values,
-								std::size_t* tile_sizes) {
+								T pad_value) {
 	const std::size_t tid = static_cast<std::size_t>(blockIdx.x);
 	if (tid >= tiles) {
 		return;
@@ -104,28 +124,9 @@ __global__ void map_topk_kernel(const T* input, std::size_t n, std::size_t k, st
 		sift_down<WantMax>(heap, heap_size, 0);
 	}
 
-	tile_sizes[tid] = heap_size;
-}
-
-template <bool WantMax, typename T> std::vector<T> finalize_topk(std::vector<T> aggregated, std::size_t k) {
-	if (k == 0 || aggregated.empty()) {
-		return {};
+	for (std::size_t i = heap_size; i < k; ++i) {
+		heap[i] = pad_value;
 	}
-
-	auto cmp = [](const T& lhs, const T& rhs) {
-		if constexpr (WantMax) {
-			return lhs > rhs;
-		}
-		return lhs < rhs;
-	};
-
-	if (aggregated.size() > k) {
-		std::nth_element(aggregated.begin(), aggregated.begin() + static_cast<std::ptrdiff_t>(k), aggregated.end(), cmp);
-		aggregated.resize(k);
-	}
-
-	std::sort(aggregated.begin(), aggregated.end(), cmp);
-	return aggregated;
 }
 
 template <bool WantMax, typename T>
@@ -139,16 +140,16 @@ std::vector<T> run_topk_impl(const std::vector<T>& data, std::size_t k, std::siz
 	}
 
 	k = std::min(k, n);
-	const std::size_t tiles = std::max<std::size_t>(1, std::min(workers, n));
+	const std::size_t sm_count = static_cast<std::size_t>(gpu::bitonic::query_device_sm_count());
+	const std::size_t preferred_tiles = std::max<std::size_t>(workers, sm_count * 8);
+	const std::size_t tiles = std::max<std::size_t>(1, std::min(preferred_tiles, n));
 	const std::size_t block_size = 256;
 
 	T* d_input = nullptr;
 	T* d_tile_values = nullptr;
-	std::size_t* d_tile_sizes = nullptr;
 
 	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_input), n * sizeof(T)));
 	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_tile_values), tiles * k * sizeof(T)));
-	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_tile_sizes), tiles * sizeof(std::size_t)));
 	CUDA_CHECK(cudaMemcpy(d_input, data.data(), n * sizeof(T), cudaMemcpyHostToDevice));
 
 	cudaEvent_t start{};
@@ -159,34 +160,32 @@ std::vector<T> run_topk_impl(const std::vector<T>& data, std::size_t k, std::siz
 
 	const dim3 grid(static_cast<unsigned int>(tiles));
 	const dim3 block(static_cast<unsigned int>(block_size));
-	map_topk_kernel<WantMax, T><<<grid, block>>>(d_input, n, k, tiles, d_tile_values, d_tile_sizes);
+	map_topk_kernel<WantMax, T><<<grid, block>>>(d_input, n, k, tiles, d_tile_values, worst_value<WantMax, T>());
 	CUDA_CHECK(cudaGetLastError());
+
+	auto d_begin = thrust::device_pointer_cast(d_tile_values);
+	auto d_end = d_begin + static_cast<std::ptrdiff_t>(tiles * k);
+	DeviceOrder<WantMax, T> order{};
+	thrust::sort(thrust::device, d_begin, d_end, order);
+
 	CUDA_CHECK(cudaEventRecord(stop));
 	CUDA_CHECK(cudaEventSynchronize(stop));
 
 	float elapsed_ms_f = 0.0f;
 	CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms_f, start, stop));
 
-	std::vector<std::size_t> tile_sizes(tiles);
-	std::vector<T> tile_values(tiles * k);
-	CUDA_CHECK(cudaMemcpy(tile_sizes.data(), d_tile_sizes, tiles * sizeof(std::size_t), cudaMemcpyDeviceToHost));
-	CUDA_CHECK(cudaMemcpy(tile_values.data(), d_tile_values, tiles * k * sizeof(T), cudaMemcpyDeviceToHost));
+	std::vector<T> output(k);
+	CUDA_CHECK(cudaMemcpy(output.data(), d_tile_values, k * sizeof(T), cudaMemcpyDeviceToHost));
 
 	std::size_t aggregated_candidates = 0;
 	for (std::size_t t = 0; t < tiles; ++t) {
-		aggregated_candidates += tile_sizes[t];
-	}
-
-	std::vector<T> aggregated;
-	aggregated.reserve(aggregated_candidates);
-	for (std::size_t t = 0; t < tiles; ++t) {
-		const T* tile_ptr = tile_values.data() + t * k;
-		aggregated.insert(aggregated.end(), tile_ptr, tile_ptr + tile_sizes[t]);
+		const std::size_t begin = (n * t) / tiles;
+		const std::size_t end = (n * (t + 1)) / tiles;
+		aggregated_candidates += std::min<std::size_t>(k, end - begin);
 	}
 
 	CUDA_CHECK(cudaEventDestroy(start));
 	CUDA_CHECK(cudaEventDestroy(stop));
-	CUDA_CHECK(cudaFree(d_tile_sizes));
 	CUDA_CHECK(cudaFree(d_tile_values));
 	CUDA_CHECK(cudaFree(d_input));
 
@@ -194,7 +193,7 @@ std::vector<T> run_topk_impl(const std::vector<T>& data, std::size_t k, std::siz
 		*stats = RunStats{static_cast<double>(elapsed_ms_f), tiles, aggregated_candidates, block_size};
 	}
 
-	return finalize_topk<WantMax>(std::move(aggregated), k);
+	return output;
 }
 
 } // namespace
