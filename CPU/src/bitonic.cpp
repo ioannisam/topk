@@ -477,24 +477,34 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 				}
 
 				// fallback scalar loop
-				for (std::size_t i = begin; i < end; ++i) {
-					const std::size_t ixj = i ^ j;
-					if (ixj <= i || ixj >= n) {
+				std::size_t i = begin;
+				while (i < end) {
+					if ((i & j) != 0) {
+						i = (i | ((j << 1) - 1)) + 1;
 						continue;
 					}
 
-					if (trunc && !(keep[layer_idx][i] || keep[layer_idx][ixj])) {
-						continue;
+					std::size_t chunk_end = std::min((i | (j - 1)) + 1, end);
+					if (chunk_end > n) {
+						chunk_end = n;
 					}
 
-					const bool ascending = (i & k) == 0;
-					if (ascending) {
-						if (data[i] > data[ixj]) {
-							std::swap(data[i], data[ixj]);
+					for (; i < chunk_end; ++i) {
+						const std::size_t ixj = i + j;
+						
+						if (trunc && !(keep[layer_idx][i] || keep[layer_idx][ixj])) {
+							continue;
 						}
-					} else {
-						if (data[i] < data[ixj]) {
-							std::swap(data[i], data[ixj]);
+
+						const bool ascending = (i & k) == 0;
+						if (ascending) {
+							if (data[i] > data[ixj]) {
+								std::swap(data[i], data[ixj]);
+							}
+						} else {
+							if (data[i] < data[ixj]) {
+								std::swap(data[i], data[ixj]);
+							}
 						}
 					}
 				}
