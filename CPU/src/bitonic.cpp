@@ -26,6 +26,8 @@ bool cpu_supports_avx512f() {
 	return has_avx512;
 }
 
+// --- j = 1 Kernels (Adjacent Elements) ---
+
 __attribute__((target("avx512f"))) void run_layer_j1_avx512_i32(std::int32_t* ptr, std::size_t begin, std::size_t end,
 																std::size_t k) {
 	const __m512i swap_idx = _mm512_setr_epi32(1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14);
@@ -182,26 +184,215 @@ __attribute__((target("avx512f"))) void run_layer_j1_avx512_f64(double* ptr, std
 
 	for (; i < end; ++i) {
 		const std::size_t ixj = i ^ std::size_t{1};
-		if (ixj <= i) {
-			continue;
-		}
+		if (ixj <= i) continue;
 		const bool ascending = (i & k) == 0;
 		if (ascending) {
-			if (ptr[i] > ptr[ixj]) {
-				std::swap(ptr[i], ptr[ixj]);
-			}
+			if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]);
 		} else {
-			if (ptr[i] < ptr[ixj]) {
-				std::swap(ptr[i], ptr[ixj]);
+			if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]);
+		}
+	}
+}
+
+// --- j >= SIMD_WIDTH Kernels (Wide-Stride Elements) ---
+
+__attribute__((target("avx512f"))) void run_layer_j_ge_simd_avx512_i32(std::int32_t* ptr, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, std::size_t n) {
+	std::size_t i = begin;
+	while (i < end) {
+		// If in a "right" half, jump perfectly to the start of the next "left" half
+		if ((i & j) != 0) {
+			i = (i | ((j << 1) - 1)) + 1;
+			continue;
+		}
+
+		// Clamp the chunk to the exact end of the current "left" block or thread boundary
+		std::size_t chunk_end = std::min((i | (j - 1)) + 1, end);
+		
+		// Array bounds safety (in case end > n)
+		if (chunk_end > n) {
+			chunk_end = n;
+		}
+
+		for (; i + 15 < chunk_end; i += 16) {
+			const bool ascending = (i & k) == 0;
+			const std::size_t ixj = i + j;
+
+			const __m512i v1 = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr + i));
+			const __m512i v2 = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr + ixj));
+
+			const __m512i lo = _mm512_min_epi32(v1, v2);
+			const __m512i hi = _mm512_max_epi32(v1, v2);
+
+			if (ascending) {
+				_mm512_storeu_si512(reinterpret_cast<__m512i*>(ptr + i), lo);
+				_mm512_storeu_si512(reinterpret_cast<__m512i*>(ptr + ixj), hi);
+			} else {
+				_mm512_storeu_si512(reinterpret_cast<__m512i*>(ptr + i), hi);
+				_mm512_storeu_si512(reinterpret_cast<__m512i*>(ptr + ixj), lo);
+			}
+		}
+
+		for (; i < chunk_end; ++i) {
+			const std::size_t ixj = i + j;
+			const bool ascending = (i & k) == 0;
+			if (ascending) {
+				if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]);
+			} else {
+				if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]);
 			}
 		}
 	}
 }
 
+__attribute__((target("avx512f"))) void run_layer_j_ge_simd_avx512_u32(std::uint32_t* ptr, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, std::size_t n) {
+	std::size_t i = begin;
+	while (i < end) {
+		// If in a "right" half, jump perfectly to the start of the next "left" half
+		if ((i & j) != 0) {
+			i = (i | ((j << 1) - 1)) + 1;
+			continue;
+		}
+
+		// Clamp the chunk to the exact end of the current "left" block or thread boundary
+		std::size_t chunk_end = std::min((i | (j - 1)) + 1, end);
+
+		// Array bounds safety (in case end > n)
+		if (chunk_end > n) {
+			chunk_end = n;
+		}
+
+		for (; i + 15 < chunk_end; i += 16) {
+			const bool ascending = (i & k) == 0;
+			const std::size_t ixj = i + j;
+
+			const __m512i v1 = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr + i));
+			const __m512i v2 = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr + ixj));
+
+			const __m512i lo = _mm512_min_epu32(v1, v2);
+			const __m512i hi = _mm512_max_epu32(v1, v2);
+
+			if (ascending) {
+				_mm512_storeu_si512(reinterpret_cast<__m512i*>(ptr + i), lo);
+				_mm512_storeu_si512(reinterpret_cast<__m512i*>(ptr + ixj), hi);
+			} else {
+				_mm512_storeu_si512(reinterpret_cast<__m512i*>(ptr + i), hi);
+				_mm512_storeu_si512(reinterpret_cast<__m512i*>(ptr + ixj), lo);
+			}
+		}
+
+		for (; i < chunk_end; ++i) {
+			const std::size_t ixj = i + j;
+			const bool ascending = (i & k) == 0;
+			if (ascending) {
+				if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]);
+			} else {
+				if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]);
+			}
+		}
+	}
+}
+
+__attribute__((target("avx512f"))) void run_layer_j_ge_simd_avx512_f32(float* ptr, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, std::size_t n) {
+	std::size_t i = begin;
+	while (i < end) {
+		// If in a "right" half, jump perfectly to the start of the next "left" half
+		if ((i & j) != 0) {
+			i = (i | ((j << 1) - 1)) + 1;
+			continue;
+		}
+
+		// Clamp the chunk to the exact end of the current "left" block or thread boundary
+		std::size_t chunk_end = std::min((i | (j - 1)) + 1, end);
+
+		// Array bounds safety (in case end > n)
+		if (chunk_end > n) {
+			chunk_end = n;
+		}
+
+		for (; i + 15 < chunk_end; i += 16) {
+			const bool ascending = (i & k) == 0;
+			const std::size_t ixj = i + j;
+
+			const __m512 v1 = _mm512_loadu_ps(ptr + i);
+			const __m512 v2 = _mm512_loadu_ps(ptr + ixj);
+
+			const __m512 lo = _mm512_min_ps(v1, v2);
+			const __m512 hi = _mm512_max_ps(v1, v2);
+
+			if (ascending) {
+				_mm512_storeu_ps(ptr + i, lo);
+				_mm512_storeu_ps(ptr + ixj, hi);
+			} else {
+				_mm512_storeu_ps(ptr + i, hi);
+				_mm512_storeu_ps(ptr + ixj, lo);
+			}
+		}
+
+		for (; i < chunk_end; ++i) {
+			const std::size_t ixj = i + j;
+			const bool ascending = (i & k) == 0;
+			if (ascending) {
+				if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]);
+			} else {
+				if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]);
+			}
+		}
+	}
+}
+
+__attribute__((target("avx512f"))) void run_layer_j_ge_simd_avx512_f64(double* ptr, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, std::size_t n) {
+	std::size_t i = begin;
+	while (i < end) {
+		// If in a "right" half, jump perfectly to the start of the next "left" half
+		if ((i & j) != 0) {
+			i = (i | ((j << 1) - 1)) + 1;
+			continue;
+		}
+
+		// Clamp the chunk to the exact end of the current "left" block or thread boundary
+		std::size_t chunk_end = std::min((i | (j - 1)) + 1, end);
+
+		// Array bounds safety (in case end > n)
+		if (chunk_end > n) {
+			chunk_end = n;
+		}
+
+		for (; i + 7 < chunk_end; i += 8) {
+			const bool ascending = (i & k) == 0;
+			const std::size_t ixj = i + j;
+
+			const __m512d v1 = _mm512_loadu_pd(ptr + i);
+			const __m512d v2 = _mm512_loadu_pd(ptr + ixj);
+
+			const __m512d lo = _mm512_min_pd(v1, v2);
+			const __m512d hi = _mm512_max_pd(v1, v2);
+
+			if (ascending) {
+				_mm512_storeu_pd(ptr + i, lo);
+				_mm512_storeu_pd(ptr + ixj, hi);
+			} else {
+				_mm512_storeu_pd(ptr + i, hi);
+				_mm512_storeu_pd(ptr + ixj, lo);
+			}
+		}
+
+		for (; i < chunk_end; ++i) {
+			const std::size_t ixj = i + j;
+			const bool ascending = (i & k) == 0;
+			if (ascending) {
+				if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]);
+			} else {
+				if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]);
+			}
+		}
+	}
+}
+
+// --- Dispatcher ---
+
 template <typename T>
-bool try_run_avx512_j1_layer(std::vector<T>& data, std::size_t begin, std::size_t end, std::size_t k, std::size_t j,
-							 bool trunc) {
-	if (trunc || j != 1 || !cpu_supports_avx512f()) {
+bool try_run_avx512_layer(std::vector<T>& data, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, bool trunc) {
+	if (trunc || !cpu_supports_avx512f()) {
 		return false;
 	}
 
@@ -209,25 +400,27 @@ bool try_run_avx512_j1_layer(std::vector<T>& data, std::size_t begin, std::size_
 		return false;
 	}
 
+	const std::size_t n = data.size();
+
 	if constexpr (std::is_same_v<T, std::int32_t>) {
-		run_layer_j1_avx512_i32(data.data(), begin, end, k);
-		return true;
+		if (j == 1) { run_layer_j1_avx512_i32(data.data(), begin, end, k); return true; }
+		if (j >= 16) { run_layer_j_ge_simd_avx512_i32(data.data(), begin, end, k, j, n); return true; }
 	} else if constexpr (std::is_same_v<T, std::uint32_t>) {
-		run_layer_j1_avx512_u32(data.data(), begin, end, k);
-		return true;
+		if (j == 1) { run_layer_j1_avx512_u32(data.data(), begin, end, k); return true; }
+		if (j >= 16) { run_layer_j_ge_simd_avx512_u32(data.data(), begin, end, k, j, n); return true; }
 	} else if constexpr (std::is_same_v<T, float>) {
-		run_layer_j1_avx512_f32(data.data(), begin, end, k);
-		return true;
+		if (j == 1) { run_layer_j1_avx512_f32(data.data(), begin, end, k); return true; }
+		if (j >= 16) { run_layer_j_ge_simd_avx512_f32(data.data(), begin, end, k, j, n); return true; }
 	} else if constexpr (std::is_same_v<T, double>) {
-		run_layer_j1_avx512_f64(data.data(), begin, end, k);
-		return true;
+		if (j == 1) { run_layer_j1_avx512_f64(data.data(), begin, end, k); return true; }
+		if (j >= 8) { run_layer_j_ge_simd_avx512_f64(data.data(), begin, end, k, j, n); return true; }
 	}
 
 	return false;
 }
 #else
 template <typename T>
-bool try_run_avx512_j1_layer(std::vector<T>&, std::size_t, std::size_t, std::size_t, std::size_t, bool) {
+bool try_run_avx512_layer(std::vector<T>&, std::size_t, std::size_t, std::size_t, std::size_t, bool) {
 	return false;
 }
 #endif
@@ -277,11 +470,13 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 				const std::size_t k = layers[layer_idx].k;
 				const std::size_t j = layers[layer_idx].j;
 
-				if (try_run_avx512_j1_layer(data, begin, end, k, j, trunc)) {
+				// use AVX-512 if possible
+				if (try_run_avx512_layer(data, begin, end, k, j, trunc)) {
 					barrier.wait();
 					continue;
 				}
 
+				// fallback scalar loop
 				for (std::size_t i = begin; i < end; ++i) {
 					const std::size_t ixj = i ^ j;
 					if (ixj <= i || ixj >= n) {
