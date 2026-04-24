@@ -1,10 +1,9 @@
 #include "../include/algorithm.hpp"
 
-#include <condition_variable>
+#include <atomic>
 #include <cstdint>
 #include <immintrin.h>
 #include <limits>
-#include <mutex>
 #include <thread>
 #include <type_traits>
 #include <vector>
@@ -425,30 +424,33 @@ bool try_run_avx512_layer(std::vector<T>&, std::size_t, std::size_t, std::size_t
 }
 #endif
 
-class Barrier {
+class SpinBarrier {
 
   public:
-	explicit Barrier(std::size_t participants) : threshold(participants), count(participants), generation(0) {
+	explicit SpinBarrier(std::size_t participants) : threshold(participants), count(participants), generation(0) {
 	}
 
 	void wait() {
-		std::unique_lock<std::mutex> lock(mutex);
-		const std::size_t gen = generation;
-		if (--count == 0) {
-			generation++;
-			count = threshold;
-			cv.notify_all();
-			return;
+		const std::size_t gen = generation.load(std::memory_order_acquire);
+
+		if (count.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+			count.store(threshold, std::memory_order_relaxed);
+			generation.store(gen + 1, std::memory_order_release);
+		} else {
+			while (generation.load(std::memory_order_acquire) == gen) {
+#if defined(__x86_64__) || defined(__i386__)
+				_mm_pause();
+#else
+				std::this_thread::yield();
+#endif
+			}
 		}
-		cv.wait(lock, [&] { return generation != gen; });
 	}
 
   private:
-	std::mutex mutex;
-	std::condition_variable cv;
 	std::size_t threshold;
-	std::size_t count;
-	std::size_t generation;
+	std::atomic<std::size_t> count;
+	std::atomic<std::size_t> generation;
 };
 
 } // namespace
@@ -457,7 +459,7 @@ template <typename T>
 void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
 			  const std::vector<std::vector<unsigned char>>& keep, bool trunc, std::size_t workers) {
 	const std::size_t n = data.size();
-	Barrier barrier(workers);
+	SpinBarrier barrier(workers);
 	std::vector<std::thread> pool;
 	pool.reserve(workers);
 
