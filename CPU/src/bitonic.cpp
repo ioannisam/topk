@@ -391,7 +391,7 @@ __attribute__((target("avx512f"))) void run_layer_j_ge_simd_avx512_f64(double* p
 
 template <typename T>
 bool try_run_avx512_layer(std::vector<T>& data, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, bool trunc) {
-	if (trunc || !cpu_supports_avx512f()) {
+	if (!cpu_supports_avx512f()) {
 		return false;
 	}
 
