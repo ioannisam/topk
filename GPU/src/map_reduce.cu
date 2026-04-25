@@ -1,219 +1,176 @@
 #include "../include/algorithm.hpp"
 
-#include <algorithm>
 #include <cstdint>
-#include <limits>
-#include <stdexcept>
-#include <string>
-#include <type_traits>
 #include <vector>
 
 #include <cuda_runtime.h>
-#include <thrust/device_ptr.h>
-#include <thrust/execution_policy.h>
-#include <thrust/sort.h>
 
 namespace gpu::map_reduce {
 
 namespace {
 
-#define CUDA_CHECK(expr)                                                                                               \
-	do {                                                                                                               \
-		cudaError_t _err = (expr);                                                                                     \
-		if (_err != cudaSuccess) {                                                                                     \
-			throw std::runtime_error(std::string("CUDA error: ") + cudaGetErrorString(_err));                          \
-		}                                                                                                              \
-	} while (false)
-
-template <bool WantMax, typename T> __device__ __forceinline__ bool candidate(T value, T threshold) {
-	if constexpr (WantMax) {
-		return value > threshold;
-	}
-	return value < threshold;
+template <typename T> __device__ __forceinline__ bool beats_threshold(T candidate, T threshold, bool want_max) {
+	return want_max ? (candidate > threshold) : (candidate < threshold);
 }
 
-template <bool WantMax, typename T> __host__ __forceinline__ T worst_value() {
-	if constexpr (WantMax) {
-		return std::numeric_limits<T>::lowest();
-	}
-	return std::numeric_limits<T>::max();
-}
-
-template <bool WantMax, typename T> struct DeviceOrder {
-	__host__ __device__ bool operator()(const T& lhs, const T& rhs) const {
-		if constexpr (WantMax) {
-			return lhs > rhs;
-		}
-		return lhs < rhs;
-	}
-};
-
-template <bool WantMax, typename T> __device__ __forceinline__ bool heap_less(T lhs, T rhs) {
-	if constexpr (WantMax) {
-		return lhs > rhs;
-	}
-	return lhs < rhs;
-}
-
-template <bool WantMax, typename T> __device__ void sift_down(T* heap, std::size_t size, std::size_t i) {
+template <typename T> __device__ void sift_down(T* heap, int size, int root, bool want_max) {
+	int current = root;
 	while (true) {
-		std::size_t best = i;
-		const std::size_t left = 2 * i + 1;
-		const std::size_t right = 2 * i + 2;
+		int left_child = 2 * current + 1;
+		int right_child = 2 * current + 2;
+		int extreme = current;
 
-		if (left < size && heap_less<WantMax>(heap[left], heap[best])) {
-			best = left;
+		if (left_child < size && beats_threshold(heap[extreme], heap[left_child], want_max)) {
+			extreme = left_child;
 		}
-		if (right < size && heap_less<WantMax>(heap[right], heap[best])) {
-			best = right;
+		if (right_child < size && beats_threshold(heap[extreme], heap[right_child], want_max)) {
+			extreme = right_child;
 		}
 
-		if (best == i) {
+		if (extreme == current) {
 			break;
 		}
 
-		const T tmp = heap[i];
-		heap[i] = heap[best];
-		heap[best] = tmp;
-		i = best;
+		T temp = heap[current];
+		heap[current] = heap[extreme];
+		heap[extreme] = temp;
+		current = extreme;
 	}
 }
 
-template <bool WantMax, typename T> __device__ void make_heap(T* heap, std::size_t size) {
-	if (size < 2) {
-		return;
-	}
-	for (std::size_t i = size / 2; i-- > 0;) {
-		sift_down<WantMax>(heap, size, i);
-	}
-}
+template <typename T>
+__global__ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k, bool want_max,
+								T* __restrict__ thread_workspaces, T* __restrict__ block_outputs) {
+	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+	const std::size_t stride = blockDim.x * gridDim.x;
 
-template <bool WantMax, typename T>
-__global__ void map_topk_kernel(const T* input, std::size_t n, std::size_t k, std::size_t tiles, T* tile_values,
-								T pad_value) {
-	const std::size_t tid = static_cast<std::size_t>(blockIdx.x);
-	if (tid >= tiles) {
-		return;
-	}
+	T* local_heap = thread_workspaces + (tid * k);
+	int current_size = 0;
 
-	if (threadIdx.x != 0) {
-		return;
-	}
+	for (std::size_t i = tid; i < n; i += stride) {
+		T val = input[i];
 
-	const std::size_t begin = (n * tid) / tiles;
-	const std::size_t end = (n * (tid + 1)) / tiles;
-	T* heap = tile_values + tid * k;
-	std::size_t heap_size = 0;
-
-	for (std::size_t i = begin; i < end; ++i) {
-		const T value = input[i];
-		if (heap_size < k) {
-			heap[heap_size++] = value;
-			if (heap_size == k) {
-				make_heap<WantMax>(heap, heap_size);
+		if (current_size < k) {
+			local_heap[current_size] = val;
+			current_size++;
+			if (current_size == k) {
+				for (int j = k / 2 - 1; j >= 0; --j) {
+					sift_down(local_heap, k, j, want_max);
+				}
 			}
-			continue;
+		} else {
+			if (beats_threshold(val, local_heap[0], want_max)) {
+				local_heap[0] = val;
+				sift_down(local_heap, k, 0, want_max);
+			}
+		}
+	}
+
+	__syncthreads();
+
+	extern __shared__ char shared_mem[];
+	T* block_heap = reinterpret_cast<T*>(shared_mem);
+
+	if (threadIdx.x == 0) {
+		int block_heap_size = 0;
+		const std::size_t block_start_tid = blockIdx.x * blockDim.x;
+
+		for (int t = 0; t < blockDim.x; ++t) {
+			T* t_heap = thread_workspaces + ((block_start_tid + t) * k);
+
+			for (int j = 0; j < k; ++j) {
+				if (t_heap[j] == 0 && current_size < k) {
+					continue;
+				}
+
+				T val = t_heap[j];
+				if (block_heap_size < k) {
+					block_heap[block_heap_size] = val;
+					block_heap_size++;
+					if (block_heap_size == k) {
+						for (int h = k / 2 - 1; h >= 0; --h) {
+							sift_down(block_heap, k, h, want_max);
+						}
+					}
+				} else if (beats_threshold(val, block_heap[0], want_max)) {
+					block_heap[0] = val;
+					sift_down(block_heap, k, 0, want_max);
+				}
+			}
 		}
 
-		const T threshold = heap[0];
-		if (!candidate<WantMax>(value, threshold)) {
-			continue;
+		for (int j = 0; j < k; ++j) {
+			block_outputs[blockIdx.x * k + j] = block_heap[j];
 		}
-
-		heap[0] = value;
-		sift_down<WantMax>(heap, heap_size, 0);
 	}
-
-	for (std::size_t i = heap_size; i < k; ++i) {
-		heap[i] = pad_value;
-	}
-}
-
-template <bool WantMax, typename T>
-std::vector<T> run_topk_impl(const std::vector<T>& data, std::size_t k, std::size_t workers, RunStats* stats) {
-	const std::size_t n = data.size();
-	if (k == 0 || n == 0) {
-		if (stats != nullptr) {
-			*stats = RunStats{0.0, 0, 0, 0};
-		}
-		return {};
-	}
-
-	k = std::min(k, n);
-	const std::size_t sm_count = static_cast<std::size_t>(gpu::bitonic::query_device_sm_count());
-	const std::size_t preferred_tiles = std::max<std::size_t>(workers, sm_count * 8);
-	const std::size_t tiles = std::max<std::size_t>(1, std::min(preferred_tiles, n));
-	const std::size_t block_size = 256;
-
-	T* d_input = nullptr;
-	T* d_tile_values = nullptr;
-
-	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_input), n * sizeof(T)));
-	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_tile_values), tiles * k * sizeof(T)));
-	CUDA_CHECK(cudaMemcpy(d_input, data.data(), n * sizeof(T), cudaMemcpyHostToDevice));
-
-	cudaEvent_t start{};
-	cudaEvent_t stop{};
-	CUDA_CHECK(cudaEventCreate(&start));
-	CUDA_CHECK(cudaEventCreate(&stop));
-	CUDA_CHECK(cudaEventRecord(start));
-
-	const dim3 grid(static_cast<unsigned int>(tiles));
-	const dim3 block(static_cast<unsigned int>(block_size));
-	map_topk_kernel<WantMax, T><<<grid, block>>>(d_input, n, k, tiles, d_tile_values, worst_value<WantMax, T>());
-	CUDA_CHECK(cudaGetLastError());
-
-	auto d_begin = thrust::device_pointer_cast(d_tile_values);
-	auto d_end = d_begin + static_cast<std::ptrdiff_t>(tiles * k);
-	DeviceOrder<WantMax, T> order{};
-	thrust::sort(thrust::device, d_begin, d_end, order);
-
-	CUDA_CHECK(cudaEventRecord(stop));
-	CUDA_CHECK(cudaEventSynchronize(stop));
-
-	float elapsed_ms_f = 0.0f;
-	CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms_f, start, stop));
-
-	std::vector<T> output(k);
-	CUDA_CHECK(cudaMemcpy(output.data(), d_tile_values, k * sizeof(T), cudaMemcpyDeviceToHost));
-
-	std::size_t aggregated_candidates = 0;
-	for (std::size_t t = 0; t < tiles; ++t) {
-		const std::size_t begin = (n * t) / tiles;
-		const std::size_t end = (n * (t + 1)) / tiles;
-		aggregated_candidates += std::min<std::size_t>(k, end - begin);
-	}
-
-	CUDA_CHECK(cudaEventDestroy(start));
-	CUDA_CHECK(cudaEventDestroy(stop));
-	CUDA_CHECK(cudaFree(d_tile_values));
-	CUDA_CHECK(cudaFree(d_input));
-
-	if (stats != nullptr) {
-		*stats = RunStats{static_cast<double>(elapsed_ms_f), tiles, aggregated_candidates, block_size};
-	}
-
-	return output;
 }
 
 } // namespace
 
 template <typename T>
-std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers,
+std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_max, std::size_t ex_threads,
 						RunStats* stats) {
-	if (want_max) {
-		return run_topk_impl<true>(data, k, workers, stats);
+	const std::size_t n = input.size();
+
+	cudaDeviceProp prop{};
+	cudaGetDeviceProperties(&prop, 0);
+	const int block_size = 256;
+
+	int num_blocks;
+	cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, topk_map_kernel<T>, block_size, k * sizeof(T));
+	const int grid_size = prop.multiProcessorCount * num_blocks;
+	const int total_threads = grid_size * block_size;
+
+	T* d_input = nullptr;
+	T* d_thread_workspaces = nullptr;
+	T* d_block_outputs = nullptr;
+
+	cudaMalloc(&d_input, n * sizeof(T));
+	cudaMemcpy(d_input, input.data(), n * sizeof(T), cudaMemcpyHostToDevice);
+
+	cudaMalloc(&d_thread_workspaces, total_threads * k * sizeof(T));
+	cudaMalloc(&d_block_outputs, grid_size * k * sizeof(T));
+
+	size_t shared_mem_size = k * sizeof(T);
+
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord(start);
+
+	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(d_input, n, static_cast<int>(k), want_max,
+																d_thread_workspaces, d_block_outputs);
+
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
+
+	float elapsed_ms;
+	cudaEventElapsedTime(&elapsed_ms, start, stop);
+
+	std::vector<T> block_results(grid_size * k);
+	cudaMemcpy(block_results.data(), d_block_outputs, grid_size * k * sizeof(T), cudaMemcpyDeviceToHost);
+
+	cudaFree(d_input);
+	cudaFree(d_thread_workspaces);
+	cudaFree(d_block_outputs);
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
+
+	if (stats != nullptr) {
+		stats->elapsed_ms = elapsed_ms;
+		stats->tiles_used = grid_size;
+		stats->aggregated_candidates = grid_size * k;
+		stats->block_size = block_size;
 	}
-	return run_topk_impl<false>(data, k, workers, stats);
+
+	return block_results;
 }
 
-template std::vector<std::int32_t> run_topk<std::int32_t>(const std::vector<std::int32_t>& data, std::size_t k,
-										   bool want_max, std::size_t workers, RunStats* stats);
-template std::vector<std::uint32_t> run_topk<std::uint32_t>(const std::vector<std::uint32_t>& data, std::size_t k,
-											bool want_max, std::size_t workers, RunStats* stats);
-template std::vector<float> run_topk<float>(const std::vector<float>& data, std::size_t k, bool want_max,
-										std::size_t workers, RunStats* stats);
-template std::vector<double> run_topk<double>(const std::vector<double>& data, std::size_t k, bool want_max,
-										  std::size_t workers, RunStats* stats);
+template std::vector<float> run_topk<float>(const std::vector<float>&, std::size_t, bool, std::size_t, RunStats*);
+template std::vector<std::int32_t> run_topk<std::int32_t>(const std::vector<std::int32_t>&, std::size_t, bool,
+														  std::size_t, RunStats*);
+template std::vector<std::uint32_t> run_topk<std::uint32_t>(const std::vector<std::uint32_t>&, std::size_t, bool,
+															std::size_t, RunStats*);
+template std::vector<double> run_topk<double>(const std::vector<double>&, std::size_t, bool, std::size_t, RunStats*);
 
 } // namespace gpu::map_reduce
