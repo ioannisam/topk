@@ -35,52 +35,59 @@ template <typename T> __device__ __forceinline__ bool less_than(T a, T b) {
 	return a < b;
 }
 
-template <typename T> __device__ __forceinline__ void compare_swap(T* data, std::size_t i, std::size_t j, bool asc) {
-	const T a = data[i];
-	const T b = data[j];
-	if ((asc && greater_than(a, b)) || (!asc && less_than(a, b))) {
-		data[i] = b;
-		data[j] = a;
+struct FusedLayers {
+	std::uint32_t stages[16];
+	std::uint32_t steps[16];
+	int count;
+};
+
+template <typename T>
+__global__ void bitonic_fused_shared(T* data, std::size_t total_pairs, FusedLayers layers) {
+	extern __shared__ char smem[];
+	T* s_data = reinterpret_cast<T*>(smem);
+
+	const std::size_t tid = threadIdx.x;
+	const std::size_t block_size = blockDim.x;
+	const std::size_t block_offset = blockIdx.x * (block_size * 2);
+
+	const std::size_t idx1 = block_offset + tid;
+	const std::size_t idx2 = block_offset + tid + block_size;
+	const std::size_t n = total_pairs * 2;
+
+	s_data[tid] = (idx1 < n) ? data[idx1] : data[0];
+	s_data[tid + block_size] = (idx2 < n) ? data[idx2] : data[0];
+	__syncthreads();
+
+	const std::size_t global_tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+	for (int l = 0; l < layers.count; ++l) {
+		if (global_tid < total_pairs) {
+			const std::size_t stage = layers.stages[l];
+			const std::size_t step = layers.steps[l];
+
+			const std::size_t low = tid & (step - 1);
+			const std::size_t local_i = ((tid - low) << 1) + low;
+			const std::size_t local_ixj = local_i + step;
+
+			const std::size_t global_i = block_offset + local_i;
+			const bool ascending = (global_i & stage) == 0;
+
+			const T a = s_data[local_i];
+			const T b = s_data[local_ixj];
+			if ((ascending && greater_than(a, b)) || (!ascending && less_than(a, b))) {
+				s_data[local_i] = b;
+				s_data[local_ixj] = a;
+			}
+		}
+		__syncthreads();
 	}
+
+	if (idx1 < n) data[idx1] = s_data[tid];
+	if (idx2 < n) data[idx2] = s_data[tid + block_size];
 }
 
 template <typename T>
-__global__ void bitonic_layer_full_v0(T* data, std::size_t total_pairs, std::size_t stage, std::size_t step) {
-	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-	if (tid >= total_pairs) {
-		return;
-	}
-
-	const std::size_t group = tid / step;
-	const std::size_t offset = tid - (group * step);
-	const std::size_t i = group * (step << 1) + offset;
-	const std::size_t ixj = i + step;
-	const bool ascending = (i & stage) == 0;
-	compare_swap(data, i, ixj, ascending);
-}
-
-template <typename T>
-__global__ void bitonic_layer_full_v1(T* data, std::size_t n, std::size_t stage, std::size_t step) {
-	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-	const std::size_t half = n >> 1;
-	if (tid >= half) {
-		return;
-	}
-
-	const std::size_t partner = tid ^ step;
-	if (partner > tid) {
-		const bool ascending = (tid & stage) == 0;
-		compare_swap(data, tid, partner, ascending);
-	} else {
-		const std::size_t i = tid + half;
-		const std::size_t j = partner + half;
-		const bool ascending = (i & stage) == 0;
-		compare_swap(data, i, j, !ascending);
-	}
-}
-
-template <typename T>
-__global__ void bitonic_layer_full_v2(T* data, std::size_t total_pairs, std::size_t stage, std::size_t step) {
+__global__ void bitonic_layer_global_coalesced(T* data, std::size_t total_pairs, std::size_t stage, std::size_t step) {
 	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 	if (tid >= total_pairs) {
 		return;
@@ -90,7 +97,13 @@ __global__ void bitonic_layer_full_v2(T* data, std::size_t total_pairs, std::siz
 	const std::size_t i = ((tid - low) << 1) + low;
 	const std::size_t ixj = i + step;
 	const bool ascending = (i & stage) == 0;
-	compare_swap(data, i, ixj, ascending);
+
+	const T a = data[i];
+	const T b = data[ixj];
+	if ((ascending && greater_than(a, b)) || (!ascending && less_than(a, b))) {
+		data[i] = b;
+		data[ixj] = a;
+	}
 }
 
 template <typename T>
@@ -104,7 +117,13 @@ __global__ void bitonic_layer_trunc(T* data, const std::uint32_t* pair_i, std::s
 	const std::size_t i = static_cast<std::size_t>(pair_i[tid]);
 	const std::size_t ixj = i ^ step;
 	const bool ascending = (i & stage) == 0;
-	compare_swap(data, i, ixj, ascending);
+
+	const T a = data[i];
+	const T b = data[ixj];
+	if ((ascending && greater_than(a, b)) || (!ascending && less_than(a, b))) {
+		data[i] = b;
+		data[ixj] = a;
+	}
 }
 
 std::vector<std::size_t> build_offsets(const std::vector<std::vector<unsigned char>>& keep,
@@ -113,6 +132,8 @@ std::vector<std::size_t> build_offsets(const std::vector<std::vector<unsigned ch
 	std::vector<std::size_t> offsets;
 	offsets.reserve(layers.size() + 1);
 	offsets.push_back(0);
+
+	pairs_out.reserve((n >> 1) * layers.size());
 
 	for (std::size_t layer_idx = 0; layer_idx < layers.size(); ++layer_idx) {
 		const std::size_t j = layers[layer_idx].j;
@@ -136,14 +157,6 @@ std::size_t choose_block_size() {
 	CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
 	return static_cast<std::size_t>(prop.warpSize * 8);
 }
-
-enum class FullKernelVariant {
-	V0,
-	V1,
-	V2,
-};
-
-constexpr FullKernelVariant kActiveFullKernel = FullKernelVariant::V2;
 
 } // namespace
 
@@ -178,13 +191,13 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
 	std::vector<std::uint32_t> pair_i;
 	std::vector<std::size_t> offsets;
 	std::size_t active_comparators = full_pairs * layers.size();
+	
 	if (trunc) {
 		offsets = build_offsets(keep, layers, pair_i, n);
 		active_comparators = pair_i.size();
 		if (!pair_i.empty()) {
 			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_pairs), pair_i.size() * sizeof(std::uint32_t)));
-			CUDA_CHECK(
-				cudaMemcpy(d_pairs, pair_i.data(), pair_i.size() * sizeof(std::uint32_t), cudaMemcpyHostToDevice));
+			CUDA_CHECK(cudaMemcpy(d_pairs, pair_i.data(), pair_i.size() * sizeof(std::uint32_t), cudaMemcpyHostToDevice));
 		}
 	}
 
@@ -195,6 +208,9 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
 	CUDA_CHECK(cudaEventRecord(start));
 
 	std::size_t kernel_launches = 0;
+	FusedLayers buffer;
+	buffer.count = 0;
+
 	for (std::size_t layer_idx = 0; layer_idx < layers.size(); ++layer_idx) {
 		const std::size_t stage = layers[layer_idx].k;
 		const std::size_t step = layers[layer_idx].j;
@@ -203,29 +219,45 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
 			const std::size_t begin = offsets[layer_idx];
 			const std::size_t end = offsets[layer_idx + 1];
 			const std::size_t count = end - begin;
-			if (count == 0) {
-				continue;
-			}
+			if (count == 0) continue;
+
 			const dim3 grid(static_cast<unsigned int>((count + block_size - 1) / block_size));
 			const dim3 block(static_cast<unsigned int>(block_size));
 			bitonic_layer_trunc<<<grid, block>>>(d_data, d_pairs + begin, count, stage, step);
-		} else {
+			CUDA_CHECK(cudaGetLastError());
+			kernel_launches++;
+			continue;
+		}
+
+		if (step <= block_size) {
+			buffer.stages[buffer.count] = static_cast<std::uint32_t>(stage);
+			buffer.steps[buffer.count] = static_cast<std::uint32_t>(step);
+			buffer.count++;
+		}
+
+		const bool is_last = (layer_idx == layers.size() - 1);
+		const bool next_is_large = (!is_last && layers[layer_idx + 1].j > block_size);
+		const bool is_full = (buffer.count == 16);
+
+		if (buffer.count > 0 && (is_last || next_is_large || is_full)) {
 			const dim3 grid(static_cast<unsigned int>((full_pairs + block_size - 1) / block_size));
 			const dim3 block(static_cast<unsigned int>(block_size));
-			switch (kActiveFullKernel) {
-			case FullKernelVariant::V0:
-				bitonic_layer_full_v0<<<grid, block>>>(d_data, full_pairs, stage, step);
-				break;
-			case FullKernelVariant::V1:
-				bitonic_layer_full_v1<<<grid, block>>>(d_data, n, stage, step);
-				break;
-			case FullKernelVariant::V2:
-				bitonic_layer_full_v2<<<grid, block>>>(d_data, full_pairs, stage, step);
-				break;
-			}
+			const std::size_t smem_size = block_size * 2 * sizeof(T);
+			
+			bitonic_fused_shared<<<grid, block, smem_size>>>(d_data, full_pairs, buffer);
+			CUDA_CHECK(cudaGetLastError());
+			kernel_launches++;
+			buffer.count = 0;
 		}
-		CUDA_CHECK(cudaGetLastError());
-		kernel_launches++;
+
+		if (step > block_size) {
+			const dim3 grid(static_cast<unsigned int>((full_pairs + block_size - 1) / block_size));
+			const dim3 block(static_cast<unsigned int>(block_size));
+			
+			bitonic_layer_global_coalesced<<<grid, block>>>(d_data, full_pairs, stage, step);
+			CUDA_CHECK(cudaGetLastError());
+			kernel_launches++;
+		}
 	}
 
 	CUDA_CHECK(cudaEventRecord(stop));
