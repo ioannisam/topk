@@ -193,6 +193,372 @@ __attribute__((target("avx512f"))) void run_layer_j1_avx512_f64(double* ptr, std
 	}
 }
 
+// --- j = 2,4,8 Kernels (Adjacent/Small-Stride Elements) ---
+
+__attribute__((target("avx512f"))) void run_layer_j2_avx512_i32(std::int32_t* ptr, std::size_t begin, std::size_t end, std::size_t k) {
+	const __m512i swap_idx = _mm512_setr_epi32(2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13);
+	const __m512i lane_idx = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+	const __m512i j_mask_vec = _mm512_set1_epi32(2);
+	const __mmask16 odd_mask = 0xCCCC;
+	const __m512i kvec = _mm512_set1_epi32(static_cast<std::int32_t>(k));
+
+ 	std::size_t i = (begin + 3U) & ~3U;
+ 	for (; i + 15 < end; i += 16) {
+ 		const __m512i v = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr + i));
+ 		const __m512i swapped = _mm512_permutexvar_epi32(swap_idx, v);
+ 		const __m512i lo = _mm512_min_epi32(v, swapped);
+ 		const __m512i hi = _mm512_max_epi32(v, swapped);
+
+ 		const __m512i base = _mm512_add_epi32(_mm512_set1_epi32(static_cast<std::int32_t>(i)), lane_idx);
+ 		const __m512i pair_base = _mm512_andnot_si512(j_mask_vec, base);
+ 		const __m512i dir_bits = _mm512_and_si512(pair_base, kvec);
+ 		const __mmask16 desc_mask = _mm512_cmpneq_epi32_mask(dir_bits, _mm512_setzero_si512());
+ 		const __mmask16 choose_hi = odd_mask ^ desc_mask;
+
+ 		const __m512i out = _mm512_mask_blend_epi32(choose_hi, lo, hi);
+ 		_mm512_storeu_si512(reinterpret_cast<__m512i*>(ptr + i), out);
+ 	}
+
+ 	for (; i < end; ++i) {
+ 		const std::size_t ixj = i ^ std::size_t{2};
+ 		if (ixj <= i) continue;
+ 		const bool ascending = (i & k) == 0;
+ 		if (ascending) { if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]); } 
+ 		else { if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
+ 	}
+}
+
+__attribute__((target("avx512f"))) void run_layer_j4_avx512_i32(std::int32_t* ptr, std::size_t begin, std::size_t end, std::size_t k) {
+ 	const __m512i swap_idx = _mm512_setr_epi32(4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11);
+ 	const __m512i lane_idx = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+ 	const __m512i j_mask_vec = _mm512_set1_epi32(4);
+ 	const __mmask16 odd_mask = 0xF0F0;
+ 	const __m512i kvec = _mm512_set1_epi32(static_cast<std::int32_t>(k));
+
+ 	std::size_t i = (begin + 7U) & ~7U;
+ 	for (; i + 15 < end; i += 16) {
+ 		const __m512i v = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr + i));
+ 		const __m512i swapped = _mm512_permutexvar_epi32(swap_idx, v);
+ 		const __m512i lo = _mm512_min_epi32(v, swapped);
+ 		const __m512i hi = _mm512_max_epi32(v, swapped);
+
+ 		const __m512i base = _mm512_add_epi32(_mm512_set1_epi32(static_cast<std::int32_t>(i)), lane_idx);
+ 		const __m512i pair_base = _mm512_andnot_si512(j_mask_vec, base);
+ 		const __m512i dir_bits = _mm512_and_si512(pair_base, kvec);
+ 		const __mmask16 desc_mask = _mm512_cmpneq_epi32_mask(dir_bits, _mm512_setzero_si512());
+ 		const __mmask16 choose_hi = odd_mask ^ desc_mask;
+
+ 		const __m512i out = _mm512_mask_blend_epi32(choose_hi, lo, hi);
+ 		_mm512_storeu_si512(reinterpret_cast<__m512i*>(ptr + i), out);
+ 	}
+
+ 	for (; i < end; ++i) {
+ 		const std::size_t ixj = i ^ std::size_t{4};
+ 		if (ixj <= i) continue;
+ 		const bool ascending = (i & k) == 0;
+ 		if (ascending) { if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]); } 
+ 		else { if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
+ 	}
+}
+
+__attribute__((target("avx512f"))) void run_layer_j8_avx512_i32(std::int32_t* ptr, std::size_t begin, std::size_t end, std::size_t k) {
+ 	const __m512i swap_idx = _mm512_setr_epi32(8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7);
+ 	const __m512i lane_idx = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+ 	const __m512i j_mask_vec = _mm512_set1_epi32(8);
+ 	const __mmask16 odd_mask = 0xFF00;
+ 	const __m512i kvec = _mm512_set1_epi32(static_cast<std::int32_t>(k));
+
+ 	std::size_t i = (begin + 15U) & ~15U;
+ 	for (; i + 15 < end; i += 16) {
+ 		const __m512i v = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr + i));
+ 		const __m512i swapped = _mm512_permutexvar_epi32(swap_idx, v);
+ 		const __m512i lo = _mm512_min_epi32(v, swapped);
+ 		const __m512i hi = _mm512_max_epi32(v, swapped);
+
+ 		const __m512i base = _mm512_add_epi32(_mm512_set1_epi32(static_cast<std::int32_t>(i)), lane_idx);
+ 		const __m512i pair_base = _mm512_andnot_si512(j_mask_vec, base);
+ 		const __m512i dir_bits = _mm512_and_si512(pair_base, kvec);
+ 		const __mmask16 desc_mask = _mm512_cmpneq_epi32_mask(dir_bits, _mm512_setzero_si512());
+ 		const __mmask16 choose_hi = odd_mask ^ desc_mask;
+
+ 		const __m512i out = _mm512_mask_blend_epi32(choose_hi, lo, hi);
+ 		_mm512_storeu_si512(reinterpret_cast<__m512i*>(ptr + i), out);
+ 	}
+
+ 	for (; i < end; ++i) {
+ 		const std::size_t ixj = i ^ std::size_t{8};
+ 		if (ixj <= i) continue;
+ 		const bool ascending = (i & k) == 0;
+ 		if (ascending) { if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]); } 
+ 		else { if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
+ 	}
+}
+
+__attribute__((target("avx512f"))) void run_layer_j2_avx512_u32(std::uint32_t* ptr, std::size_t begin, std::size_t end, std::size_t k) {
+ 	const __m512i swap_idx = _mm512_setr_epi32(2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13);
+ 	const __m512i lane_idx = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+ 	const __m512i j_mask_vec = _mm512_set1_epi32(2);
+ 	const __mmask16 odd_mask = 0xCCCC;
+ 	const __m512i kvec = _mm512_set1_epi32(static_cast<std::int32_t>(k));
+
+ 	std::size_t i = (begin + 3U) & ~3U;
+ 	for (; i + 15 < end; i += 16) {
+ 		const __m512i v = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr + i));
+ 		const __m512i swapped = _mm512_permutexvar_epi32(swap_idx, v);
+ 		const __m512i lo = _mm512_min_epu32(v, swapped);
+ 		const __m512i hi = _mm512_max_epu32(v, swapped);
+
+ 		const __m512i base = _mm512_add_epi32(_mm512_set1_epi32(static_cast<std::int32_t>(i)), lane_idx);
+ 		const __m512i pair_base = _mm512_andnot_si512(j_mask_vec, base);
+ 		const __m512i dir_bits = _mm512_and_si512(pair_base, kvec);
+ 		const __mmask16 desc_mask = _mm512_cmpneq_epi32_mask(dir_bits, _mm512_setzero_si512());
+ 		const __mmask16 choose_hi = odd_mask ^ desc_mask;
+
+ 		const __m512i out = _mm512_mask_blend_epi32(choose_hi, lo, hi);
+ 		_mm512_storeu_si512(reinterpret_cast<__m512i*>(ptr + i), out);
+ 	}
+
+ 	for (; i < end; ++i) {
+ 		const std::size_t ixj = i ^ std::size_t{2};
+ 		if (ixj <= i) continue;
+ 		const bool ascending = (i & k) == 0;
+ 		if (ascending) { if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]); } 
+ 		else { if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
+ 	}
+}
+
+__attribute__((target("avx512f"))) void run_layer_j4_avx512_u32(std::uint32_t* ptr, std::size_t begin, std::size_t end, std::size_t k) {
+ 	const __m512i swap_idx = _mm512_setr_epi32(4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11);
+ 	const __m512i lane_idx = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+ 	const __m512i j_mask_vec = _mm512_set1_epi32(4);
+ 	const __mmask16 odd_mask = 0xF0F0;
+ 	const __m512i kvec = _mm512_set1_epi32(static_cast<std::int32_t>(k));
+
+ 	std::size_t i = (begin + 7U) & ~7U;
+ 	for (; i + 15 < end; i += 16) {
+ 		const __m512i v = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr + i));
+ 		const __m512i swapped = _mm512_permutexvar_epi32(swap_idx, v);
+ 		const __m512i lo = _mm512_min_epu32(v, swapped);
+ 		const __m512i hi = _mm512_max_epu32(v, swapped);
+
+ 		const __m512i base = _mm512_add_epi32(_mm512_set1_epi32(static_cast<std::int32_t>(i)), lane_idx);
+ 		const __m512i pair_base = _mm512_andnot_si512(j_mask_vec, base);
+ 		const __m512i dir_bits = _mm512_and_si512(pair_base, kvec);
+ 		const __mmask16 desc_mask = _mm512_cmpneq_epi32_mask(dir_bits, _mm512_setzero_si512());
+ 		const __mmask16 choose_hi = odd_mask ^ desc_mask;
+
+ 		const __m512i out = _mm512_mask_blend_epi32(choose_hi, lo, hi);
+ 		_mm512_storeu_si512(reinterpret_cast<__m512i*>(ptr + i), out);
+ 	}
+
+ 	for (; i < end; ++i) {
+ 		const std::size_t ixj = i ^ std::size_t{4};
+ 		if (ixj <= i) continue;
+ 		const bool ascending = (i & k) == 0;
+ 		if (ascending) { if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]); } 
+ 		else { if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
+ 	}
+}
+
+__attribute__((target("avx512f"))) void run_layer_j8_avx512_u32(std::uint32_t* ptr, std::size_t begin, std::size_t end, std::size_t k) {
+ 	const __m512i swap_idx = _mm512_setr_epi32(8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7);
+ 	const __m512i lane_idx = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+ 	const __m512i j_mask_vec = _mm512_set1_epi32(8);
+ 	const __mmask16 odd_mask = 0xFF00;
+ 	const __m512i kvec = _mm512_set1_epi32(static_cast<std::int32_t>(k));
+
+ 	std::size_t i = (begin + 15U) & ~15U;
+ 	for (; i + 15 < end; i += 16) {
+ 		const __m512i v = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr + i));
+ 		const __m512i swapped = _mm512_permutexvar_epi32(swap_idx, v);
+ 		const __m512i lo = _mm512_min_epu32(v, swapped);
+ 		const __m512i hi = _mm512_max_epu32(v, swapped);
+
+ 		const __m512i base = _mm512_add_epi32(_mm512_set1_epi32(static_cast<std::int32_t>(i)), lane_idx);
+ 		const __m512i pair_base = _mm512_andnot_si512(j_mask_vec, base);
+ 		const __m512i dir_bits = _mm512_and_si512(pair_base, kvec);
+ 		const __mmask16 desc_mask = _mm512_cmpneq_epi32_mask(dir_bits, _mm512_setzero_si512());
+ 		const __mmask16 choose_hi = odd_mask ^ desc_mask;
+
+ 		const __m512i out = _mm512_mask_blend_epi32(choose_hi, lo, hi);
+ 		_mm512_storeu_si512(reinterpret_cast<__m512i*>(ptr + i), out);
+ 	}
+
+ 	for (; i < end; ++i) {
+ 		const std::size_t ixj = i ^ std::size_t{8};
+ 		if (ixj <= i) continue;
+ 		const bool ascending = (i & k) == 0;
+ 		if (ascending) { if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]); } 
+ 		else { if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
+ 	}
+}
+
+__attribute__((target("avx512f"))) void run_layer_j2_avx512_f32(float* ptr, std::size_t begin, std::size_t end, std::size_t k) {
+ 	const __m512i swap_idx = _mm512_setr_epi32(2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13);
+ 	const __m512i lane_idx = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+ 	const __m512i j_mask_vec = _mm512_set1_epi32(2);
+ 	const __mmask16 odd_mask = 0xCCCC;
+ 	const __m512i kvec = _mm512_set1_epi32(static_cast<std::int32_t>(k));
+
+ 	std::size_t i = (begin + 3U) & ~3U;
+ 	for (; i + 15 < end; i += 16) {
+ 		const __m512 v = _mm512_loadu_ps(ptr + i);
+ 		const __m512 swapped = _mm512_permutexvar_ps(swap_idx, v);
+ 		const __m512 lo = _mm512_min_ps(v, swapped);
+ 		const __m512 hi = _mm512_max_ps(v, swapped);
+
+ 		const __m512i base = _mm512_add_epi32(_mm512_set1_epi32(static_cast<std::int32_t>(i)), lane_idx);
+ 		const __m512i pair_base = _mm512_andnot_si512(j_mask_vec, base);
+ 		const __m512i dir_bits = _mm512_and_si512(pair_base, kvec);
+ 		const __mmask16 desc_mask = _mm512_cmpneq_epi32_mask(dir_bits, _mm512_setzero_si512());
+ 		const __mmask16 choose_hi = odd_mask ^ desc_mask;
+
+ 		const __m512 out = _mm512_mask_blend_ps(choose_hi, lo, hi);
+ 		_mm512_storeu_ps(ptr + i, out);
+ 	}
+
+ 	for (; i < end; ++i) {
+ 		const std::size_t ixj = i ^ std::size_t{2};
+ 		if (ixj <= i) continue;
+ 		const bool ascending = (i & k) == 0;
+ 		if (ascending) { if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]); } 
+ 		else { if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
+ 	}
+}
+
+__attribute__((target("avx512f"))) void run_layer_j4_avx512_f32(float* ptr, std::size_t begin, std::size_t end, std::size_t k) {
+ 	const __m512i swap_idx = _mm512_setr_epi32(4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11);
+ 	const __m512i lane_idx = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+ 	const __m512i j_mask_vec = _mm512_set1_epi32(4);
+ 	const __mmask16 odd_mask = 0xF0F0;
+ 	const __m512i kvec = _mm512_set1_epi32(static_cast<std::int32_t>(k));
+
+ 	std::size_t i = (begin + 7U) & ~7U;
+ 	for (; i + 15 < end; i += 16) {
+ 		const __m512 v = _mm512_loadu_ps(ptr + i);
+ 		const __m512 swapped = _mm512_permutexvar_ps(swap_idx, v);
+ 		const __m512 lo = _mm512_min_ps(v, swapped);
+ 		const __m512 hi = _mm512_max_ps(v, swapped);
+
+ 		const __m512i base = _mm512_add_epi32(_mm512_set1_epi32(static_cast<std::int32_t>(i)), lane_idx);
+ 		const __m512i pair_base = _mm512_andnot_si512(j_mask_vec, base);
+ 		const __m512i dir_bits = _mm512_and_si512(pair_base, kvec);
+ 		const __mmask16 desc_mask = _mm512_cmpneq_epi32_mask(dir_bits, _mm512_setzero_si512());
+ 		const __mmask16 choose_hi = odd_mask ^ desc_mask;
+
+ 		const __m512 out = _mm512_mask_blend_ps(choose_hi, lo, hi);
+ 		_mm512_storeu_ps(ptr + i, out);
+ 	}
+
+ 	for (; i < end; ++i) {
+ 		const std::size_t ixj = i ^ std::size_t{4};
+ 		if (ixj <= i) continue;
+ 		const bool ascending = (i & k) == 0;
+ 		if (ascending) { if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]); } 
+ 		else { if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
+ 	}
+}
+
+__attribute__((target("avx512f"))) void run_layer_j8_avx512_f32(float* ptr, std::size_t begin, std::size_t end, std::size_t k) {
+ 	const __m512i swap_idx = _mm512_setr_epi32(8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7);
+ 	const __m512i lane_idx = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+ 	const __m512i j_mask_vec = _mm512_set1_epi32(8);
+ 	const __mmask16 odd_mask = 0xFF00;
+ 	const __m512i kvec = _mm512_set1_epi32(static_cast<std::int32_t>(k));
+
+ 	std::size_t i = (begin + 15U) & ~15U;
+ 	for (; i + 15 < end; i += 16) {
+ 		const __m512 v = _mm512_loadu_ps(ptr + i);
+ 		const __m512 swapped = _mm512_permutexvar_ps(swap_idx, v);
+ 		const __m512 lo = _mm512_min_ps(v, swapped);
+ 		const __m512 hi = _mm512_max_ps(v, swapped);
+
+ 		const __m512i base = _mm512_add_epi32(_mm512_set1_epi32(static_cast<std::int32_t>(i)), lane_idx);
+ 		const __m512i pair_base = _mm512_andnot_si512(j_mask_vec, base);
+ 		const __m512i dir_bits = _mm512_and_si512(pair_base, kvec);
+ 		const __mmask16 desc_mask = _mm512_cmpneq_epi32_mask(dir_bits, _mm512_setzero_si512());
+ 		const __mmask16 choose_hi = odd_mask ^ desc_mask;
+
+ 		const __m512 out = _mm512_mask_blend_ps(choose_hi, lo, hi);
+ 		_mm512_storeu_ps(ptr + i, out);
+ 	}
+
+ 	for (; i < end; ++i) {
+ 		const std::size_t ixj = i ^ std::size_t{8};
+ 		if (ixj <= i) continue;
+ 		const bool ascending = (i & k) == 0;
+ 		if (ascending) { if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]); } 
+ 		else { if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
+ 	}
+}
+
+// double: j=2 and j=4 kernels (j=8 handled by wide-stride path)
+__attribute__((target("avx512f"))) void run_layer_j2_avx512_f64(double* ptr, std::size_t begin, std::size_t end, std::size_t k) {
+ 	const __m512i swap_idx = _mm512_setr_epi64(2, 3, 0, 1, 6, 7, 4, 5);
+ 	const __m512i lane_idx = _mm512_setr_epi64(0, 1, 2, 3, 4, 5, 6, 7);
+ 	const __m512i j_mask_vec = _mm512_set1_epi64(2);
+ 	const __mmask8 odd_mask = 0xCC;
+ 	const __m512i kvec = _mm512_set1_epi64(static_cast<std::int64_t>(k));
+
+ 	std::size_t i = (begin + 3U) & ~3U;
+ 	for (; i + 7 < end; i += 8) {
+ 		const __m512d v = _mm512_loadu_pd(ptr + i);
+ 		const __m512d swapped = _mm512_permutexvar_pd(swap_idx, v);
+ 		const __m512d lo = _mm512_min_pd(v, swapped);
+ 		const __m512d hi = _mm512_max_pd(v, swapped);
+
+ 		const __m512i base = _mm512_add_epi64(_mm512_set1_epi64(static_cast<std::int64_t>(i)), lane_idx);
+ 		const __m512i pair_base = _mm512_andnot_si512(j_mask_vec, base);
+ 		const __m512i dir_bits = _mm512_and_si512(pair_base, kvec);
+ 		const __mmask8 desc_mask = _mm512_cmpneq_epi64_mask(dir_bits, _mm512_setzero_si512());
+ 		const __mmask8 choose_hi = odd_mask ^ desc_mask;
+
+ 		const __m512d out = _mm512_mask_blend_pd(choose_hi, lo, hi);
+ 		_mm512_storeu_pd(ptr + i, out);
+ 	}
+
+ 	for (; i < end; ++i) {
+ 		const std::size_t ixj = i ^ std::size_t{2};
+ 		if (ixj <= i) continue;
+ 		const bool ascending = (i & k) == 0;
+ 		if (ascending) { if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]); } 
+ 		else { if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
+ 	}
+}
+
+__attribute__((target("avx512f"))) void run_layer_j4_avx512_f64(double* ptr, std::size_t begin, std::size_t end, std::size_t k) {
+ 	const __m512i swap_idx = _mm512_setr_epi64(4, 5, 6, 7, 0, 1, 2, 3);
+ 	const __m512i lane_idx = _mm512_setr_epi64(0, 1, 2, 3, 4, 5, 6, 7);
+ 	const __m512i j_mask_vec = _mm512_set1_epi64(4);
+ 	const __mmask8 odd_mask = 0xF0;
+ 	const __m512i kvec = _mm512_set1_epi64(static_cast<std::int64_t>(k));
+
+ 	std::size_t i = (begin + 7U) & ~7U;
+ 	for (; i + 7 < end; i += 8) {
+ 		const __m512d v = _mm512_loadu_pd(ptr + i);
+ 		const __m512d swapped = _mm512_permutexvar_pd(swap_idx, v);
+ 		const __m512d lo = _mm512_min_pd(v, swapped);
+ 		const __m512d hi = _mm512_max_pd(v, swapped);
+
+ 		const __m512i base = _mm512_add_epi64(_mm512_set1_epi64(static_cast<std::int64_t>(i)), lane_idx);
+ 		const __m512i pair_base = _mm512_andnot_si512(j_mask_vec, base);
+ 		const __m512i dir_bits = _mm512_and_si512(pair_base, kvec);
+ 		const __mmask8 desc_mask = _mm512_cmpneq_epi64_mask(dir_bits, _mm512_setzero_si512());
+ 		const __mmask8 choose_hi = odd_mask ^ desc_mask;
+
+ 		const __m512d out = _mm512_mask_blend_pd(choose_hi, lo, hi);
+ 		_mm512_storeu_pd(ptr + i, out);
+ 	}
+
+ 	for (; i < end; ++i) {
+ 		const std::size_t ixj = i ^ std::size_t{4};
+ 		if (ixj <= i) continue;
+ 		const bool ascending = (i & k) == 0;
+ 		if (ascending) { if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]); } 
+ 		else { if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
+ 	}
+}
+
 // --- j >= SIMD_WIDTH Kernels (Wide-Stride Elements) ---
 
 __attribute__((target("avx512f"))) void run_layer_j_ge_simd_avx512_i32(std::int32_t* ptr, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, std::size_t n) {
@@ -391,27 +757,33 @@ __attribute__((target("avx512f"))) void run_layer_j_ge_simd_avx512_f64(double* p
 
 template <typename T>
 bool try_run_avx512_layer(std::vector<T>& data, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, bool trunc) {
-	if (!cpu_supports_avx512f()) {
-		return false;
-	}
-
-	if (k > std::numeric_limits<std::int32_t>::max() || end > std::numeric_limits<std::int32_t>::max()) {
-		return false;
-	}
+	if (!cpu_supports_avx512f()) return false;
+	if (k > std::numeric_limits<std::int32_t>::max() || end > std::numeric_limits<std::int32_t>::max()) return false;
 
 	const std::size_t n = data.size();
 
 	if constexpr (std::is_same_v<T, std::int32_t>) {
 		if (j == 1) { run_layer_j1_avx512_i32(data.data(), begin, end, k); return true; }
+		if (j == 2) { run_layer_j2_avx512_i32(data.data(), begin, end, k); return true; }
+		if (j == 4) { run_layer_j4_avx512_i32(data.data(), begin, end, k); return true; }
+		if (j == 8) { run_layer_j8_avx512_i32(data.data(), begin, end, k); return true; }
 		if (j >= 16) { run_layer_j_ge_simd_avx512_i32(data.data(), begin, end, k, j, n); return true; }
 	} else if constexpr (std::is_same_v<T, std::uint32_t>) {
 		if (j == 1) { run_layer_j1_avx512_u32(data.data(), begin, end, k); return true; }
+		if (j == 2) { run_layer_j2_avx512_u32(data.data(), begin, end, k); return true; }
+		if (j == 4) { run_layer_j4_avx512_u32(data.data(), begin, end, k); return true; }
+		if (j == 8) { run_layer_j8_avx512_u32(data.data(), begin, end, k); return true; }
 		if (j >= 16) { run_layer_j_ge_simd_avx512_u32(data.data(), begin, end, k, j, n); return true; }
 	} else if constexpr (std::is_same_v<T, float>) {
 		if (j == 1) { run_layer_j1_avx512_f32(data.data(), begin, end, k); return true; }
+		if (j == 2) { run_layer_j2_avx512_f32(data.data(), begin, end, k); return true; }
+		if (j == 4) { run_layer_j4_avx512_f32(data.data(), begin, end, k); return true; }
+		if (j == 8) { run_layer_j8_avx512_f32(data.data(), begin, end, k); return true; }
 		if (j >= 16) { run_layer_j_ge_simd_avx512_f32(data.data(), begin, end, k, j, n); return true; }
 	} else if constexpr (std::is_same_v<T, double>) {
 		if (j == 1) { run_layer_j1_avx512_f64(data.data(), begin, end, k); return true; }
+		if (j == 2) { run_layer_j2_avx512_f64(data.data(), begin, end, k); return true; }
+		if (j == 4) { run_layer_j4_avx512_f64(data.data(), begin, end, k); return true; }
 		if (j >= 8) { run_layer_j_ge_simd_avx512_f64(data.data(), begin, end, k, j, n); return true; }
 	}
 
