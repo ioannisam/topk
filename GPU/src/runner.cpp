@@ -46,6 +46,7 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 		} else {
 			last_full_stats = stats;
 		}
+		std::cout << "[PROFILE_TIME_MS] " << stats.elapsed_ms << "\n";
 		return common::topk::BasicRunStats{stats.elapsed_ms};
 	}
 
@@ -82,6 +83,12 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 			stats->elapsed_ms = map_stats.elapsed_ms;
 			stats->tiles_used = map_stats.tiles_used;
 			stats->aggregated_candidates = map_stats.aggregated_candidates;
+		}
+
+		if (stats != nullptr) {
+			std::cout << "[PROFILE_TIME_MS] " << stats->elapsed_ms << "\n";
+		} else {
+			std::cout << "[PROFILE_TIME_MS] " << map_stats.elapsed_ms << "\n";
 		}
 
 		last_stats = map_stats;

@@ -164,10 +164,23 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 	const bool run_both = cfg.run_mode == common::config::RunMode::Both;
 	const bool both_ok = run_both ? compare_topk_prefix(trunc, full, cfg.k) : true;
 
-	common::reporting::print_timing_lines({
-		{"Full bitonic time (ms)", run_full ? std::optional<double>(full_stats.elapsed_ms) : std::nullopt},
-		{"Trunc bitonic time (ms)", run_trunc ? std::optional<double>(trunc_stats.elapsed_ms) : std::nullopt},
-	});
+	// Print timing lines; ensure an explicit newline after the Full timing
+	common::reporting::print_section_header("Timing");
+	if (run_full) {
+		common::reporting::print_key_value("Full bitonic time (ms)", full_stats.elapsed_ms, 3);
+	} else {
+		common::reporting::print_key_value("Full bitonic time (ms)", "skipped");
+	}
+
+	// Ensure a separating newline after the Full bitonic time to avoid
+	// accidental concatenation with subsequent output (fixes parsing bugs).
+	std::cout << std::endl;
+
+	if (run_trunc) {
+		common::reporting::print_key_value("Trunc bitonic time (ms)", trunc_stats.elapsed_ms, 3);
+	} else {
+		common::reporting::print_key_value("Trunc bitonic time (ms)", "skipped");
+	}
 
 	if (run_trunc) {
 		const std::size_t skipped = full_cmp >= trunc_cmp ? (full_cmp - trunc_cmp) : 0;

@@ -5,6 +5,7 @@
 #include "../include/runner.hpp"
 
 int main(int argc, char** argv) {
+    std::cout << "Running CPU Top-K...\n";
 	try {
 		const common::config::Config cfg = common::config::parse_args(argc, argv);
 		return cpu::topk::execute(cfg);

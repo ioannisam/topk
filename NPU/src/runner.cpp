@@ -55,6 +55,7 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 		} else {
 			last_full_stats = stats;
 		}
+		std::cout << "[PROFILE_TIME_MS] " << stats.elapsed_ms << "\n";
 		return common::topk::BasicRunStats{stats.elapsed_ms};
 	}
 

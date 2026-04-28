@@ -47,7 +47,9 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 		auto t0 = std::chrono::high_resolution_clock::now();
 		cpu::bitonic::run_topk(data, layers, keep, trunc, context.ex_threads);
 		auto t1 = std::chrono::high_resolution_clock::now();
-		return common::topk::BasicRunStats{std::chrono::duration<double, std::milli>(t1 - t0).count()};
+		double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
+		std::cout << "[PROFILE_TIME_MS] " << elapsed << "\n";
+		return common::topk::BasicRunStats{elapsed};
 	}
 
 	void print_debug_metrics(const Config& cfg, std::size_t layer_count, std::size_t full_cmp, std::size_t trunc_cmp,
@@ -78,10 +80,14 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 		std::vector<T> output = cpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, context.ex_threads, &map_stats);
 		auto t1 = std::chrono::high_resolution_clock::now();
 
+		double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
 		if (stats != nullptr) {
-			stats->elapsed_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+			stats->elapsed_ms = elapsed;
 			stats->tiles_used = map_stats.tiles_used;
 			stats->aggregated_candidates = map_stats.aggregated_candidates;
+			std::cout << "[PROFILE_TIME_MS] " << stats->elapsed_ms << "\n";
+		} else {
+			std::cout << "[PROFILE_TIME_MS] " << elapsed << "\n";
 		}
 
 		return output;
