@@ -65,27 +65,35 @@ run_suite() {
         local cmd=("${EXECUTABLE}" "q=${q}" "k=${k}" "algo=${algo}")
         [[ "${algo}" == "bitonic" ]] && cmd+=("run=both")
 
-        local ERR_LOG; ERR_LOG="$(mktemp)"
+        local min_time=999999.0
+        local runs=5
         local exit_code=0
         
-        local RAW_OUTPUT
-        RAW_OUTPUT=$("${cmd[@]}" 2>>"${ERR_LOG}") || exit_code=$?
+        for ((i=1; i<=runs; i++)); do
+            local ERR_LOG; ERR_LOG="$(mktemp)"
+            local RAW_OUTPUT
+            RAW_OUTPUT=$("${cmd[@]}" 2>>"${ERR_LOG}") || exit_code=$?
 
-        if [[ ${exit_code} -ne 0 ]]; then
-            duration="ERROR"
-            echo "   [!] ${algo} failed for q=${q}. See log: ${ERR_LOG}"
-        else
+            if [[ ${exit_code} -ne 0 ]]; then
+                min_time="ERROR"
+                echo "   [!] ${algo} failed for q=${q}. See log: ${ERR_LOG}"
+                break
+            fi
+
             local duration_ms
             duration_ms=$(echo "${RAW_OUTPUT}" | grep -E "(Trunc bitonic|Map-reduce top-k) time \(ms\)" | awk -F':' '{print $2}' | tr -d ' ')
             
-            if [[ -z "${duration_ms}" ]]; then
-                 duration="ERROR"
-                 echo "   [!] Could not find timing string for ${algo} (q=${q}). Output saved to ${ERR_LOG}"
-                 echo -e "=== STDOUT ===\n${RAW_OUTPUT}" >> "${ERR_LOG}"
-            else
-                 duration="$(awk -v ms="${duration_ms}" 'BEGIN { printf "%.3f", ms }')"
-                 rm -f "${ERR_LOG}"
+            if [[ -n "${duration_ms}" ]]; then
+                # Update minimum time
+                min_time=$(awk -v current="${duration_ms}" -v min="${min_time}" 'BEGIN { print (current < min) ? current : min }')
+                rm -f "${ERR_LOG}"
             fi
+        done
+
+        if [[ "${min_time}" != "ERROR" ]]; then
+            duration="$(awk -v ms="${min_time}" 'BEGIN { printf "%.3f", ms }')"
+        else
+            duration="ERROR"
         fi
 
         echo "${size_name} ${q} ${k} ${algo} ${duration}" >> "${OUT_FILE}"
