@@ -107,6 +107,7 @@ bool try_run_simd_layer(std::vector<T>& data, std::size_t begin, std::size_t end
 	}
 
 	if (cpu::simd::cpu_supports_avx2()) {
+		// 32-bit types (Width = 8)
 		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>) {
 			if (j <= 4) {
 				if (j == 1) run_layer_intra_simd<T, 1, cpu::simd::SimdTraits256>(ptr, begin, end, k);
@@ -115,6 +116,19 @@ bool try_run_simd_layer(std::vector<T>& data, std::size_t begin, std::size_t end
 				return true;
 			}
 			if (j >= 8) {
+				run_layer_inter_simd<T, cpu::simd::SimdTraits256>(ptr, begin, end, k, j, n);
+				return true;
+			}
+		}
+
+		// 64-bit types (Width = 4)
+		if constexpr (std::is_same_v<T, double>) {
+			if (j <= 2) {
+				if (j == 1) run_layer_intra_simd<T, 1, cpu::simd::SimdTraits256>(ptr, begin, end, k);
+				else if (j == 2) run_layer_intra_simd<T, 2, cpu::simd::SimdTraits256>(ptr, begin, end, k);
+				return true;
+			}
+			if (j >= 4) {
 				run_layer_inter_simd<T, cpu::simd::SimdTraits256>(ptr, begin, end, k, j, n);
 				return true;
 			}

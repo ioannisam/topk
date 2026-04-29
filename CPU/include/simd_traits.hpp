@@ -274,9 +274,35 @@ template <> struct SimdTraits256<std::uint32_t> {
 };
 
 template <> struct SimdTraits256<double> {
-    // Only implemented for map_reduce (bitonic AVX2 skips doubles).
+    using Vec = __m256d;
+    using Mask = __m256d;
     static constexpr std::size_t width = 4;
+
+    // -- Bitonic Sort Primitives --
+    static Vec load(const double* p) { return _mm256_loadu_pd(p); }
+    static void store(double* p, Vec v) { _mm256_storeu_pd(p, v); }
+    static Vec min(Vec a, Vec b) { return _mm256_min_pd(a, b); }
+    static Vec max(Vec a, Vec b) { return _mm256_max_pd(a, b); }
+    static Vec blend(Mask m, Vec a, Vec b) { return _mm256_blendv_pd(a, b, m); }
     
+    template <int J> static Vec permutex(Vec v) {
+        if constexpr (J == 1) return _mm256_permute_pd(v, 0x5);
+        if constexpr (J == 2) return _mm256_permute2f128_pd(v, v, 0x01);
+        return v;
+    }
+    
+    template <int J> static Mask get_blend_mask(std::size_t i, std::size_t k) {
+        alignas(32) std::int64_t mask_arr[4];
+        for (int l = 0; l < 4; ++l) {
+            std::size_t curr = i + l;
+            bool desc = ((curr & ~static_cast<std::size_t>(J)) & k) != 0;
+            bool odd = (curr & J) != 0;
+            mask_arr[l] = (odd ^ desc) ? -1 : 0;
+        }
+        return _mm256_castsi256_pd(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(mask_arr)));
+    }
+
+    // -- Map-Reduce Primitives --
     template <bool WantMax>
     __attribute__((target("avx2"))) static bool any_greater(const double* ptr, double threshold) {
         const __m256d v = _mm256_loadu_pd(ptr);
