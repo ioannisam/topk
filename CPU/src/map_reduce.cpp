@@ -1,4 +1,5 @@
 #include "../include/algorithm.hpp"
+#include "../include/simd_traits.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -14,204 +15,6 @@
 namespace cpu::map_reduce {
 
 namespace {
-
-#if defined(__x86_64__) || defined(__i386__)
-bool cpu_supports_avx512f() {
-	static const bool has_avx512f = []() {
-#if defined(__GNUC__) || defined(__clang__)
-		__builtin_cpu_init();
-		return __builtin_cpu_supports("avx512f");
-#else
-		return false;
-#endif
-	}();
-	return has_avx512f;
-}
-
-bool cpu_supports_avx2() {
-	static const bool has_avx2 = []() {
-#if defined(__GNUC__) || defined(__clang__)
-		__builtin_cpu_init();
-		return __builtin_cpu_supports("avx2");
-#else
-		return false;
-#endif
-	}();
-	return has_avx2;
-}
-#endif
-
-template <typename T> struct SimdThreshold {
-	static std::size_t block_width(bool, bool) {
-		return 1;
-	}
-
-	template <bool WantMax> static bool any_greater(const T*, T, bool, bool) {
-		(void)WantMax;
-		return true;
-	}
-};
-
-#if defined(__x86_64__) || defined(__i386__)
-template <> struct SimdThreshold<std::int32_t> {
-	static std::size_t block_width(bool use_avx512f, bool use_avx2) {
-		if (use_avx512f) {
-			return 16;
-		}
-		if (use_avx2) {
-			return 8;
-		}
-		return 1;
-	}
-
-	template <bool WantMax>
-	__attribute__((target("avx512f"))) static bool any_greater_avx512(const std::int32_t* ptr, std::int32_t threshold) {
-		const __m512i v = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr));
-		const __m512i t = _mm512_set1_epi32(threshold);
-		const __mmask16 mask = WantMax ? _mm512_cmpgt_epi32_mask(v, t) : _mm512_cmpgt_epi32_mask(t, v);
-		return mask != 0;
-	}
-
-	template <bool WantMax>
-	__attribute__((target("avx2"))) static bool any_greater_avx2(const std::int32_t* ptr, std::int32_t threshold) {
-		const __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(ptr));
-		const __m256i t = _mm256_set1_epi32(threshold);
-		const __m256i cmp = WantMax ? _mm256_cmpgt_epi32(v, t) : _mm256_cmpgt_epi32(t, v);
-		return _mm256_movemask_ps(_mm256_castsi256_ps(cmp)) != 0;
-	}
-
-	template <bool WantMax>
-	static bool any_greater(const std::int32_t* ptr, std::int32_t threshold, bool use_avx512f, bool use_avx2) {
-		if (use_avx512f) {
-			return any_greater_avx512<WantMax>(ptr, threshold);
-		}
-		if (use_avx2) {
-			return any_greater_avx2<WantMax>(ptr, threshold);
-		}
-		return true;
-	}
-};
-
-template <> struct SimdThreshold<std::uint32_t> {
-	static std::size_t block_width(bool use_avx512f, bool use_avx2) {
-		if (use_avx512f) {
-			return 16;
-		}
-		if (use_avx2) {
-			return 8;
-		}
-		return 1;
-	}
-
-	template <bool WantMax>
-	__attribute__((target("avx512f"))) static bool any_greater_avx512(const std::uint32_t* ptr,
-																	  std::uint32_t threshold) {
-		const __m512i v = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr));
-		const __m512i t = _mm512_set1_epi32(static_cast<std::int32_t>(threshold));
-		const __mmask16 mask =
-			WantMax ? _mm512_cmp_epu32_mask(v, t, _MM_CMPINT_GT) : _mm512_cmp_epu32_mask(t, v, _MM_CMPINT_GT);
-		return mask != 0;
-	}
-
-	template <bool WantMax>
-	__attribute__((target("avx2"))) static bool any_greater_avx2(const std::uint32_t* ptr, std::uint32_t threshold) {
-		const __m256i sign = _mm256_set1_epi32(static_cast<std::int32_t>(0x80000000u));
-		const __m256i v = _mm256_xor_si256(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(ptr)), sign);
-		const __m256i t = _mm256_xor_si256(_mm256_set1_epi32(static_cast<std::int32_t>(threshold)), sign);
-		const __m256i cmp = WantMax ? _mm256_cmpgt_epi32(v, t) : _mm256_cmpgt_epi32(t, v);
-		return _mm256_movemask_ps(_mm256_castsi256_ps(cmp)) != 0;
-	}
-
-	template <bool WantMax>
-	static bool any_greater(const std::uint32_t* ptr, std::uint32_t threshold, bool use_avx512f, bool use_avx2) {
-		if (use_avx512f) {
-			return any_greater_avx512<WantMax>(ptr, threshold);
-		}
-		if (use_avx2) {
-			return any_greater_avx2<WantMax>(ptr, threshold);
-		}
-		return true;
-	}
-};
-
-template <> struct SimdThreshold<float> {
-	static std::size_t block_width(bool use_avx512f, bool use_avx2) {
-		if (use_avx512f) {
-			return 16;
-		}
-		if (use_avx2) {
-			return 8;
-		}
-		return 1;
-	}
-
-	template <bool WantMax>
-	__attribute__((target("avx512f"))) static bool any_greater_avx512(const float* ptr, float threshold) {
-		const __m512 v = _mm512_loadu_ps(ptr);
-		const __m512 t = _mm512_set1_ps(threshold);
-		const __mmask16 mask = WantMax ? _mm512_cmp_ps_mask(v, t, _CMP_GT_OQ) : _mm512_cmp_ps_mask(v, t, _CMP_LT_OQ);
-		return mask != 0;
-	}
-
-	template <bool WantMax>
-	__attribute__((target("avx2"))) static bool any_greater_avx2(const float* ptr, float threshold) {
-		const __m256 v = _mm256_loadu_ps(ptr);
-		const __m256 t = _mm256_set1_ps(threshold);
-		const __m256 cmp = WantMax ? _mm256_cmp_ps(v, t, _CMP_GT_OQ) : _mm256_cmp_ps(v, t, _CMP_LT_OQ);
-		return _mm256_movemask_ps(cmp) != 0;
-	}
-
-	template <bool WantMax>
-	static bool any_greater(const float* ptr, float threshold, bool use_avx512f, bool use_avx2) {
-		if (use_avx512f) {
-			return any_greater_avx512<WantMax>(ptr, threshold);
-		}
-		if (use_avx2) {
-			return any_greater_avx2<WantMax>(ptr, threshold);
-		}
-		return true;
-	}
-};
-
-template <> struct SimdThreshold<double> {
-	static std::size_t block_width(bool use_avx512f, bool use_avx2) {
-		if (use_avx512f) {
-			return 8;
-		}
-		if (use_avx2) {
-			return 4;
-		}
-		return 1;
-	}
-
-	template <bool WantMax>
-	__attribute__((target("avx512f"))) static bool any_greater_avx512(const double* ptr, double threshold) {
-		const __m512d v = _mm512_loadu_pd(ptr);
-		const __m512d t = _mm512_set1_pd(threshold);
-		const __mmask8 mask = WantMax ? _mm512_cmp_pd_mask(v, t, _CMP_GT_OQ) : _mm512_cmp_pd_mask(v, t, _CMP_LT_OQ);
-		return mask != 0;
-	}
-
-	template <bool WantMax>
-	__attribute__((target("avx2"))) static bool any_greater_avx2(const double* ptr, double threshold) {
-		const __m256d v = _mm256_loadu_pd(ptr);
-		const __m256d t = _mm256_set1_pd(threshold);
-		const __m256d cmp = WantMax ? _mm256_cmp_pd(v, t, _CMP_GT_OQ) : _mm256_cmp_pd(v, t, _CMP_LT_OQ);
-		return _mm256_movemask_pd(cmp) != 0;
-	}
-
-	template <bool WantMax>
-	static bool any_greater(const double* ptr, double threshold, bool use_avx512f, bool use_avx2) {
-		if (use_avx512f) {
-			return any_greater_avx512<WantMax>(ptr, threshold);
-		}
-		if (use_avx2) {
-			return any_greater_avx2<WantMax>(ptr, threshold);
-		}
-		return true;
-	}
-};
-#endif
 
 template <bool WantMax, typename T> bool scalar_is_candidate(T value, T threshold) {
 	if constexpr (WantMax) {
@@ -252,7 +55,7 @@ std::vector<T> map(const std::vector<T>& data, std::size_t begin, std::size_t en
 		return {};
 	}
 
-	const std::size_t block = SimdThreshold<T>::block_width(use_avx512f, use_avx2);
+	const std::size_t block = cpu::simd::simd_block_width<T>(use_avx512f, use_avx2);
 	std::size_t i = begin;
 	while (i < end) {
 		if (heap.size() < k) {
@@ -268,7 +71,7 @@ std::vector<T> map(const std::vector<T>& data, std::size_t begin, std::size_t en
 		const T threshold = heap.front();
 		const std::size_t remaining = end - i;
 		if (block > 1 && remaining >= block &&
-			!SimdThreshold<T>::template any_greater<WantMax>(data.data() + i, threshold, use_avx512f, use_avx2)) {
+			!cpu::simd::any_greater_simd<WantMax, T>(data.data() + i, threshold, use_avx512f, use_avx2)) {
 			i += block;
 			continue;
 		}
@@ -316,8 +119,8 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 	workers = std::max<std::size_t>(1, std::min(workers, n));
 
 #if defined(__x86_64__) || defined(__i386__)
-	const bool has_avx512f = cpu_supports_avx512f();
-	const bool has_avx2 = cpu_supports_avx2();
+	const bool has_avx512f = cpu::simd::cpu_supports_avx512f();
+	const bool has_avx2 = cpu::simd::cpu_supports_avx2();
 	const char* force_avx512 = std::getenv("TOPK_FORCE_AVX512");
 	const bool use_avx512f = has_avx512f && force_avx512 != nullptr && force_avx512[0] == '1';
 	const bool use_avx2 = has_avx2 && !use_avx512f;
