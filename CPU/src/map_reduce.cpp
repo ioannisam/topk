@@ -55,19 +55,18 @@ std::vector<T> map(const std::vector<T>& data, std::size_t begin, std::size_t en
 		return {};
 	}
 
-	const std::size_t block = cpu::simd::simd_block_width<T>(use_avx512f, use_avx2);
-	std::size_t i = begin;
-	while (i < end) {
-		if (heap.size() < k) {
-			heap.push_back(data[i]);
-			if (heap.size() == k) {
-				// cheaper than pushing k times
-				std::make_heap(heap.begin(), heap.end(), HeapCompare{});
-			}
-			++i;
-			continue;
-		}
+	// bulk initialization
+	std::size_t initial_elements = std::min(k, end - begin);
+	heap.assign(data.begin() + begin, data.begin() + begin + initial_elements);
+	if (!heap.empty()) {
+		std::make_heap(heap.begin(), heap.end(), HeapCompare{});
+	}
 
+	const std::size_t block = cpu::simd::simd_block_width<T>(use_avx512f, use_avx2);
+	std::size_t i = begin + initial_elements;
+
+	// hot loop!
+	while (i < end) {
 		const T threshold = heap.front();
 		const std::size_t remaining = end - i;
 		
@@ -105,11 +104,6 @@ std::vector<T> map(const std::vector<T>& data, std::size_t begin, std::size_t en
 		heap[0] = data[i];
 		sift_down(heap, 0, HeapCompare{});
 		++i;
-	}
-
-    // if n < k
-    if (!heap.empty() && heap.size() < k) {
-		std::make_heap(heap.begin(), heap.end(), HeapCompare{});
 	}
 
 	return heap;
