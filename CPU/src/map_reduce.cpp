@@ -70,28 +70,44 @@ std::vector<T> map(const std::vector<T>& data, std::size_t begin, std::size_t en
 		const T threshold = heap.front();
 		const std::size_t remaining = end - i;
 		
-		if (block > 1 && remaining >= block) {
-			std::uint64_t mask = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i, threshold, use_avx512f, use_avx2);
-			
-			if (mask == 0) {
+		if (block > 1) {
+			// unroll by 4 to maximize ILP
+			if (remaining >= block * 4) {
+				std::uint64_t m0 = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i, threshold, use_avx512f, use_avx2);
+				std::uint64_t m1 = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i + block, threshold, use_avx512f, use_avx2);
+				std::uint64_t m2 = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i + block * 2, threshold, use_avx512f, use_avx2);
+				std::uint64_t m3 = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i + block * 3, threshold, use_avx512f, use_avx2);
+
+				if ((m0 | m1 | m2 | m3) == 0) {
+					i += block * 4;
+					continue;
+				}
+			}
+
+			// fallback
+			if (remaining >= block) {
+				std::uint64_t mask = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i, threshold, use_avx512f, use_avx2);
+				
+				if (mask == 0) {
+					i += block;
+					continue;
+				}
+
+				while (mask != 0) {
+					int bit_idx = std::countr_zero(mask);
+					T candidate = data[i + bit_idx];
+
+					if (scalar_is_candidate<WantMax>(candidate, heap.front())) {
+						heap[0] = candidate;
+						sift_down(heap, 0, HeapCompare{});
+					}
+
+					mask &= (mask - 1); // clear the lowest set bit
+				}
+				
 				i += block;
 				continue;
 			}
-
-			while (mask != 0) {
-				int bit_idx = std::countr_zero(mask);
-				T candidate = data[i + bit_idx];
-
-				if (scalar_is_candidate<WantMax>(candidate, heap.front())) {
-					heap[0] = candidate;
-					sift_down(heap, 0, HeapCompare{});
-				}
-
-				mask &= (mask - 1); // clear the lowest set bit
-			}
-			
-			i += block;
-			continue;
 		}
 
 		// tail elements where remaining < block
