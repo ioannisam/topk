@@ -66,7 +66,7 @@ run_suite() {
         [[ "${algo}" == "bitonic" ]] && cmd+=("run=both")
 
         local min_time=999999.0
-        local runs=5
+        local runs=3
         local exit_code=0
         
         for ((i=1; i<=runs; i++)); do
