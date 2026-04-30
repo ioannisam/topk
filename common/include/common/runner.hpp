@@ -35,8 +35,8 @@ template <typename T> class BitonicRunnerHooks {
 	virtual ~BitonicRunnerHooks() = default;
 
 	virtual void print_configuration(const common::config::Config& cfg, std::size_t n) = 0;
-	virtual BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-							  const std::vector<std::vector<unsigned char>>& keep, bool trunc) = 0;
+	virtual BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) = 0;
+    
 	virtual void print_debug_metrics(const common::config::Config& cfg, std::size_t layer_count, std::size_t full_cmp,
 									 std::size_t trunc_cmp, const BasicRunStats* full_stats,
 									 const BasicRunStats* trunc_stats) = 0;
@@ -136,10 +136,12 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 	const std::size_t n = std::size_t{1} << cfg.q;
 	hooks.print_configuration(cfg, n);
 
-	auto layers = common::bitonic::build_layers(n);
-	auto keep = common::bitonic::build_masks(layers, n, cfg.k);
-	const std::size_t full_cmp = common::bitonic::count_full_comparators(layers, n);
-	const std::size_t trunc_cmp = common::bitonic::count_trunc_comparators(layers, keep, n);
+    // Build the dynamic instruction sets
+	auto trunc_layers = common::bitonic::build_layers(n, cfg.k);
+	auto full_layers = common::bitonic::build_layers(n, n); // topk = n yields a full sort
+    
+	const std::size_t full_cmp = common::bitonic::count_full_comparators(n);
+	const std::size_t trunc_cmp = common::bitonic::count_trunc_comparators(trunc_layers);
 
 	std::vector<T> input = common::utils::generate_random_input<T>(n, cfg.seed, kDefaultRandMin, kDefaultRandMax);
 	apply_mode_transform(input, cfg.want_max);
@@ -154,11 +156,11 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 
 	if (run_trunc) {
 		trunc = input;
-		trunc_stats = hooks.run(trunc, layers, keep, true);
+		trunc_stats = hooks.run(trunc, trunc_layers);
 	}
 	if (run_full) {
 		full = input;
-		full_stats = hooks.run(full, layers, keep, false);
+		full_stats = hooks.run(full, full_layers);
 	}
 
 	const bool run_both = cfg.run_mode == common::config::RunMode::Both;
@@ -191,7 +193,7 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 											   common::reporting::format_fixed(skipped_pct, 2, "%") + ")");
 	}
 
-	hooks.print_debug_metrics(cfg, layers.size(), full_cmp, trunc_cmp, run_full ? &full_stats : nullptr,
+	hooks.print_debug_metrics(cfg, trunc_layers.size(), full_cmp, trunc_cmp, run_full ? &full_stats : nullptr,
 							  run_trunc ? &trunc_stats : nullptr);
 
 	if (run_both) {

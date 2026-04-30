@@ -42,10 +42,9 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 		cpu::reporting::print_configuration(cfg, context.ex_threads, n);
 	}
 
-	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-									const std::vector<std::vector<unsigned char>>& keep, bool trunc) override {
+	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) override {
 		auto t0 = std::chrono::high_resolution_clock::now();
-		cpu::bitonic::run_topk(data, layers, keep, trunc, context.ex_threads);
+		cpu::bitonic::run_topk(data, layers, context.ex_threads);
 		auto t1 = std::chrono::high_resolution_clock::now();
 		double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
 		std::cout << "[PROFILE_TIME_MS] " << elapsed << "\n";

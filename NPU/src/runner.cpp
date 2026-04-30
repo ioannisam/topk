@@ -46,11 +46,19 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 											context.offload_enabled);
 	}
 
-	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-									const std::vector<std::vector<unsigned char>>& keep, bool trunc) override {
+	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) override {
 		const npu::bitonic::RunStats stats =
-			npu::bitonic::run_network_npu(data, layers, keep, trunc, context.ex_threads);
-		if (trunc) {
+			npu::bitonic::run_network_npu(data, layers, context.ex_threads);
+		
+		bool is_trunc = false;
+		for (const auto& l : layers) {
+			if (l.type == common::bitonic::LayerType::Truncate) {
+				is_trunc = true;
+				break;
+			}
+		}
+
+		if (is_trunc) {
 			last_trunc_stats = stats;
 		} else {
 			last_full_stats = stats;

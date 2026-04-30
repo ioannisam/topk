@@ -107,49 +107,24 @@ __global__ void bitonic_layer_global_coalesced(T* data, std::size_t total_pairs,
 }
 
 template <typename T>
-__global__ void bitonic_layer_trunc(T* data, const std::uint32_t* pair_i, std::size_t count, std::size_t stage,
-									std::size_t step) {
+__global__ void bitonic_layer_truncate_kernel(const T* __restrict__ src, T* __restrict__ dst, std::size_t pairs,
+											  std::size_t step) {
 	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-	if (tid >= count) {
+	if (tid >= pairs) {
 		return;
 	}
 
-	const std::size_t i = static_cast<std::size_t>(pair_i[tid]);
-	const std::size_t ixj = i ^ step;
-	const bool ascending = (i & stage) == 0;
+	const std::size_t low = tid & (step - 1);
+	const std::size_t i = ((tid - low) << 1) + low;
+	const std::size_t ixj = i + step;
 
-	const T a = data[i];
-	const T b = data[ixj];
-	if ((ascending && greater_than(a, b)) || (!ascending && less_than(a, b))) {
-		data[i] = b;
-		data[ixj] = a;
-	}
-}
+	const T a = src[i];
+	const T b = src[ixj];
 
-std::vector<std::size_t> build_offsets(const std::vector<std::vector<unsigned char>>& keep,
-									   const std::vector<common::bitonic::Layer>& layers,
-									   std::vector<std::uint32_t>& pairs_out, std::size_t n) {
-	std::vector<std::size_t> offsets;
-	offsets.reserve(layers.size() + 1);
-	offsets.push_back(0);
-
-	pairs_out.reserve((n >> 1) * layers.size());
-
-	for (std::size_t layer_idx = 0; layer_idx < layers.size(); ++layer_idx) {
-		const std::size_t j = layers[layer_idx].j;
-		for (std::size_t i = 0; i < n; ++i) {
-			const std::size_t ixj = i ^ j;
-			if (ixj <= i) {
-				continue;
-			}
-			if (keep[layer_idx][i] || keep[layer_idx][ixj]) {
-				pairs_out.push_back(static_cast<std::uint32_t>(i));
-			}
-		}
-		offsets.push_back(pairs_out.size());
-	}
-
-	return offsets;
+	// TBiS guarantees truncation always keeps the smaller element of the block.
+	// Since data is pre-negated if want_max is true, the mathematical min is always right.
+	// Output index is exactly tid, providing perfectly coalesced writes!
+	dst[tid] = less_than(a, b) ? a : b;
 }
 
 std::size_t choose_block_size() {
@@ -173,33 +148,25 @@ int query_device_sm_count() {
 }
 
 template <typename T>
-RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-						  const std::vector<std::vector<unsigned char>>& keep, bool trunc) {
+RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) {
 	if (data.empty()) {
 		return RunStats{0.0, 0, 0, 0};
 	}
 
 	const std::size_t n = data.size();
 	const std::size_t block_size = choose_block_size();
-	const std::size_t full_pairs = n >> 1;
 
 	T* d_data = nullptr;
+	T* d_data_alt = nullptr; // Secondary buffer for ping-pong compaction
 	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_data), n * sizeof(T)));
+	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_data_alt), n * sizeof(T)));
 	CUDA_CHECK(cudaMemcpy(d_data, data.data(), n * sizeof(T), cudaMemcpyHostToDevice));
 
-	std::uint32_t* d_pairs = nullptr;
-	std::vector<std::uint32_t> pair_i;
-	std::vector<std::size_t> offsets;
-	std::size_t active_comparators = full_pairs * layers.size();
-	
-	if (trunc) {
-		offsets = build_offsets(keep, layers, pair_i, n);
-		active_comparators = pair_i.size();
-		if (!pair_i.empty()) {
-			CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_pairs), pair_i.size() * sizeof(std::uint32_t)));
-			CUDA_CHECK(cudaMemcpy(d_pairs, pair_i.data(), pair_i.size() * sizeof(std::uint32_t), cudaMemcpyHostToDevice));
-		}
-	}
+	T* current_src = d_data;
+	T* current_dst = d_data_alt;
+
+	std::size_t active_comparators = 0;
+	std::size_t kernel_launches = 0;
 
 	cudaEvent_t start{};
 	cudaEvent_t stop{};
@@ -207,28 +174,42 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
 	CUDA_CHECK(cudaEventCreate(&stop));
 	CUDA_CHECK(cudaEventRecord(start));
 
-	std::size_t kernel_launches = 0;
 	FusedLayers buffer;
 	buffer.count = 0;
 
 	for (std::size_t layer_idx = 0; layer_idx < layers.size(); ++layer_idx) {
-		const std::size_t stage = layers[layer_idx].k;
-		const std::size_t step = layers[layer_idx].j;
+		const auto& layer = layers[layer_idx];
+		const std::size_t stage = layer.k;
+		const std::size_t step = layer.j;
+		const std::size_t pairs = layer.active_n / 2;
+		active_comparators += pairs;
 
-		if (trunc) {
-			const std::size_t begin = offsets[layer_idx];
-			const std::size_t end = offsets[layer_idx + 1];
-			const std::size_t count = end - begin;
-			if (count == 0) continue;
+		if (layer.type == common::bitonic::LayerType::Truncate) {
+			// Flush any pending fused normal layers before truncating
+			if (buffer.count > 0) {
+				const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
+				const std::size_t smem_size = block_size * 2 * sizeof(T);
 
-			const dim3 grid(static_cast<unsigned int>((count + block_size - 1) / block_size));
-			const dim3 block(static_cast<unsigned int>(block_size));
-			bitonic_layer_trunc<<<grid, block>>>(d_data, d_pairs + begin, count, stage, step);
+				bitonic_fused_shared<<<grid, block_size, smem_size>>>(current_src, pairs, buffer);
+				CUDA_CHECK(cudaGetLastError());
+				kernel_launches++;
+				buffer.count = 0;
+			}
+
+			// Launch the compaction step
+			const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
+			bitonic_layer_truncate_kernel<<<grid, block_size>>>(current_src, current_dst, pairs, step);
 			CUDA_CHECK(cudaGetLastError());
 			kernel_launches++;
+
+			// Ping-pong the active buffers
+			T* temp = current_src;
+			current_src = current_dst;
+			current_dst = temp;
 			continue;
 		}
 
+		// Normal Layer Logic
 		if (step <= block_size) {
 			buffer.stages[buffer.count] = static_cast<std::uint32_t>(stage);
 			buffer.steps[buffer.count] = static_cast<std::uint32_t>(step);
@@ -237,24 +218,22 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
 
 		const bool is_last = (layer_idx == layers.size() - 1);
 		const bool next_is_large = (!is_last && layers[layer_idx + 1].j > block_size);
+		const bool next_is_trunc = (!is_last && layers[layer_idx + 1].type == common::bitonic::LayerType::Truncate);
 		const bool is_full = (buffer.count == 16);
 
-		if (buffer.count > 0 && (is_last || next_is_large || is_full)) {
-			const dim3 grid(static_cast<unsigned int>((full_pairs + block_size - 1) / block_size));
-			const dim3 block(static_cast<unsigned int>(block_size));
+		if (buffer.count > 0 && (is_last || next_is_large || next_is_trunc || is_full)) {
+			const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
 			const std::size_t smem_size = block_size * 2 * sizeof(T);
-			
-			bitonic_fused_shared<<<grid, block, smem_size>>>(d_data, full_pairs, buffer);
+
+			bitonic_fused_shared<<<grid, block_size, smem_size>>>(current_src, pairs, buffer);
 			CUDA_CHECK(cudaGetLastError());
 			kernel_launches++;
 			buffer.count = 0;
 		}
 
 		if (step > block_size) {
-			const dim3 grid(static_cast<unsigned int>((full_pairs + block_size - 1) / block_size));
-			const dim3 block(static_cast<unsigned int>(block_size));
-			
-			bitonic_layer_global_coalesced<<<grid, block>>>(d_data, full_pairs, stage, step);
+			const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
+			bitonic_layer_global_coalesced<<<grid, block_size>>>(current_src, pairs, stage, step);
 			CUDA_CHECK(cudaGetLastError());
 			kernel_launches++;
 		}
@@ -265,26 +244,25 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
 	float elapsed_ms_f = 0.0f;
 	CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms_f, start, stop));
 
-	CUDA_CHECK(cudaMemcpy(data.data(), d_data, n * sizeof(T), cudaMemcpyDeviceToHost));
+	// Even if current_src is d_data_alt, we just safely copy the 'n' elements back to host.
+	// Only the first 'active_n' are valid, which is exactly what build_output reads.
+	CUDA_CHECK(cudaMemcpy(data.data(), current_src, n * sizeof(T), cudaMemcpyDeviceToHost));
 
 	CUDA_CHECK(cudaEventDestroy(start));
 	CUDA_CHECK(cudaEventDestroy(stop));
-	if (d_pairs != nullptr) {
-		CUDA_CHECK(cudaFree(d_pairs));
-	}
 	CUDA_CHECK(cudaFree(d_data));
+	CUDA_CHECK(cudaFree(d_data_alt));
 
 	return RunStats{static_cast<double>(elapsed_ms_f), kernel_launches, active_comparators, block_size};
 }
 
-RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
-							   const std::vector<std::vector<unsigned char>>& keep, bool trunc) {
+RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers) {
 	std::vector<__half> half_data(data.size());
 	for (std::size_t i = 0; i < data.size(); ++i) {
 		half_data[i] = __float2half(data[i]);
 	}
 
-	const RunStats stats = run_network_cuda(half_data, layers, keep, trunc);
+	const RunStats stats = run_network_cuda(half_data, layers);
 
 	for (std::size_t i = 0; i < data.size(); ++i) {
 		data[i] = __half2float(half_data[i]);
@@ -294,16 +272,13 @@ RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<commo
 }
 
 template RunStats run_network_cuda<std::int32_t>(std::vector<std::int32_t>& data,
-											 const std::vector<common::bitonic::Layer>& layers,
-											 const std::vector<std::vector<unsigned char>>& keep, bool trunc);
+												 const std::vector<common::bitonic::Layer>& layers);
 template RunStats run_network_cuda<std::uint32_t>(std::vector<std::uint32_t>& data,
-											  const std::vector<common::bitonic::Layer>& layers,
-											  const std::vector<std::vector<unsigned char>>& keep, bool trunc);
-template RunStats run_network_cuda<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
-										  const std::vector<std::vector<unsigned char>>& keep, bool trunc);
-template RunStats run_network_cuda<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers,
-										   const std::vector<std::vector<unsigned char>>& keep, bool trunc);
-template RunStats run_network_cuda<__half>(std::vector<__half>& data, const std::vector<common::bitonic::Layer>& layers,
-										   const std::vector<std::vector<unsigned char>>& keep, bool trunc);
+												  const std::vector<common::bitonic::Layer>& layers);
+template RunStats run_network_cuda<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers);
+template RunStats run_network_cuda<double>(std::vector<double>& data,
+										   const std::vector<common::bitonic::Layer>& layers);
+template RunStats run_network_cuda<__half>(std::vector<__half>& data,
+										   const std::vector<common::bitonic::Layer>& layers);
 
 } // namespace gpu::bitonic

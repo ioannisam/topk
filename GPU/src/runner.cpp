@@ -18,6 +18,7 @@ namespace {
 using common::config::Algorithm;
 using common::config::Config;
 using common::config::DataType;
+
 template <typename T> class GpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
   public:
 	explicit GpuBitonicRunnerHooks(bool fp16_emulation)
@@ -28,20 +29,27 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 		gpu::reporting::print_configuration(cfg, n, device_name);
 	}
 
-	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-									const std::vector<std::vector<unsigned char>>& keep, bool trunc) override {
+	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) override {
 		gpu::bitonic::RunStats stats{0.0, 0, 0, 0};
 		if constexpr (std::is_same_v<T, float>) {
 			if (use_fp16_path) {
-				stats = gpu::bitonic::run_network_cuda_fp16(data, layers, keep, trunc);
+				stats = gpu::bitonic::run_network_cuda_fp16(data, layers);
 			} else {
-				stats = gpu::bitonic::run_network_cuda(data, layers, keep, trunc);
+				stats = gpu::bitonic::run_network_cuda(data, layers);
 			}
 		} else {
-			stats = gpu::bitonic::run_network_cuda(data, layers, keep, trunc);
+			stats = gpu::bitonic::run_network_cuda(data, layers);
 		}
 
-		if (trunc) {
+		bool is_trunc = false;
+		for (const auto& l : layers) {
+			if (l.type == common::bitonic::LayerType::Truncate) {
+				is_trunc = true;
+				break;
+			}
+		}
+
+		if (is_trunc) {
 			last_trunc_stats = stats;
 		} else {
 			last_full_stats = stats;

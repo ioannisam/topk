@@ -23,31 +23,6 @@ namespace npu::bitonic {
 
 namespace {
 
-template <typename T>
-std::vector<std::size_t> build_offsets(const std::vector<std::vector<unsigned char>>& keep,
-									   const std::vector<common::bitonic::Layer>& layers,
-									   std::vector<std::uint32_t>& pairs_out, std::size_t n) {
-	std::vector<std::size_t> offsets;
-	offsets.reserve(layers.size() + 1);
-	offsets.push_back(0);
-
-	for (std::size_t layer_idx = 0; layer_idx < layers.size(); ++layer_idx) {
-		const std::size_t j = layers[layer_idx].j;
-		for (std::size_t i = 0; i < n; ++i) {
-			const std::size_t ixj = i ^ j;
-			if (ixj <= i) {
-				continue;
-			}
-			if (keep[layer_idx][i] || keep[layer_idx][ixj]) {
-				pairs_out.push_back(static_cast<std::uint32_t>(i));
-			}
-		}
-		offsets.push_back(pairs_out.size());
-	}
-
-	return offsets;
-}
-
 xrt::device open_device() {
 	try {
 		return xrt::device{0};
@@ -227,21 +202,15 @@ xrt::bo alloc_bo_for_kernel(const std::optional<xrt::hw_context>& hwctx, const x
 
 template <typename T>
 RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-								 const std::vector<std::vector<unsigned char>>& keep, bool trunc,
 								 const OffloadConfig& offload_cfg) {
 	if constexpr (sizeof(T) != 4) {
 		throw std::runtime_error("NPU offload currently supports only 4-byte element types (int/uint/float)");
 	}
 
 	const std::size_t n = data.size();
-	const std::size_t full_pairs = n >> 1;
-	std::size_t active_comparators = full_pairs * layers.size();
-
-	std::vector<std::uint32_t> pair_i;
-	std::vector<std::size_t> offsets;
-	if (trunc) {
-		offsets = build_offsets<T>(keep, layers, pair_i, n);
-		active_comparators = pair_i.size();
+	std::size_t active_comparators = 0;
+	for (const auto& layer : layers) {
+		active_comparators += layer.active_n / 2;
 	}
 
 	xrt::device dev = open_device();
@@ -259,17 +228,13 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 
 	const std::size_t data_bytes = n * sizeof(T);
 	const std::size_t data_group = dpu_abi ? safe_group_id(kernel, 3) : safe_group_id(kernel, 0);
-	xrt::bo data_bo = alloc_bo_for_kernel(hwctx, dev, data_bytes, data_group, dpu_abi);
-	std::memcpy(data_bo.map<void*>(), data.data(), data_bytes);
-	data_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-	const std::size_t pair_count = pair_i.empty() ? 1 : pair_i.size();
-	const std::size_t pairs_group = dpu_abi ? safe_group_id(kernel, 4) : safe_group_id(kernel, 1);
-	xrt::bo pairs_bo = alloc_bo_for_kernel(hwctx, dev, pair_count * sizeof(std::uint32_t), pairs_group, dpu_abi);
-	if (!pair_i.empty()) {
-		std::memcpy(pairs_bo.map<void*>(), pair_i.data(), pair_i.size() * sizeof(std::uint32_t));
-	}
-	pairs_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+	
+	// Create ping-pong buffers
+	xrt::bo src_bo = alloc_bo_for_kernel(hwctx, dev, data_bytes, data_group, dpu_abi);
+	xrt::bo dst_bo = alloc_bo_for_kernel(hwctx, dev, data_bytes, data_group, dpu_abi);
+	
+	std::memcpy(src_bo.map<void*>(), data.data(), data_bytes);
+	src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
 	xrt::bo instr_bo;
 	xrt::bo bo2;
@@ -313,30 +278,23 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 
 	auto t0 = std::chrono::high_resolution_clock::now();
 	for (std::size_t layer_idx = 0; layer_idx < layers.size(); ++layer_idx) {
-		const std::uint32_t stage = static_cast<std::uint32_t>(layers[layer_idx].k);
-		const std::uint32_t step = static_cast<std::uint32_t>(layers[layer_idx].j);
+		const auto& layer = layers[layer_idx];
+		const std::uint32_t stage = static_cast<std::uint32_t>(layer.k);
+		const std::uint32_t step = static_cast<std::uint32_t>(layer.j);
+		const std::uint32_t active_n = static_cast<std::uint32_t>(layer.active_n);
+		const std::uint32_t is_trunc = (layer.type == common::bitonic::LayerType::Truncate) ? 1 : 0;
 
-		std::uint32_t begin = 0;
-		std::uint32_t count = static_cast<std::uint32_t>(full_pairs);
-		if (trunc) {
-			begin = static_cast<std::uint32_t>(offsets[layer_idx]);
-			count = static_cast<std::uint32_t>(offsets[layer_idx + 1] - offsets[layer_idx]);
-			if (count == 0) {
-				continue;
-			}
-		}
-
+		// Note: The kernel signature in your actual NPU `.xclbin` code must be updated to match these arguments!
 		if (!dpu_abi) {
-			auto run = kernel(data_bo, pairs_bo, static_cast<std::uint32_t>(n), stage, step, begin, count,
-							  static_cast<std::uint32_t>(trunc ? 1 : 0));
+			auto run = kernel(src_bo, dst_bo, active_n, stage, step, is_trunc);
 			wait_for_run_or_throw(run, wait_timeout_ms, "offload");
 		} else {
 			xrt::run run(kernel);
 			run.set_arg(0, static_cast<std::uint64_t>(opcode));
 			run.set_arg(1, instr_bo);
 			run.set_arg(2, ninstr);
-			run.set_arg(3, data_bo);
-			run.set_arg(4, pairs_bo);
+			run.set_arg(3, src_bo);
+			run.set_arg(4, dst_bo); // Swapped pairs_bo for dst_bo
 			run.set_arg(5, bo2);
 			run.set_arg(6, bo3);
 			run.set_arg(7, bo4);
@@ -346,11 +304,18 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 			wait_for_runlist_or_throw(rl, wait_timeout_ms, "dpu");
 		}
 		launches++;
+
+		// Ping-pong arrays after compaction
+		if (is_trunc) {
+			xrt::bo temp = src_bo;
+			src_bo = dst_bo;
+			dst_bo = temp;
+		}
 	}
 	auto t1 = std::chrono::high_resolution_clock::now();
 
-	data_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-	std::memcpy(data.data(), data_bo.map<void*>(), data_bytes);
+	src_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+	std::memcpy(data.data(), src_bo.map<void*>(), data_bytes);
 
 	const double elapsed_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 	if (dpu_abi && launches == 0) {
@@ -375,8 +340,7 @@ bool is_offload_configured() {
 }
 
 template <typename T>
-RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-						 const std::vector<std::vector<unsigned char>>& keep, bool trunc, std::size_t workers) {
+RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers) {
 	(void)workers;
 
 	if (data.empty()) {
@@ -392,28 +356,23 @@ RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic
 			"NPU offload is required for this backend. Set NPU_OFFLOAD_XCLBIN to a valid xclbin path.");
 	}
 
-	return run_network_offload_xrt(data, layers, keep, trunc, offload_cfg);
+	return run_network_offload_xrt(data, layers, offload_cfg);
 }
 
 template RunStats run_network_npu<std::int32_t>(std::vector<std::int32_t>& data,
 												const std::vector<common::bitonic::Layer>& layers,
-												const std::vector<std::vector<unsigned char>>& keep, bool trunc,
 												std::size_t workers);
 template RunStats run_network_npu<std::uint32_t>(std::vector<std::uint32_t>& data,
 												 const std::vector<common::bitonic::Layer>& layers,
-												 const std::vector<std::vector<unsigned char>>& keep, bool trunc,
 												 std::size_t workers);
 template RunStats run_network_npu<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
-										 const std::vector<std::vector<unsigned char>>& keep, bool trunc,
 										 std::size_t workers);
 template RunStats run_network_npu<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers,
-										  const std::vector<std::vector<unsigned char>>& keep, bool trunc,
 										  std::size_t workers);
 
 #if defined(__FLT16_MANT_DIG__)
 template RunStats run_network_npu<_Float16>(std::vector<_Float16>& data,
 											const std::vector<common::bitonic::Layer>& layers,
-											const std::vector<std::vector<unsigned char>>& keep, bool trunc,
 											std::size_t workers);
 #endif
 

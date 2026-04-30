@@ -21,7 +21,6 @@ std::string query_device_bdf();
 bool is_offload_configured();
 
 template <typename T>
-RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-						 const std::vector<std::vector<unsigned char>>& keep, bool trunc, std::size_t workers);
+RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
 
 } // namespace npu::bitonic
