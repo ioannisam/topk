@@ -127,12 +127,7 @@ template <bool WantMax, typename T> std::vector<T> reduce(std::vector<T> aggrega
 		return lhs < rhs;
 	};
 
-	if (aggregated.size() > k) {
-		std::nth_element(aggregated.begin(), aggregated.begin() + static_cast<std::ptrdiff_t>(k), aggregated.end(),
-						 cmp);
-		aggregated.resize(k);
-	}
-
+	// capped at size <= k and is a valid heap 
 	std::sort(aggregated.begin(), aggregated.end(), cmp);
 	return aggregated;
 }
@@ -175,18 +170,34 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 		t.join();
 	}
 
-	std::vector<T> aggregated;
-	aggregated.reserve(k * workers);
-	for (const auto& tile_values : local_topk) {
-		aggregated.insert(aggregated.end(), tile_values.begin(), tile_values.end());
+	using HeapCompare = std::conditional_t<WantMax, std::greater<T>, std::less<T>>;
+	std::vector<T>& final_heap = local_topk[0];
+
+	for (std::size_t tid = 1; tid < local_topk.size(); ++tid) {
+		for (const auto& candidate : local_topk[tid]) {
+			if (final_heap.size() < k) {
+				final_heap.push_back(candidate);
+				if (final_heap.size() == k) {
+					std::make_heap(final_heap.begin(), final_heap.end(), HeapCompare{});
+				}
+			} else if (scalar_is_candidate<WantMax>(candidate, final_heap.front())) {
+				final_heap[0] = candidate;
+				sift_down(final_heap, 0, HeapCompare{});
+			}
+		}
+	}
+
+	// total dataset across all threads < K
+	if (!final_heap.empty() && final_heap.size() < k) {
+		std::make_heap(final_heap.begin(), final_heap.end(), HeapCompare{});
 	}
 
 	if (stats != nullptr) {
 		stats->tiles_used = workers;
-		stats->aggregated_candidates = aggregated.size();
+		stats->aggregated_candidates = final_heap.size();
 	}
 
-	return reduce<WantMax>(std::move(aggregated), k);
+	return reduce<WantMax>(std::move(final_heap), k);
 }
 
 } // namespace
