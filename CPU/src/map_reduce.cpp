@@ -70,12 +70,32 @@ std::vector<T> map(const std::vector<T>& data, std::size_t begin, std::size_t en
 
 		const T threshold = heap.front();
 		const std::size_t remaining = end - i;
-		if (block > 1 && remaining >= block &&
-			!cpu::simd::any_greater_simd<WantMax, T>(data.data() + i, threshold, use_avx512f, use_avx2)) {
+		
+		if (block > 1 && remaining >= block) {
+			std::uint64_t mask = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i, threshold, use_avx512f, use_avx2);
+			
+			if (mask == 0) {
+				i += block;
+				continue;
+			}
+
+			while (mask != 0) {
+				int bit_idx = std::countr_zero(mask);
+				T candidate = data[i + bit_idx];
+
+				if (scalar_is_candidate<WantMax>(candidate, heap.front())) {
+					heap[0] = candidate;
+					sift_down(heap, 0, HeapCompare{});
+				}
+
+				mask &= (mask - 1); // clear the lowest set bit
+			}
+			
 			i += block;
 			continue;
 		}
 
+		// tail elements where remaining < block
 		if (!scalar_is_candidate<WantMax>(data[i], threshold)) {
 			++i;
 			continue;
@@ -85,6 +105,11 @@ std::vector<T> map(const std::vector<T>& data, std::size_t begin, std::size_t en
 		heap[0] = data[i];
 		sift_down(heap, 0, HeapCompare{});
 		++i;
+	}
+
+    // if n < k
+    if (!heap.empty() && heap.size() < k) {
+		std::make_heap(heap.begin(), heap.end(), HeapCompare{});
 	}
 
 	return heap;

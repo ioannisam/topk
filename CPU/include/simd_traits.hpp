@@ -78,6 +78,13 @@ template <> struct SimdTraits512<float> {
         const __mmask16 mask = WantMax ? _mm512_cmp_ps_mask(v, t, _CMP_GT_OQ) : _mm512_cmp_ps_mask(v, t, _CMP_LT_OQ);
         return mask != 0;
     }
+
+    template <bool WantMax>
+    __attribute__((target("avx512f"))) static std::uint64_t get_candidate_mask(const float* ptr, float threshold) {
+        const __m512 v = _mm512_loadu_ps(ptr);
+        const __m512 t = _mm512_set1_ps(threshold);
+        return WantMax ? _mm512_cmp_ps_mask(v, t, _CMP_GT_OQ) : _mm512_cmp_ps_mask(v, t, _CMP_LT_OQ);
+    }
 };
 
 template <> struct SimdTraits512<std::int32_t> {
@@ -109,6 +116,13 @@ template <> struct SimdTraits512<std::int32_t> {
         const __mmask16 mask = WantMax ? _mm512_cmpgt_epi32_mask(v, t) : _mm512_cmpgt_epi32_mask(t, v);
         return mask != 0;
     }
+
+    template <bool WantMax>
+    __attribute__((target("avx512f"))) static std::uint64_t get_candidate_mask(const std::int32_t* ptr, std::int32_t threshold) {
+        const __m512i v = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr));
+        const __m512i t = _mm512_set1_epi32(threshold);
+        return WantMax ? _mm512_cmpgt_epi32_mask(v, t) : _mm512_cmpgt_epi32_mask(t, v);
+    }
 };
 
 template <> struct SimdTraits512<std::uint32_t> {
@@ -116,6 +130,7 @@ template <> struct SimdTraits512<std::uint32_t> {
     using Mask = __mmask16;
     static constexpr std::size_t width = 16;
     
+    // -- Bitonic Sort Primitives --
     static Vec load(const std::uint32_t* p) { return _mm512_loadu_si512(reinterpret_cast<const __m512i*>(p)); }
     static void store(std::uint32_t* p, Vec v) { _mm512_storeu_si512(reinterpret_cast<__m512i*>(p), v); }
     static Vec min(Vec a, Vec b) { return _mm512_min_epu32(a, b); }
@@ -124,12 +139,20 @@ template <> struct SimdTraits512<std::uint32_t> {
     template <int J> static Vec permutex(Vec v) { return SimdTraits512<std::int32_t>::template permutex<J>(v); }
     template <int J> static Mask get_blend_mask(std::size_t i, std::size_t k) { return SimdTraits512<float>::template get_blend_mask<J>(i, k); }
 
+    // -- Map-Reduce Primitives --
     template <bool WantMax>
     __attribute__((target("avx512f"))) static bool any_greater(const std::uint32_t* ptr, std::uint32_t threshold) {
         const __m512i v = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr));
         const __m512i t = _mm512_set1_epi32(static_cast<std::int32_t>(threshold));
         const __mmask16 mask = WantMax ? _mm512_cmp_epu32_mask(v, t, _MM_CMPINT_GT) : _mm512_cmp_epu32_mask(t, v, _MM_CMPINT_GT);
         return mask != 0;
+    }
+
+    template <bool WantMax>
+    __attribute__((target("avx512f"))) static std::uint64_t get_candidate_mask(const std::uint32_t* ptr, std::uint32_t threshold) {
+        const __m512i v = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(ptr));
+        const __m512i t = _mm512_set1_epi32(static_cast<std::int32_t>(threshold));
+        return WantMax ? _mm512_cmp_epu32_mask(v, t, _MM_CMPINT_GT) : _mm512_cmp_epu32_mask(t, v, _MM_CMPINT_GT);
     }
 };
 
@@ -138,6 +161,7 @@ template <> struct SimdTraits512<double> {
     using Mask = __mmask8;
     static constexpr std::size_t width = 8;
 
+    // -- Bitonic Sort Primitives --
     static Vec load(const double* p) { return _mm512_loadu_pd(p); }
     static void store(double* p, Vec v) { _mm512_storeu_pd(p, v); }
     static Vec min(Vec a, Vec b) { return _mm512_min_pd(a, b); }
@@ -161,12 +185,20 @@ template <> struct SimdTraits512<double> {
         return odd_mask ^ desc_mask;
     }
 
+    // -- Map-Reduce Primitives --
     template <bool WantMax>
     __attribute__((target("avx512f"))) static bool any_greater(const double* ptr, double threshold) {
         const __m512d v = _mm512_loadu_pd(ptr);
         const __m512d t = _mm512_set1_pd(threshold);
         const __mmask8 mask = WantMax ? _mm512_cmp_pd_mask(v, t, _CMP_GT_OQ) : _mm512_cmp_pd_mask(v, t, _CMP_LT_OQ);
         return mask != 0;
+    }
+
+    template <bool WantMax>
+    __attribute__((target("avx512f"))) static std::uint64_t get_candidate_mask(const double* ptr, double threshold) {
+        const __m512d v = _mm512_loadu_pd(ptr);
+        const __m512d t = _mm512_set1_pd(threshold);
+        return WantMax ? _mm512_cmp_pd_mask(v, t, _CMP_GT_OQ) : _mm512_cmp_pd_mask(v, t, _CMP_LT_OQ);
     }
 };
 
@@ -179,6 +211,7 @@ template <> struct SimdTraits256<float> {
     using Mask = __m256;
     static constexpr std::size_t width = 8;
     
+    // -- Bitonic Sort Primitives --
     static Vec load(const float* p) { return _mm256_loadu_ps(p); }
     static void store(float* p, Vec v) { _mm256_storeu_ps(p, v); }
     static Vec min(Vec a, Vec b) { return _mm256_min_ps(a, b); }
@@ -203,12 +236,21 @@ template <> struct SimdTraits256<float> {
         return _mm256_castsi256_ps(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(mask_arr)));
     }
 
+    // -- Map-Reduce Primitives --
     template <bool WantMax>
     __attribute__((target("avx2"))) static bool any_greater(const float* ptr, float threshold) {
         const __m256 v = _mm256_loadu_ps(ptr);
         const __m256 t = _mm256_set1_ps(threshold);
         const __m256 cmp = WantMax ? _mm256_cmp_ps(v, t, _CMP_GT_OQ) : _mm256_cmp_ps(v, t, _CMP_LT_OQ);
         return _mm256_movemask_ps(cmp) != 0;
+    }
+
+    template <bool WantMax>
+    __attribute__((target("avx2"))) static std::uint64_t get_candidate_mask(const float* ptr, float threshold) {
+        const __m256 v = _mm256_loadu_ps(ptr);
+        const __m256 t = _mm256_set1_ps(threshold);
+        const __m256 cmp = WantMax ? _mm256_cmp_ps(v, t, _CMP_GT_OQ) : _mm256_cmp_ps(v, t, _CMP_LT_OQ);
+        return _mm256_movemask_ps(cmp);
     }
 };
 
@@ -217,6 +259,7 @@ template <> struct SimdTraits256<std::int32_t> {
     using Mask = __m256i;
     static constexpr std::size_t width = 8;
     
+    // -- Bitonic Sort Primitives --
     static Vec load(const std::int32_t* p) { return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(p)); }
     static void store(std::int32_t* p, Vec v) { _mm256_storeu_si256(reinterpret_cast<__m256i*>(p), v); }
     static Vec min(Vec a, Vec b) { return _mm256_min_epi32(a, b); }
@@ -241,12 +284,21 @@ template <> struct SimdTraits256<std::int32_t> {
         return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(mask_arr));
     }
 
+    // -- Map-Reduce Primitives --
     template <bool WantMax>
     __attribute__((target("avx2"))) static bool any_greater(const std::int32_t* ptr, std::int32_t threshold) {
         const __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(ptr));
         const __m256i t = _mm256_set1_epi32(threshold);
         const __m256i cmp = WantMax ? _mm256_cmpgt_epi32(v, t) : _mm256_cmpgt_epi32(t, v);
         return _mm256_movemask_ps(_mm256_castsi256_ps(cmp)) != 0;
+    }
+
+    template <bool WantMax>
+    __attribute__((target("avx2"))) static std::uint64_t get_candidate_mask(const std::int32_t* ptr, std::int32_t threshold) {
+        const __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(ptr));
+        const __m256i t = _mm256_set1_epi32(threshold);
+        const __m256i cmp = WantMax ? _mm256_cmpgt_epi32(v, t) : _mm256_cmpgt_epi32(t, v);
+        return _mm256_movemask_ps(_mm256_castsi256_ps(cmp));
     }
 };
 
@@ -255,6 +307,7 @@ template <> struct SimdTraits256<std::uint32_t> {
     using Mask = __m256i;
     static constexpr std::size_t width = 8;
     
+    // -- Bitonic Sort Primitives --
     static Vec load(const std::uint32_t* p) { return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(p)); }
     static void store(std::uint32_t* p, Vec v) { _mm256_storeu_si256(reinterpret_cast<__m256i*>(p), v); }
     static Vec min(Vec a, Vec b) { return _mm256_min_epu32(a, b); }
@@ -263,6 +316,7 @@ template <> struct SimdTraits256<std::uint32_t> {
     template <int J> static Vec permutex(Vec v) { return SimdTraits256<std::int32_t>::template permutex<J>(v); }
     template <int J> static Mask get_blend_mask(std::size_t i, std::size_t k) { return SimdTraits256<std::int32_t>::template get_blend_mask<J>(i, k); }
 
+    // -- Map-Reduce Primitives --
     template <bool WantMax>
     __attribute__((target("avx2"))) static bool any_greater(const std::uint32_t* ptr, std::uint32_t threshold) {
         const __m256i sign = _mm256_set1_epi32(static_cast<std::int32_t>(0x80000000u));
@@ -270,6 +324,15 @@ template <> struct SimdTraits256<std::uint32_t> {
         const __m256i t = _mm256_xor_si256(_mm256_set1_epi32(static_cast<std::int32_t>(threshold)), sign);
         const __m256i cmp = WantMax ? _mm256_cmpgt_epi32(v, t) : _mm256_cmpgt_epi32(t, v);
         return _mm256_movemask_ps(_mm256_castsi256_ps(cmp)) != 0;
+    }
+
+    template <bool WantMax>
+    __attribute__((target("avx2"))) static std::uint64_t get_candidate_mask(const std::uint32_t* ptr, std::uint32_t threshold) {
+        const __m256i sign = _mm256_set1_epi32(static_cast<std::int32_t>(0x80000000u));
+        const __m256i v = _mm256_xor_si256(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(ptr)), sign);
+        const __m256i t = _mm256_xor_si256(_mm256_set1_epi32(static_cast<std::int32_t>(threshold)), sign);
+        const __m256i cmp = WantMax ? _mm256_cmpgt_epi32(v, t) : _mm256_cmpgt_epi32(t, v);
+        return _mm256_movemask_ps(_mm256_castsi256_ps(cmp));
     }
 };
 
@@ -310,6 +373,14 @@ template <> struct SimdTraits256<double> {
         const __m256d cmp = WantMax ? _mm256_cmp_pd(v, t, _CMP_GT_OQ) : _mm256_cmp_pd(v, t, _CMP_LT_OQ);
         return _mm256_movemask_pd(cmp) != 0;
     }
+
+    template <bool WantMax>
+    __attribute__((target("avx2"))) static std::uint64_t get_candidate_mask(const double* ptr, double threshold) {
+        const __m256d v = _mm256_loadu_pd(ptr);
+        const __m256d t = _mm256_set1_pd(threshold);
+        const __m256d cmp = WantMax ? _mm256_cmp_pd(v, t, _CMP_GT_OQ) : _mm256_cmp_pd(v, t, _CMP_LT_OQ);
+        return _mm256_movemask_pd(cmp);
+    }
 };
 
 // Detection helpers to avoid instantiating incomplete trait specializations
@@ -342,6 +413,27 @@ inline bool any_greater_simd(const T* ptr, T threshold, bool use_avx512, bool us
         if constexpr (has_simd256_any_greater<T>::value) return SimdTraits256<T>::template any_greater<WantMax>(ptr, threshold);
     }
     return true;
+}
+
+template <typename T, typename = void>
+struct has_simd512_get_mask : std::false_type {};
+template <typename T>
+struct has_simd512_get_mask<T, std::void_t<decltype(SimdTraits512<T>::template get_candidate_mask<true>(std::declval<const T*>(), std::declval<T>()))>> : std::true_type {};
+
+template <typename T, typename = void>
+struct has_simd256_get_mask : std::false_type {};
+template <typename T>
+struct has_simd256_get_mask<T, std::void_t<decltype(SimdTraits256<T>::template get_candidate_mask<true>(std::declval<const T*>(), std::declval<T>()))>> : std::true_type {};
+
+template <bool WantMax, typename T>
+inline std::uint64_t get_candidate_mask_simd(const T* ptr, T threshold, bool use_avx512, bool use_avx2) {
+    if (use_avx512) {
+        if constexpr (has_simd512_get_mask<T>::value) return SimdTraits512<T>::template get_candidate_mask<WantMax>(ptr, threshold);
+    }
+    if (use_avx2) {
+        if constexpr (has_simd256_get_mask<T>::value) return SimdTraits256<T>::template get_candidate_mask<WantMax>(ptr, threshold);
+    }
+    return 0;
 }
 
 template <typename T>
