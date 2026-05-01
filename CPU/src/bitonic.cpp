@@ -89,24 +89,27 @@ void run_layer_truncate_simd(const T* src, T* dst, std::size_t begin, std::size_
 	using TraitsT = Traits<T>;
 	std::size_t i = begin;
 
+	// Precompute masks to avoid integer division in the hot loop
+	const std::size_t j_minus_1 = j - 1;
+	const std::size_t j_mask = ~j_minus_1;
+
 	while (i < end) {
 		if ((i & j) != 0) {
 			i = (i | ((j << 1) - 1)) + 1;
 			continue;
 		}
 
-		std::size_t chunk_end = std::min((i | (j - 1)) + 1, end);
+		std::size_t chunk_end = std::min((i | j_minus_1) + 1, end);
 		if (chunk_end > n) chunk_end = n;
 
 		for (; i + TraitsT::width - 1 < chunk_end; i += TraitsT::width) {
 			std::size_t ixj = i + j;
-			// Calculate compacted index location
-			std::size_t out_idx = (i / (2 * j)) * j + (i & (j - 1));
+			
+			// 1-cycle bitwise calculation instead of slow division
+			std::size_t out_idx = ((i >> 1) & j_mask) | (i & j_minus_1);
 
 			auto v1 = TraitsT::load(src + i);
 			auto v2 = TraitsT::load(src + ixj);
-            // Because TBiS guarantees truncation always occurs on an ascending block
-            // the smaller elements are guaranteed to be the ones we want to keep.
 			auto winner = TraitsT::min(v1, v2);
 
 			TraitsT::store(dst + out_idx, winner);
@@ -114,7 +117,7 @@ void run_layer_truncate_simd(const T* src, T* dst, std::size_t begin, std::size_
 
 		for (; i < chunk_end; ++i) {
 			std::size_t ixj = i + j;
-			std::size_t out_idx = (i / (2 * j)) * j + (i & (j - 1));
+			std::size_t out_idx = ((i >> 1) & j_mask) | (i & j_minus_1);
 			dst[out_idx] = std::min(src[i], src[ixj]);
 		}
 	}
@@ -249,9 +252,6 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 				const auto& layer = layers[layer_idx];
 				const std::size_t active_n = layer.active_n;
 
-				// --- NEW BOUNDS CALCULATION ---
-				// Ensure a minimum chunk size of 16 to prevent SIMD false sharing
-				// and skipped elements in intra-layer alignment.
 				std::size_t effective_workers = workers;
 				if (active_n < effective_workers * 16) {
 					effective_workers = std::max<std::size_t>(1, active_n / 16);
@@ -260,10 +260,13 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 				std::size_t begin = 0;
 				std::size_t end = 0;
 				if (tid < effective_workers) {
-					begin = (active_n * tid) / effective_workers;
-					end = (active_n * (tid + 1)) / effective_workers;
+					std::size_t raw_begin = (active_n * tid) / effective_workers;
+					std::size_t raw_end = (active_n * (tid + 1)) / effective_workers;
+					
+					// snap boundaries to the nearest multiple of 16 for perfect SIMD alignment
+					begin = (raw_begin / 16) * 16;
+					end = (tid + 1 == effective_workers) ? active_n : ((raw_end / 16) * 16);
 				}
-				// ------------------------------
 
                 if (begin >= end) {
                     barrier.wait();
@@ -300,26 +303,31 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
                         }
                     }
                 } else {
-                    // LayerType::Truncate
-                    if (!try_run_simd_layer_truncate(src, dst, begin, end, layer.j, active_n)) {
-                        std::size_t i = begin;
-                        while (i < end) {
-                            if ((i & layer.j) != 0) {
-                                i = (i | ((layer.j << 1) - 1)) + 1;
-                                continue;
-                            }
+					// LayerType::Truncate
+					if (!try_run_simd_layer_truncate(src, dst, begin, end, layer.j, active_n)) {
+						std::size_t i = begin;
+						
+						const std::size_t j_minus_1 = layer.j - 1;
+						const std::size_t j_mask = ~j_minus_1;
 
-                            std::size_t chunk_end = std::min((i | (layer.j - 1)) + 1, end);
-                            if (chunk_end > active_n) chunk_end = active_n;
+						while (i < end) {
+							if ((i & layer.j) != 0) {
+								i = (i | ((layer.j << 1) - 1)) + 1;
+								continue;
+							}
 
-                            for (; i < chunk_end; ++i) {
-                                const std::size_t ixj = i + layer.j;
-                                const std::size_t out_idx = (i / (2 * layer.j)) * layer.j + (i & (layer.j - 1));
-                                dst[out_idx] = std::min(src[i], src[ixj]);
-                            }
-                        }
-                    }
-                }
+							std::size_t chunk_end = std::min((i | j_minus_1) + 1, end);
+							if (chunk_end > active_n) chunk_end = active_n;
+
+							for (; i < chunk_end; ++i) {
+								const std::size_t ixj = i + layer.j;
+								// Fast bitwise truncation
+								const std::size_t out_idx = ((i >> 1) & j_mask) | (i & j_minus_1);
+								dst[out_idx] = std::min(src[i], src[ixj]);
+							}
+						}
+					}
+				}
 
 				barrier.wait();
                 
