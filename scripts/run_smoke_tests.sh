@@ -24,17 +24,43 @@ run_backend() {
     local LOG_FILE
     LOG_FILE="$(mktemp)"
 
+    if [[ "${BACKEND}" == "NPU" ]]; then
+        source "${BACKEND_DIR}/npu_env/bin/activate"
+    fi
+
+    local run_ok=0
+
     if ! cmake -S "${BACKEND_DIR}" -B "${BUILD_DIR}" >"${LOG_FILE}" 2>&1; then
         REASON="configure failed"
     elif ! cmake --build "${BUILD_DIR}" >>"${LOG_FILE}" 2>&1; then
         REASON="build failed"
-    elif ! "${BIN_PATH}" >>"${LOG_FILE}" 2>&1; then
-        REASON="run failed"
-    elif ! grep -Fq "${expected_line}" "${LOG_FILE}"; then
-        REASON="PASS marker not found"
     else
-        STATUS="✓"
-        REASON="ok"
+        if [[ "${BACKEND}" == "NPU" ]]; then
+            if env NPU_OFFLOAD_XCLBIN="${BUILD_DIR}/smoke.xclbin" "${BIN_PATH}" >>"${LOG_FILE}" 2>&1; then
+                run_ok=1
+            else
+                REASON="run failed"
+            fi
+        else
+            if "${BIN_PATH}" >>"${LOG_FILE}" 2>&1; then
+                run_ok=1
+            else
+                REASON="run failed"
+            fi
+        fi
+    fi
+
+    if [[ -z "${REASON}" ]]; then
+        if [[ ${run_ok} -eq 1 ]] && grep -Fq "${expected_line}" "${LOG_FILE}"; then
+            STATUS="✓"
+            REASON="ok"
+        else
+            REASON="PASS marker not found"
+        fi
+    fi
+
+    if [[ "${BACKEND}" == "NPU" ]]; then
+        deactivate
     fi
 
     if [[ "${STATUS}" == "x" ]]; then
@@ -64,9 +90,9 @@ run_backend() {
 
 echo "Running smoke tests from ${SMOKE_ROOT}"
 
-run_backend "CPU" "CPU top-k smoke test: PASS"
-run_backend "NPU" "NPU top-k smoke test: PASS"
-run_backend "GPU" "GPU top-k smoke test: PASS"
+run_backend "CPU" "CPU smoke test: PASS"
+run_backend "NPU" "NPU smoke test: PASS"
+run_backend "GPU" "GPU smoke test: PASS"
 
 echo
 echo "Smoke Test Summary:"

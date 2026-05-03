@@ -14,12 +14,12 @@ cmake --build build
 
 ```bash
 source /home/ioannis/.bash/exports.sh
-./build/smoke
+NPU_OFFLOAD_XCLBIN=./build/smoke.xclbin ./build/smoke
 ```
 
 If successful, it prints:
 
-- `NPU top-k smoke test: PASS`
+- `NPU smoke test: PASS`
 - Device BDF/name information
 
 If it fails, verify:
