@@ -14,9 +14,9 @@ usage() {
 BACKEND_INPUT="${1:-cpu}"
 BACKEND_LC="$(echo "${BACKEND_INPUT}" | tr '[:upper:]' '[:lower:]')"
 case "${BACKEND_LC}" in
-    cpu) BACKEND_DIR="CPU" ;;
-    gpu) BACKEND_DIR="GPU" ;;
-    npu) BACKEND_DIR="NPU" ;;
+    cpu) BACKEND_DIR="CPU"; BACKEND_TARGET="cpu_topk" ;;
+    gpu) BACKEND_DIR="GPU"; BACKEND_TARGET="gpu_topk" ;;
+    npu) BACKEND_DIR="NPU"; BACKEND_TARGET="npu_topk" ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Error: Unknown backend '${BACKEND_INPUT}'." >&2; usage; exit 2 ;;
 esac
@@ -29,8 +29,8 @@ case "${ALGO_LC}" in
     *) echo "Error: Unknown algorithm '${ALGO_INPUT}'." >&2; usage; exit 2 ;;
 esac
 
-BUILD_DIR="${ROOT_DIR}/${BACKEND_DIR}/build"
-EXECUTABLE="${BUILD_DIR}/topk"
+ROOT_BUILD_DIR="${ROOT_DIR}/build"
+EXECUTABLE="${ROOT_BUILD_DIR}/${BACKEND_DIR}/topk"
 
 cases=(
     "Small  10 16   bitonic"
@@ -47,12 +47,38 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then echo "Error: Not 
 if git diff --quiet && git diff --cached --quiet; then echo "Error: No uncommitted changes to test against HEAD!" >&2; exit 1; fi
 
 # Run Tests
+configure_root_build() {
+    local cpu_opt="$1"
+    local gpu_opt="$2"
+    local npu_opt="$3"
+
+    echo ">> Configuring root build (CPU=${cpu_opt} GPU=${gpu_opt} NPU=${npu_opt})..."
+    if ! cmake -S "${ROOT_DIR}" -B "${ROOT_BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release \
+        -DTOPK_BUILD_CPU="${cpu_opt}" -DTOPK_BUILD_GPU="${gpu_opt}" -DTOPK_BUILD_NPU="${npu_opt}" \
+        >/dev/null 2>&1; then
+        echo "Error: CMake configure failed!" >&2
+        return 1
+    fi
+}
+
 run_suite() {
     local PHASE_NAME="$1" OUT_FILE="$2"
+    local cpu_opt="OFF"
+    local gpu_opt="OFF"
+    local npu_opt="OFF"
+
+    case "${BACKEND_LC}" in
+        cpu) cpu_opt="ON" ;;
+        gpu) gpu_opt="ON" ;;
+        npu) npu_opt="ON" ;;
+    esac
 
     echo ">> Recompiling for ${PHASE_NAME}..."
-    if [[ ! -d "${BUILD_DIR}" ]]; then echo "Error: Build dir not found: ${BUILD_DIR}" >&2; return 1; fi
-    if ! cmake --build "${BUILD_DIR}" --config Release >/dev/null 2>&1; then echo "Error: Build failed!" >&2; return 1; fi
+    if ! configure_root_build "${cpu_opt}" "${gpu_opt}" "${npu_opt}"; then return 1; fi
+    if ! cmake --build "${ROOT_BUILD_DIR}" --config Release --target "${BACKEND_TARGET}" >/dev/null 2>&1; then
+        echo "Error: Build failed!" >&2
+        return 1
+    fi
     if [[ ! -x "${EXECUTABLE}" ]]; then echo "Error: Executable not found: ${EXECUTABLE}" >&2; return 1; fi
 
     > "${OUT_FILE}"
@@ -133,6 +159,8 @@ TMP_NEW="$(mktemp)"; TMP_BASE="$(mktemp)"; STASHED=0
 cleanup() {
     rm -f "${TMP_NEW}" "${TMP_BASE}"
     [[ ${STASHED} -eq 1 ]] && { echo -e "\nRestoring stashed changes..."; git stash pop -q || echo "Warning: Failed to pop git stash." >&2; }
+    echo -e "\n>> Restoring root build to all backends..."
+    configure_root_build "ON" "ON" "ON" >/dev/null 2>&1 || echo "Warning: Failed to restore root build settings." >&2
 }
 trap cleanup EXIT
 
