@@ -56,7 +56,7 @@ __global__ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int 
 	T* local_heap = thread_workspaces + (tid * k);
 	int current_size = 0;
 	
-	// --- PHASE 1: MAP ---
+	// PHASE 1: MAP
 	for (std::size_t i = tid; i < n; i += stride) {
 		T val = input[i];
 		
@@ -78,10 +78,9 @@ __global__ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int 
 	thread_counts[tid] = current_size;
 	__syncthreads();
 
-	// --- PHASE 2: HYBRID REDUCE ---
-	
+	// PHASE 2: HYBRID REDUCE
 	if (k <= 256) {
-		// STRATEGY A: Parallel Tree Reduction (Using explicit counts instead of value-based sentinels)
+		// STRATEGY A: Parallel Tree Reduction
 		for (int step = 1; step < blockDim.x; step *= 2) {
 			int index = 2 * step * threadIdx.x;
 			

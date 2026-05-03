@@ -1,5 +1,6 @@
 #include "../include/runner.hpp"
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
@@ -50,6 +51,8 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 			std::vector<T> temp = data_backup;
 			gpu::bitonic::RunStats stats{0.0, 0, 0, 0};
 			
+			auto t0 = std::chrono::high_resolution_clock::now();
+
 			if constexpr (std::is_same_v<T, float>) {
 				if (use_fp16_path) stats = gpu::bitonic::run_network_cuda_fp16(temp, layers);
 				else stats = gpu::bitonic::run_network_cuda(temp, layers);
@@ -57,8 +60,11 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 				stats = gpu::bitonic::run_network_cuda(temp, layers);
 			}
 
+			auto t1 = std::chrono::high_resolution_clock::now();
+			double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
 			return common::benchmark::TimedValueWithStats<std::vector<T>, gpu::bitonic::RunStats>{
-				stats.elapsed_ms,
+				elapsed_wall_ms,
 				std::move(temp),
 				stats,
 			};
@@ -80,8 +86,8 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 		} else {
 			last_full_stats = best_stats;
 		}
-		std::cout << "[PROFILE_TIME_MS] " << best_stats.elapsed_ms << "\n";
-		return common::topk::BasicRunStats{best_stats.elapsed_ms};
+		std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
+		return common::topk::BasicRunStats{best.elapsed_ms};
 	}
 
 	void print_debug_metrics(const Config& cfg, std::size_t layer_count, std::size_t full_cmp, std::size_t trunc_cmp,
@@ -117,14 +123,21 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 			gpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
 		});
 
-		// measurment
+		// measurement
 		auto best = common::benchmark::measure_best(common::benchmark::kMeasureIters, [&]()
 			-> common::benchmark::TimedValueWithStats<std::vector<T>, gpu::map_reduce::RunStats> {
 			gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
+
+			auto t0 = std::chrono::high_resolution_clock::now();
+
 			std::vector<T> output =
 				gpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
+
+			auto t1 = std::chrono::high_resolution_clock::now();
+			double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
 			return common::benchmark::TimedValueWithStats<std::vector<T>, gpu::map_reduce::RunStats>{
-				map_stats.elapsed_ms,
+				elapsed_wall_ms,
 				std::move(output),
 				map_stats,
 			};
