@@ -63,16 +63,19 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 		});
 
 		data = std::move(best.value); // Keep the fastest sorted result for correctness
-		std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
-		return common::topk::BasicRunStats{best.elapsed_ms};
+		common::topk::BasicRunStats stats{};
+		stats.end_to_end_ms = best.elapsed_ms;
+		stats.algorithm_ms = best.elapsed_ms;
+		std::cout << "[PROFILE_TIME_MS] " << stats.end_to_end_ms << "\n";
+		return stats;
 	}
 
 	void print_debug_metrics(const Config& cfg, std::size_t layer_count, std::size_t full_cmp, std::size_t trunc_cmp,
 							 const common::topk::BasicRunStats* full_stats,
 							 const common::topk::BasicRunStats* trunc_stats) override {
 		cpu::reporting::print_debug_metrics(cfg, context.hw_threads, context.ex_threads, layer_count, full_cmp,
-											trunc_cmp, full_stats != nullptr ? full_stats->elapsed_ms : 0.0,
-											trunc_stats != nullptr ? trunc_stats->elapsed_ms : 0.0);
+										trunc_cmp, full_stats != nullptr ? full_stats->algorithm_ms : 0.0,
+										trunc_stats != nullptr ? trunc_stats->algorithm_ms : 0.0);
 	}
 
   private:
@@ -110,13 +113,16 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 			};
 		});
 
+		const double end_to_end_ms = best.elapsed_ms;
+		const double algorithm_ms = best.elapsed_ms;
 		if (stats != nullptr) {
-			stats->elapsed_ms = best.elapsed_ms;
+			stats->end_to_end_ms = end_to_end_ms;
+			stats->algorithm_ms = algorithm_ms;
 			stats->tiles_used = best.stats.tiles_used;
 			stats->aggregated_candidates = best.stats.aggregated_candidates;
-			std::cout << "[PROFILE_TIME_MS] " << stats->elapsed_ms << "\n";
+			std::cout << "[PROFILE_TIME_MS] " << stats->end_to_end_ms << "\n";
 		} else {
-			std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
+			std::cout << "[PROFILE_TIME_MS] " << end_to_end_ms << "\n";
 		}
 
 		return std::move(best.value);

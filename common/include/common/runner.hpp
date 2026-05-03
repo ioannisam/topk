@@ -21,11 +21,13 @@ constexpr int kDefaultRandMin = 0;
 constexpr int kDefaultRandMax = 1000;
 
 struct BasicRunStats {
-	double elapsed_ms = 0.0;
+	double end_to_end_ms = 0.0;
+	double algorithm_ms = 0.0;
 };
 
 struct MapReduceRunStats {
-	double elapsed_ms = 0.0;
+	double end_to_end_ms = 0.0;
+	double algorithm_ms = 0.0;
 	std::size_t tiles_used = 0;
 	std::size_t aggregated_candidates = 0;
 };
@@ -166,22 +168,26 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 	const bool run_both = cfg.run_mode == common::config::RunMode::Both;
 	const bool both_ok = run_both ? compare_topk_prefix(trunc, full, cfg.k) : true;
 
-	// Print timing lines; ensure an explicit newline after the Full timing
+	// Print timing lines; ensure an explicit newline after the Full timing block
 	common::reporting::print_section_header("Timing");
 	if (run_full) {
-		common::reporting::print_key_value("Full bitonic time (ms)", full_stats.elapsed_ms, 3);
+		common::reporting::print_key_value("Full bitonic end-to-end time (ms)", full_stats.end_to_end_ms, 3);
+		common::reporting::print_key_value("Full bitonic algorithmic time (ms)", full_stats.algorithm_ms, 3);
 	} else {
-		common::reporting::print_key_value("Full bitonic time (ms)", "skipped");
+		common::reporting::print_key_value("Full bitonic end-to-end time (ms)", "skipped");
+		common::reporting::print_key_value("Full bitonic algorithmic time (ms)", "skipped");
 	}
 
-	// Ensure a separating newline after the Full bitonic time to avoid
+	// Ensure a separating newline after the Full bitonic timings to avoid
 	// accidental concatenation with subsequent output (fixes parsing bugs).
 	std::cout << std::endl;
 
 	if (run_trunc) {
-		common::reporting::print_key_value("Trunc bitonic time (ms)", trunc_stats.elapsed_ms, 3);
+		common::reporting::print_key_value("Trunc bitonic end-to-end time (ms)", trunc_stats.end_to_end_ms, 3);
+		common::reporting::print_key_value("Trunc bitonic algorithmic time (ms)", trunc_stats.algorithm_ms, 3);
 	} else {
-		common::reporting::print_key_value("Trunc bitonic time (ms)", "skipped");
+		common::reporting::print_key_value("Trunc bitonic end-to-end time (ms)", "skipped");
+		common::reporting::print_key_value("Trunc bitonic algorithmic time (ms)", "skipped");
 	}
 
 	if (run_trunc) {
@@ -227,7 +233,8 @@ template <typename T> int execute_map_reduce(const common::config::Config& cfg, 
 	std::vector<T> output = hooks.run(input, cfg, &run_stats);
 
 	common::reporting::print_timing_lines({
-		{"Map-reduce top-k time (ms)", std::optional<double>(run_stats.elapsed_ms)},
+		{"Map-reduce top-k end-to-end time (ms)", std::optional<double>(run_stats.end_to_end_ms)},
+		{"Map-reduce top-k algorithmic time (ms)", std::optional<double>(run_stats.algorithm_ms)},
 	});
 
 	const bool check_vs_reference = cfg.run_mode == common::config::RunMode::Both;

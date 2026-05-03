@@ -86,8 +86,11 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 		} else {
 			last_full_stats = best_stats;
 		}
-		std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
-		return common::topk::BasicRunStats{best.elapsed_ms};
+		common::topk::BasicRunStats stats{};
+		stats.end_to_end_ms = best.elapsed_ms;
+		stats.algorithm_ms = best_stats.elapsed_ms;
+		std::cout << "[PROFILE_TIME_MS] " << stats.end_to_end_ms << "\n";
+		return stats;
 	}
 
 	void print_debug_metrics(const Config& cfg, std::size_t layer_count, std::size_t full_cmp, std::size_t trunc_cmp,
@@ -143,13 +146,16 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 			};
 		});
 
+		const double end_to_end_ms = best.elapsed_ms;
+		const double algorithm_ms = best.stats.elapsed_ms;
 		if (stats != nullptr) {
-			stats->elapsed_ms = best.elapsed_ms;
+			stats->end_to_end_ms = end_to_end_ms;
+			stats->algorithm_ms = algorithm_ms;
 			stats->tiles_used = best.stats.tiles_used;
 			stats->aggregated_candidates = best.stats.aggregated_candidates;
-			std::cout << "[PROFILE_TIME_MS] " << stats->elapsed_ms << "\n";
+			std::cout << "[PROFILE_TIME_MS] " << stats->end_to_end_ms << "\n";
 		} else {
-			std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
+			std::cout << "[PROFILE_TIME_MS] " << end_to_end_ms << "\n";
 		}
 
 		last_stats = best.stats;

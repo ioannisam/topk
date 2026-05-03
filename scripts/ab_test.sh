@@ -65,7 +65,10 @@ run_suite() {
         local cmd=("${EXECUTABLE}" "q=${q}" "k=${k}" "algo=${algo}")
         [[ "${algo}" == "bitonic" ]] && cmd+=("run=both")
 
-        local min_time=999999.0
+        local min_e2e=""
+        local min_algo=""
+        local found_e2e=0
+        local found_algo=0
         local runs=3
         local exit_code=0
         
@@ -75,28 +78,51 @@ run_suite() {
             RAW_OUTPUT=$("${cmd[@]}" 2>>"${ERR_LOG}") || exit_code=$?
 
             if [[ ${exit_code} -ne 0 ]]; then
-                min_time="ERROR"
+                found_e2e=0
+                found_algo=0
+                min_e2e=""
+                min_algo=""
                 echo "   [!] ${algo} failed for q=${q}. See log: ${ERR_LOG}"
                 break
             fi
 
-            local duration_ms
-            duration_ms=$(echo "${RAW_OUTPUT}" | grep -E "(Trunc bitonic|Map-reduce top-k) time \(ms\)" | awk -F':' '{print $2}' | tr -d ' ')
-            
-            if [[ -n "${duration_ms}" ]]; then
-                # Update minimum time
-                min_time=$(awk -v current="${duration_ms}" -v min="${min_time}" 'BEGIN { print (current < min) ? current : min }')
-                rm -f "${ERR_LOG}"
+            local duration_e2e duration_algo
+            duration_e2e=$(echo "${RAW_OUTPUT}" | grep -E "(Trunc bitonic|Map-reduce top-k) end-to-end time \(ms\)" | awk -F':' '{print $2}' | tr -d ' ')
+            duration_algo=$(echo "${RAW_OUTPUT}" | grep -E "(Trunc bitonic|Map-reduce top-k) algorithmic time \(ms\)" | awk -F':' '{print $2}' | tr -d ' ')
+
+            if [[ -n "${duration_e2e}" && "${duration_e2e}" != "skipped" ]]; then
+                if [[ ${found_e2e} -eq 0 ]]; then
+                    min_e2e="${duration_e2e}"
+                    found_e2e=1
+                else
+                    min_e2e=$(awk -v current="${duration_e2e}" -v min="${min_e2e}" 'BEGIN { print (current < min) ? current : min }')
+                fi
             fi
+            if [[ -n "${duration_algo}" && "${duration_algo}" != "skipped" ]]; then
+                if [[ ${found_algo} -eq 0 ]]; then
+                    min_algo="${duration_algo}"
+                    found_algo=1
+                else
+                    min_algo=$(awk -v current="${duration_algo}" -v min="${min_algo}" 'BEGIN { print (current < min) ? current : min }')
+                fi
+            fi
+
+            rm -f "${ERR_LOG}"
         done
 
-        if [[ "${min_time}" != "ERROR" ]]; then
-            duration="$(awk -v ms="${min_time}" 'BEGIN { printf "%.3f", ms }')"
+        local duration_e2e_out duration_algo_out
+        if [[ ${found_e2e} -eq 1 ]]; then
+            duration_e2e_out="$(awk -v ms="${min_e2e}" 'BEGIN { printf "%.3f", ms }')"
         else
-            duration="ERROR"
+            duration_e2e_out="ERROR"
+        fi
+        if [[ ${found_algo} -eq 1 ]]; then
+            duration_algo_out="$(awk -v ms="${min_algo}" 'BEGIN { printf "%.3f", ms }')"
+        else
+            duration_algo_out="ERROR"
         fi
 
-        echo "${size_name} ${q} ${k} ${algo} ${duration}" >> "${OUT_FILE}"
+        echo "${size_name} ${q} ${k} ${algo} ${duration_e2e_out} ${duration_algo_out}" >> "${OUT_FILE}"
     done
     echo ">> ${PHASE_NAME} run complete."
 }
@@ -124,17 +150,29 @@ if ! run_suite "Baseline (HEAD)" "${TMP_BASE}"; then exit 1; fi
 
 # Output
 echo -e "\n=== Performance Report ==="
-printf "| %-15s | %-12s | %-15s | %-13s | %-13s | %-10s |\n" "Case" "Size (q/k)" "Algorithm" "Baseline (ms)" "New (ms)" "Speedup"
-printf "|-----------------|--------------|-----------------|---------------|---------------|------------|\n"
+printf "| %-15s | %-12s | %-15s | %-14s | %-15s | %-12s | %-13s | %-12s | %-13s |\n" \
+    "Case" "Size (q/k)" "Algorithm" "Base E2E (ms)" "Base Algo (ms)" "New E2E (ms)" "New Algo (ms)" "Speedup E2E" "Speedup Algo"
+printf "|-----------------|--------------|-----------------|----------------|-----------------|--------------|---------------|--------------|---------------|\n"
 
 exec 3<"${TMP_BASE}"; exec 4<"${TMP_NEW}"
-while read -u 3 base_case base_q base_k base_algo base_time && read -u 4 new_case new_q new_k new_algo new_time; do
-    if [[ "${base_time}" == "ERROR" || "${new_time}" == "ERROR" ]]; then
-        speedup="N/A"
+while read -u 3 base_case base_q base_k base_algo base_e2e base_algo_ms && read -u 4 new_case new_q new_k new_algo new_e2e new_algo_ms; do
+    speedup_e2e=""
+    speedup_algo=""
+    if [[ "${base_e2e}" == "ERROR" || "${new_e2e}" == "ERROR" ]]; then
+        speedup_e2e="N/A"
     else
-        if awk "BEGIN {exit !(${new_time} <= 0.000)}"; then speedup="INFx"
-        else speedup="$(awk -v base="${base_time}" -v new="${new_time}" 'BEGIN { printf "%.2fx", base/new }')"; fi
+        if awk "BEGIN {exit !(${new_e2e} <= 0.000)}"; then speedup_e2e="INFx"
+        else speedup_e2e="$(awk -v base="${base_e2e}" -v new="${new_e2e}" 'BEGIN { printf "%.2fx", base/new }')"; fi
     fi
-    printf "| %-15s | %-12s | %-15s | %-13s | %-13s | %-10s |\n" "${base_case}" "q=${base_q}/k=${base_k}" "${base_algo}" "${base_time}" "${new_time}" "${speedup}"
+
+    if [[ "${base_algo_ms}" == "ERROR" || "${new_algo_ms}" == "ERROR" ]]; then
+        speedup_algo="N/A"
+    else
+        if awk "BEGIN {exit !(${new_algo_ms} <= 0.000)}"; then speedup_algo="INFx"
+        else speedup_algo="$(awk -v base="${base_algo_ms}" -v new="${new_algo_ms}" 'BEGIN { printf "%.2fx", base/new }')"; fi
+    fi
+
+    printf "| %-15s | %-12s | %-15s | %-14s | %-15s | %-12s | %-13s | %-12s | %-13s |\n" \
+        "${base_case}" "q=${base_q}/k=${base_k}" "${base_algo}" "${base_e2e}" "${base_algo_ms}" "${new_e2e}" "${new_algo_ms}" "${speedup_e2e}" "${speedup_algo}"
 done
 exec 3<&-; exec 4<&-

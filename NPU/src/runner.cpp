@@ -92,8 +92,11 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
         } else {
             last_full_stats = best_stats;
         }
-        std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
-        return common::topk::BasicRunStats{best.elapsed_ms};
+        common::topk::BasicRunStats stats{};
+        stats.end_to_end_ms = best.elapsed_ms;
+        stats.algorithm_ms = best_stats.elapsed_ms;
+        std::cout << "[PROFILE_TIME_MS] " << stats.end_to_end_ms << "\n";
+        return stats;
     }
 
     void print_debug_metrics(const Config& cfg, std::size_t layer_count, std::size_t full_cmp, std::size_t trunc_cmp,
