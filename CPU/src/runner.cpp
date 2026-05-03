@@ -9,6 +9,7 @@
 
 #include "../include/algorithm.hpp"
 #include "common/runner.hpp"
+#include "common/benchmark.hpp"
 #include "../include/reporting.hpp"
 
 namespace cpu::topk {
@@ -45,28 +46,25 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 		std::vector<T> data_backup = data;
 		
 		// warmpup
-		for (int i = 0; i < 5; ++i) {
+		common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
 			std::vector<T> temp = data_backup;
 			cpu::bitonic::run_topk(temp, layers, context.ex_threads);
-		}
+		});
 
 		// measurement
-		double min_ms = 999999.0;
-		for (int i = 0; i < 50; ++i) {
+		auto best = common::benchmark::measure_best(common::benchmark::kMeasureIters, [&]()
+			-> common::benchmark::TimedValue<std::vector<T>> {
 			std::vector<T> temp = data_backup;
 			auto t0 = std::chrono::high_resolution_clock::now();
 			cpu::bitonic::run_topk(temp, layers, context.ex_threads);
 			auto t1 = std::chrono::high_resolution_clock::now();
-			
 			double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
-			if (elapsed < min_ms) {
-				min_ms = elapsed;
-				data = std::move(temp); // Keep the fastest sorted result for correctness
-			}
-		}
+			return common::benchmark::TimedValue<std::vector<T>>{elapsed, std::move(temp)};
+		});
 
-		std::cout << "[PROFILE_TIME_MS] " << min_ms << "\n";
-		return common::topk::BasicRunStats{min_ms};
+		data = std::move(best.value); // Keep the fastest sorted result for correctness
+		std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
+		return common::topk::BasicRunStats{best.elapsed_ms};
 	}
 
 	void print_debug_metrics(const Config& cfg, std::size_t layer_count, std::size_t full_cmp, std::size_t trunc_cmp,
@@ -91,39 +89,37 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 
 	std::vector<T> run(const std::vector<T>& input, const Config& cfg,
 					   common::topk::MapReduceRunStats* stats) override {
-		cpu::map_reduce::RunStats map_stats{};
-		
 		// warmup
-		for (int i = 0; i < 5; ++i) {
+		common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
 			cpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, context.ex_threads, nullptr);
-		}
+		});
 
 		// measuement
-		double min_ms = 999999.0;
-		std::vector<T> best_output;
-
-		for (int i = 0; i < 50; ++i) {
+		auto best = common::benchmark::measure_best(common::benchmark::kMeasureIters, [&]()
+			-> common::benchmark::TimedValueWithStats<std::vector<T>, cpu::map_reduce::RunStats> {
+			cpu::map_reduce::RunStats run_stats{};
 			auto t0 = std::chrono::high_resolution_clock::now();
-			std::vector<T> output = cpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, context.ex_threads, &map_stats);
+			std::vector<T> output =
+				cpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, context.ex_threads, &run_stats);
 			auto t1 = std::chrono::high_resolution_clock::now();
-
 			double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
-			if (elapsed < min_ms) {
-				min_ms = elapsed;
-				best_output = std::move(output); // Save the valid output
-			}
-		}
+			return common::benchmark::TimedValueWithStats<std::vector<T>, cpu::map_reduce::RunStats>{
+				elapsed,
+				std::move(output),
+				run_stats,
+			};
+		});
 
 		if (stats != nullptr) {
-			stats->elapsed_ms = min_ms;
-			stats->tiles_used = map_stats.tiles_used;
-			stats->aggregated_candidates = map_stats.aggregated_candidates;
+			stats->elapsed_ms = best.elapsed_ms;
+			stats->tiles_used = best.stats.tiles_used;
+			stats->aggregated_candidates = best.stats.aggregated_candidates;
 			std::cout << "[PROFILE_TIME_MS] " << stats->elapsed_ms << "\n";
 		} else {
-			std::cout << "[PROFILE_TIME_MS] " << min_ms << "\n";
+			std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
 		}
 
-		return best_output;
+		return std::move(best.value);
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {

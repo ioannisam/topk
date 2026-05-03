@@ -11,6 +11,7 @@
 #include "../include/algorithm.hpp"
 #include "../include/reporting.hpp"
 #include "common/runner.hpp"
+#include "common/benchmark.hpp"
 
 namespace npu::topk {
 
@@ -50,22 +51,25 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
         std::vector<T> data_backup = data; // Bitonic is in-place, need a pristine backup
         
         // warmup
-        for (int i = 0; i < 5; ++i) {
-            std::vector<T> temp = data_backup;
-            npu::bitonic::run_network_npu(temp, layers, context.ex_threads);
-        }
+		common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
+			std::vector<T> temp = data_backup;
+			npu::bitonic::run_network_npu(temp, layers, context.ex_threads);
+		});
 
-        // measurement
-        npu::bitonic::RunStats best_stats{999999.0, 0, 0, 0, false};
-        for (int i = 0; i < 50; ++i) {
-            std::vector<T> temp = data_backup;
-            const npu::bitonic::RunStats stats = npu::bitonic::run_network_npu(temp, layers, context.ex_threads);
-            
-            if (stats.elapsed_ms < best_stats.elapsed_ms) {
-                best_stats = stats;
-                data = std::move(temp); // Keep the successfully sorted array
-            }
-        }
+		// measurement
+		auto best = common::benchmark::measure_best(common::benchmark::kMeasureIters, [&]()
+			-> common::benchmark::TimedValueWithStats<std::vector<T>, npu::bitonic::RunStats> {
+			std::vector<T> temp = data_backup;
+			const npu::bitonic::RunStats stats = npu::bitonic::run_network_npu(temp, layers, context.ex_threads);
+			return common::benchmark::TimedValueWithStats<std::vector<T>, npu::bitonic::RunStats>{
+				stats.elapsed_ms,
+				std::move(temp),
+				stats,
+			};
+		});
+
+		npu::bitonic::RunStats best_stats = best.stats;
+		data = std::move(best.value); // Keep the successfully sorted array
         
         bool is_trunc = false;
         for (const auto& l : layers) {

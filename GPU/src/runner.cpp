@@ -9,6 +9,7 @@
 
 #include "../include/algorithm.hpp"
 #include "common/runner.hpp"
+#include "common/benchmark.hpp"
 #include "../include/reporting.hpp"
 
 namespace gpu::topk {
@@ -33,7 +34,7 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 		std::vector<T> data_backup = data;
 
 		// warmup
-		for (int i = 0; i < 5; ++i) {
+		common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
 			std::vector<T> temp = data_backup;
 			if constexpr (std::is_same_v<T, float>) {
 				if (use_fp16_path) gpu::bitonic::run_network_cuda_fp16(temp, layers);
@@ -41,11 +42,11 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 			} else {
 				gpu::bitonic::run_network_cuda(temp, layers);
 			}
-		}
+		});
 
 		// measurement
-		gpu::bitonic::RunStats best_stats{999999.0, 0, 0, 0};
-		for (int i = 0; i < 50; ++i) {
+		auto best = common::benchmark::measure_best(common::benchmark::kMeasureIters, [&]()
+			-> common::benchmark::TimedValueWithStats<std::vector<T>, gpu::bitonic::RunStats> {
 			std::vector<T> temp = data_backup;
 			gpu::bitonic::RunStats stats{0.0, 0, 0, 0};
 			
@@ -56,11 +57,15 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 				stats = gpu::bitonic::run_network_cuda(temp, layers);
 			}
 
-			if (stats.elapsed_ms < best_stats.elapsed_ms) {
-				best_stats = stats;
-				data = std::move(temp);
-			}
-		}
+			return common::benchmark::TimedValueWithStats<std::vector<T>, gpu::bitonic::RunStats>{
+				stats.elapsed_ms,
+				std::move(temp),
+				stats,
+			};
+		});
+
+		gpu::bitonic::RunStats best_stats = best.stats;
+		data = std::move(best.value);
 
 		bool is_trunc = false;
 		for (const auto& l : layers) {
@@ -107,36 +112,35 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 					   common::topk::MapReduceRunStats* stats) override {
 		
 		// warmup
-		for (int i = 0; i < 5; ++i) {
+		common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
 			gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
 			gpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
-		}
+		});
 
 		// measurment
-		gpu::map_reduce::RunStats best_map_stats{999999.0, 0, 0, 0};
-		std::vector<T> best_output;
-
-		for (int i = 0; i < 50; ++i) {
+		auto best = common::benchmark::measure_best(common::benchmark::kMeasureIters, [&]()
+			-> common::benchmark::TimedValueWithStats<std::vector<T>, gpu::map_reduce::RunStats> {
 			gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
-			std::vector<T> output = gpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
-			
-			if (map_stats.elapsed_ms < best_map_stats.elapsed_ms) {
-				best_map_stats = map_stats;
-				best_output = std::move(output);
-			}
-		}
+			std::vector<T> output =
+				gpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
+			return common::benchmark::TimedValueWithStats<std::vector<T>, gpu::map_reduce::RunStats>{
+				map_stats.elapsed_ms,
+				std::move(output),
+				map_stats,
+			};
+		});
 
 		if (stats != nullptr) {
-			stats->elapsed_ms = best_map_stats.elapsed_ms;
-			stats->tiles_used = best_map_stats.tiles_used;
-			stats->aggregated_candidates = best_map_stats.aggregated_candidates;
+			stats->elapsed_ms = best.elapsed_ms;
+			stats->tiles_used = best.stats.tiles_used;
+			stats->aggregated_candidates = best.stats.aggregated_candidates;
 			std::cout << "[PROFILE_TIME_MS] " << stats->elapsed_ms << "\n";
 		} else {
-			std::cout << "[PROFILE_TIME_MS] " << best_map_stats.elapsed_ms << "\n";
+			std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
 		}
 
-		last_stats = best_map_stats;
-		return best_output;
+		last_stats = best.stats;
+		return std::move(best.value);
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
