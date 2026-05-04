@@ -7,14 +7,17 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(common STATIC
-    ../../../common/src/config.cpp
-    ../../../common/src/random.cpp
-    ../../../common/src/reporting.cpp
-)
-target_include_directories(common PUBLIC
-    ../../../common/include
-)
+if (NOT TARGET common)
+    add_library(common STATIC
+        ../../../common/src/config.cpp
+        ../../../common/src/random.cpp
+        ../../../common/src/reporting.cpp
+    )
+    target_include_directories(common PUBLIC
+        ../../../common/include
+    )
+    target_compile_features(common PUBLIC cxx_std_20)
+endif()
 
 add_executable(cpu_topk_ground_truth)
 target_sources(cpu_topk_ground_truth PRIVATE

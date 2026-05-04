@@ -9,6 +9,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "common/benchmark.hpp"
 #include "common/random.hpp"
 #include "common/reporting.hpp"
 #include "common/validation.hpp"
@@ -30,16 +31,18 @@ template <typename T> std::vector<T> topk_ground_truth(std::vector<T> values, st
 		}
 		return values;
 	}
+	if (k == 0) {
+		return {};
+	}
 
 	if (want_max) {
-		std::nth_element(values.begin(), values.begin() + static_cast<std::ptrdiff_t>(k), values.end(),
-						 std::greater<T>());
+		std::partial_sort(values.begin(), values.begin() + static_cast<std::ptrdiff_t>(k), values.end(),
+						  std::greater<T>());
 		values.resize(k);
-		std::sort(values.begin(), values.end(), std::greater<T>());
 	} else {
-		std::nth_element(values.begin(), values.begin() + static_cast<std::ptrdiff_t>(k), values.end());
+		std::partial_sort(values.begin(), values.begin() + static_cast<std::ptrdiff_t>(k), values.end(),
+						  std::less<T>());
 		values.resize(k);
-		std::sort(values.begin(), values.end());
 	}
 
 	return values;
@@ -50,14 +53,31 @@ template <typename T> int topk_typed(const Config& cfg) {
 	const std::size_t k = std::min(cfg.k, n);
 	common::reporting::print_configuration(cfg, n, std::nullopt, "Run mode", "gt");
 
-	std::vector<T> input = common::utils::generate_random_input<T>(n, cfg.seed, kRandMin, kRandMax);
+	const std::vector<T> input = common::utils::generate_random_input<T>(n, cfg.seed, kRandMin, kRandMax);
 
-	const auto t0 = std::chrono::high_resolution_clock::now();
-	std::vector<T> output = topk_ground_truth(std::move(input), k, cfg.want_max);
-	const auto t1 = std::chrono::high_resolution_clock::now();
-	const double select_sort_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+	const int warmup_iters = std::max(1, common::benchmark::kWarmupIters);
+	const int measure_iters = std::max(1, common::benchmark::kMeasureIters);
 
-	common::reporting::print_timing_lines({{"Ground truth select/sort time (ms)", select_sort_ms}});
+	common::benchmark::warmup(warmup_iters, [&]() {
+		std::vector<T> temp = input;
+		(void)topk_ground_truth(std::move(temp), k, cfg.want_max);
+	});
+
+	double total_ms = 0.0;
+	std::vector<T> output;
+	for (int i = 0; i < measure_iters; ++i) {
+		std::vector<T> temp = input;
+		const auto t0 = std::chrono::high_resolution_clock::now();
+		std::vector<T> current = topk_ground_truth(std::move(temp), k, cfg.want_max);
+		const auto t1 = std::chrono::high_resolution_clock::now();
+		total_ms += std::chrono::duration<double, std::milli>(t1 - t0).count();
+		if (i == measure_iters - 1) {
+			output = std::move(current);
+		}
+	}
+
+	const double avg_select_sort_ms = total_ms / static_cast<double>(measure_iters);
+	common::reporting::print_timing_lines({{"Ground truth average partial-sort time (ms)", avg_select_sort_ms}});
 
 	if (cfg.run_check && cfg.has_expected_output) {
 		const bool expected_ok = common::utils::validate_expected_output(cfg, output);
