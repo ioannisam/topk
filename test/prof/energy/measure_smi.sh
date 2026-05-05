@@ -4,9 +4,9 @@ set -euo pipefail
 usage() {
     cat <<'EOF'
 Usage:
-    ./test/perf/measure_smi.sh [--gpu-index <idx>] [--interval-ms <ms>] -- <command> [args...]
-    ./test/perf/measure_smi.sh [--out <file>] [--gpu-index <idx>] [--interval-ms <ms>] -- <command> [args...]
-    ./test/perf/measure_smi.sh --list-gpus
+    ./test/prof/energy/measure_smi.sh [--gpu-index <idx>] [--interval-ms <ms>] -- <command> [args...]
+    ./test/prof/energy/measure_smi.sh [--out <file>] [--gpu-index <idx>] [--interval-ms <ms>] -- <command> [args...]
+    ./test/prof/energy/measure_smi.sh --list-gpus
 
 Options:
     --out <file>          Also write report to file (for profiler ingestion).
@@ -17,9 +17,9 @@ Options:
     --                   End script options; remaining args are the command to run.
 
 Examples:
-    ./test/perf/measure_smi.sh -- ./test/smoke/GPU/build/smoke
-    ./test/perf/measure_smi.sh --out ./test/prof/results/measurements/gpu_run1.txt -- ./GPU/build/topk ./test/cases/int/q10_k8_max.case
-    ./test/perf/measure_smi.sh --gpu-index 0 --interval-ms 100 -- sleep 1
+    ./test/prof/energy/measure_smi.sh -- ./test/smoke/GPU/build/smoke
+    ./test/prof/energy/measure_smi.sh --out ./test/prof/results/measurements/gpu_run1.txt -- ./GPU/build/topk ./test/prof/cases/bitonic/int/q10_k8_max.case
+    ./test/prof/energy/measure_smi.sh --gpu-index 0 --interval-ms 100 -- sleep 1
 
 Notes:
     - Uses nvidia-smi power.draw telemetry (Watts).

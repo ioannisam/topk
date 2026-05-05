@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="${SCRIPT_DIR}"
+while [[ "${ROOT_DIR}" != "/" && ! -f "${ROOT_DIR}/CMakeLists.txt" ]]; do
+    ROOT_DIR="$(dirname "${ROOT_DIR}")"
+done
+if [[ ! -f "${ROOT_DIR}/CMakeLists.txt" ]]; then
+    echo "error: could not locate repo root (CMakeLists.txt)" >&2
+    exit 1
+fi
+
 PROF_DIR="${ROOT_DIR}/test/prof"
 RESULTS_DIR="${PROF_DIR}/results"
 

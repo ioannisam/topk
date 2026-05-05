@@ -1,20 +1,28 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="${SCRIPT_DIR}"
+while [[ "${ROOT_DIR}" != "/" && ! -f "${ROOT_DIR}/CMakeLists.txt" ]]; do
+    ROOT_DIR="$(dirname "${ROOT_DIR}")"
+done
+if [[ ! -f "${ROOT_DIR}/CMakeLists.txt" ]]; then
+    echo "error: could not locate repo root (CMakeLists.txt)" >&2
+    exit 1
+fi
 
 usage() {
-    echo "Usage: scripts/run_testcases.sh <backends> [types]"
-    echo "       scripts/run_testcases.sh [options] <backends> [types]"
+    echo "Usage: test/prof/cases/run_testcases.sh <backends> [types]"
+    echo "       test/prof/cases/run_testcases.sh [options] <backends> [types]"
     echo "Examples:"
-    echo "  scripts/run_testcases.sh cpu"
-    echo "  scripts/run_testcases.sh gt"
-    echo "  scripts/run_testcases.sh cpu float,int,uint"
-    echo "  scripts/run_testcases.sh '{cpu,gt,npu}' '{float,int,uint}'"
-    echo "  scripts/run_testcases.sh --energy auto '{cpu,gpu,gt}' int"
+    echo "  test/prof/cases/run_testcases.sh cpu"
+    echo "  test/prof/cases/run_testcases.sh gt"
+    echo "  test/prof/cases/run_testcases.sh cpu float,int,uint"
+    echo "  test/prof/cases/run_testcases.sh '{cpu,gt,npu}' '{float,int,uint}'"
+    echo "  test/prof/cases/run_testcases.sh --energy auto '{cpu,gpu,gt}' int"
     echo "Options:"
     echo "  --cases-dir <path>              Root directory of testcase .case files"
-    echo "                                  (default: test/cases)"
+    echo "                                  (default: test/prof/cases)"
     echo "  --energy <none|auto|rapl|gpu>   Enable optional energy measurement wrappers (default: none)"
     echo "  --energy-out-dir <path>         Directory for measurement output files"
     echo "                                  (default: test/prof/results/measurements)"
@@ -36,20 +44,16 @@ resolve_binary_path() {
     local backend="$1"
     case "${backend}" in
         gt)
-            if [[ -x "${ROOT_DIR}/build/test/perf/ground_truth/topk" ]]; then
-                printf '%s' "${ROOT_DIR}/build/test/perf/ground_truth/topk"
-            else
-                printf '%s' "${ROOT_DIR}/test/perf/ground_truth/build/topk"
-            fi
+            printf '%s' "${ROOT_DIR}/build/test/ground_truth/topk"
             ;;
         cpu)
-            printf '%s' "${ROOT_DIR}/CPU/build/topk"
+            printf '%s' "${ROOT_DIR}/build/CPU/topk"
             ;;
         gpu)
-            printf '%s' "${ROOT_DIR}/GPU/build/topk"
+            printf '%s' "${ROOT_DIR}/build/GPU/topk"
             ;;
         npu)
-            printf '%s' "${ROOT_DIR}/NPU/build/topk"
+            printf '%s' "${ROOT_DIR}/build/NPU/topk"
             ;;
         *)
             return 1
@@ -106,7 +110,7 @@ extract_case_algo() {
     printf '%s' "${algo}"
 }
 
-CASES_DIR="${ROOT_DIR}/test/cases"
+CASES_DIR="${ROOT_DIR}/test/prof/cases"
 ENERGY_MODE="none"
 ENERGY_OUT_DIR="${ROOT_DIR}/test/prof/results/measurements"
 RAPL_PATH=""
@@ -417,13 +421,13 @@ for backend_raw in "${BACKENDS[@]}"; do
             if [[ "${CASE_ENERGY_MODE}" == "none" ]]; then
                 RUN_CMD=("${BINARY_PATH}" "${CASE}")
             elif [[ "${CASE_ENERGY_MODE}" == "rapl" ]]; then
-                RUN_CMD=("${ROOT_DIR}/test/perf/measure_rapl.sh" "--out" "${ENERGY_CASE_FILE}")
+                RUN_CMD=("${ROOT_DIR}/test/prof/energy/measure_rapl.sh" "--out" "${ENERGY_CASE_FILE}")
                 if [[ -n "${RAPL_PATH}" ]]; then
                     RUN_CMD+=("--path" "${RAPL_PATH}")
                 fi
                 RUN_CMD+=("--" "${BINARY_PATH}" "${CASE}")
             else
-                RUN_CMD=("${ROOT_DIR}/test/perf/measure_smi.sh" "--out" "${ENERGY_CASE_FILE}" "--gpu-index" "${GPU_INDEX}" "--interval-ms" "${GPU_INTERVAL_MS}" "--" "${BINARY_PATH}" "${CASE}")
+                RUN_CMD=("${ROOT_DIR}/test/prof/energy/measure_smi.sh" "--out" "${ENERGY_CASE_FILE}" "--gpu-index" "${GPU_INDEX}" "--interval-ms" "${GPU_INTERVAL_MS}" "--" "${BINARY_PATH}" "${CASE}")
             fi
 
             if "${RUN_CMD[@]}" >"${OUTPUT}" 2>&1; then

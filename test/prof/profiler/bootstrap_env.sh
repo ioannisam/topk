@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VENV_DIR="${ROOT_DIR}/test/prof/.venv"
-REQ_FILE="${ROOT_DIR}/test/prof/requirements.txt"
-PROFILER="${ROOT_DIR}/test/prof/profiler.py"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="${SCRIPT_DIR}"
+while [[ "${ROOT_DIR}" != "/" && ! -f "${ROOT_DIR}/CMakeLists.txt" ]]; do
+    ROOT_DIR="$(dirname "${ROOT_DIR}")"
+done
+if [[ ! -f "${ROOT_DIR}/CMakeLists.txt" ]]; then
+    echo "error: could not locate repo root (CMakeLists.txt)" >&2
+    exit 1
+fi
+
+VENV_DIR="${ROOT_DIR}/test/prof/profiler/.venv"
+REQ_FILE="${ROOT_DIR}/test/prof/profiler/requirements.txt"
+PROFILER="${ROOT_DIR}/test/prof/profiler/profiler.py"
 TEST_INPUT="${ROOT_DIR}/test/prof/results/test_output.txt"
 OUT_DIR="${ROOT_DIR}/test/prof/results/plots"
 CSV_OUT="${ROOT_DIR}/test/prof/results/profile_cases.csv"

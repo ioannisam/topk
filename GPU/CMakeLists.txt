@@ -1,30 +1,3 @@
-if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-	cmake_minimum_required(VERSION 3.18)
-	project(cuda_topk LANGUAGES CXX CUDA)
-
-	option(DEBUG "Enable debug output by default at runtime" ON)
-
-	set(CMAKE_CXX_STANDARD 20)
-	set(CMAKE_CUDA_STANDARD 17)
-	set(CMAKE_CXX_STANDARD_REQUIRED ON)
-	set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-	set(CMAKE_CXX_EXTENSIONS OFF)
-	set(CMAKE_CUDA_EXTENSIONS OFF)
-endif()
-
-if (NOT TARGET common)
-	add_library(common STATIC
-		../common/src/config.cpp
-		../common/src/bitonic.cpp
-		../common/src/random.cpp
-		../common/src/reporting.cpp
-	)
-	target_include_directories(common PUBLIC
-		../common/include
-	)
-	target_compile_features(common PUBLIC cxx_std_20)
-endif()
-
 add_executable(gpu_topk)
 target_sources(gpu_topk PRIVATE
 	src/main.cpp
@@ -33,7 +6,7 @@ target_sources(gpu_topk PRIVATE
 	src/bitonic.cu
 	src/map_reduce.cu
 )
-target_include_directories(gpu_topk PRIVATE include ../common/include)
+target_include_directories(gpu_topk PRIVATE include)
 target_link_libraries(gpu_topk PRIVATE common)
 set_target_properties(gpu_topk PROPERTIES OUTPUT_NAME topk)
 set_target_properties(gpu_topk PROPERTIES CUDA_ARCHITECTURES native)
