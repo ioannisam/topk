@@ -1,0 +1,2 @@
+q=2 k=4 mode=max dtype=fp16 run=trunc debug=false threads=4 seed=102 check=true algo=map_reduce
+517 462.5 397.5 310.25

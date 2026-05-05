@@ -1,0 +1,2 @@
+q=6 k=8 mode=max dtype=fp16 run=trunc debug=false threads=8 seed=106 check=true algo=map_reduce
+997 995.5 974.5 955.5 944.5 939.5 911.5 903

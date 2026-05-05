@@ -13,12 +13,15 @@ usage() {
     echo "  scripts/run_testcases.sh '{cpu,gt,npu}' '{float,int,uint}'"
     echo "  scripts/run_testcases.sh --energy auto '{cpu,gpu,gt}' int"
     echo "Options:"
+    echo "  --cases-dir <path>              Root directory of testcase .case files"
+    echo "                                  (default: test/cases)"
     echo "  --energy <none|auto|rapl|gpu>   Enable optional energy measurement wrappers (default: none)"
     echo "  --energy-out-dir <path>         Directory for measurement output files"
     echo "                                  (default: test/prof/results/measurements)"
     echo "  --rapl-path <path>              Optional explicit RAPL energy_uj path for rapl mode"
     echo "  --gpu-index <idx>               GPU index for gpu mode (default: 0)"
     echo "  --gpu-interval-ms <ms>          Sample interval for gpu mode (default: 100)"
+    echo "  --output <file>                 Detailed output file (default: test/prof/results/test_output.txt)"
     echo "  --help, -h                      Show this help"
 }
 
@@ -33,7 +36,11 @@ resolve_binary_path() {
     local backend="$1"
     case "${backend}" in
         gt)
-            printf '%s' "${ROOT_DIR}/test/perf/ground_truth/build/topk"
+            if [[ -x "${ROOT_DIR}/build/test/perf/ground_truth/topk" ]]; then
+                printf '%s' "${ROOT_DIR}/build/test/perf/ground_truth/topk"
+            else
+                printf '%s' "${ROOT_DIR}/test/perf/ground_truth/build/topk"
+            fi
             ;;
         cpu)
             printf '%s' "${ROOT_DIR}/CPU/build/topk"
@@ -83,11 +90,29 @@ resolve_energy_mode() {
     esac
 }
 
+extract_case_algo() {
+    local case_file="$1"
+    local line
+    local algo=""
+    line="$(grep -m1 -E '^[[:space:]]*[^#[:space:]]' "${case_file}" || true)"
+    if [[ "${line}" =~ (^|[[:space:]])algo=([^[:space:]]+) ]]; then
+        algo="${BASH_REMATCH[2]}"
+    fi
+    if [[ -z "${algo}" ]]; then
+        algo="bitonic"
+    elif [[ "${algo}" == "mapreduce" ]]; then
+        algo="map_reduce"
+    fi
+    printf '%s' "${algo}"
+}
+
+CASES_DIR="${ROOT_DIR}/test/cases"
 ENERGY_MODE="none"
 ENERGY_OUT_DIR="${ROOT_DIR}/test/prof/results/measurements"
 RAPL_PATH=""
 GPU_INDEX="0"
 GPU_INTERVAL_MS="100"
+RESULT_FILE="${ROOT_DIR}/test/prof/results/test_output.txt"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -98,6 +123,15 @@ while [[ $# -gt 0 ]]; do
                 exit 2
             fi
             ENERGY_MODE="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
+            shift 2
+            ;;
+        --cases-dir)
+            if [[ $# -lt 2 ]]; then
+                echo "error: --cases-dir needs a value"
+                usage
+                exit 2
+            fi
+            CASES_DIR="$2"
             shift 2
             ;;
         --energy-out-dir)
@@ -134,6 +168,15 @@ while [[ $# -gt 0 ]]; do
                 exit 2
             fi
             GPU_INTERVAL_MS="$2"
+            shift 2
+            ;;
+        --output)
+            if [[ $# -lt 2 ]]; then
+                echo "error: --output needs a value"
+                usage
+                exit 2
+            fi
+            RESULT_FILE="$2"
             shift 2
             ;;
         --help|-h)
@@ -177,8 +220,7 @@ if [[ $# -lt 1 ]]; then
 fi
 
 EXPECTED_PASS_MARKER="Top-k correctness vs testcase answer: OK"
-RESULTS_DIR="${ROOT_DIR}/test/prof/results"
-RESULT_FILE="${RESULTS_DIR}/test_output.txt"
+RESULTS_DIR="$(dirname "${RESULT_FILE}")"
 
 ARGS=("$@")
 ARGC=${#ARGS[@]}
@@ -265,7 +307,7 @@ fi
     if [[ -n "${TYPES_RAW}" ]]; then
         echo "Types   : ${TYPES_RAW}"
     else
-        echo "Types   : auto-detected from test/cases"
+        echo "Types   : auto-detected from ${CASES_DIR}"
     fi
     echo "Energy  : ${ENERGY_MODE}"
     if [[ "${ENERGY_MODE}" != "none" ]]; then
@@ -279,7 +321,7 @@ echo "Backends: ${BACKENDS_RAW}"
 if [[ -n "${TYPES_RAW}" ]]; then
     echo "Types   : ${TYPES_RAW}"
 else
-    echo "Types   : auto-detected from test/cases"
+    echo "Types   : auto-detected from ${CASES_DIR}"
 fi
 echo "Energy  : ${ENERGY_MODE}"
 if [[ "${ENERGY_MODE}" != "none" ]]; then
@@ -314,7 +356,8 @@ for backend_raw in "${BACKENDS[@]}"; do
     if [[ ${#REQUESTED_TYPES[@]} -gt 0 ]]; then
         TYPES=("${REQUESTED_TYPES[@]}")
     else
-        mapfile -t TYPES < <(find "${ROOT_DIR}/test/cases" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+        # Find unique type directories inside the algorithm subdirectories
+        mapfile -t TYPES < <(find "${CASES_DIR}" -mindepth 2 -maxdepth 2 -type d -printf '%f\n' | sort -u)
     fi
 
     echo
@@ -331,30 +374,14 @@ for backend_raw in "${BACKENDS[@]}"; do
         TYPE_PASS=0
         TYPE_FAIL=0
 
-        CASE_DIR_BACKEND_TYPE="${ROOT_DIR}/test/cases/${BACKEND}/${TYPE}"
-        CASE_DIR_TYPE="${ROOT_DIR}/test/cases/${TYPE}"
+        # Find all .case files for this TYPE across all algorithm directories
+        mapfile -t CASES < <(find "${CASES_DIR}" -mindepth 2 -maxdepth 2 -type d -name "${TYPE}" -exec find {} -maxdepth 1 -type f -name '*.case' \; | sort)
 
-        if [[ -d "${CASE_DIR_BACKEND_TYPE}" ]]; then
-            CASE_DIR="${CASE_DIR_BACKEND_TYPE}"
-        elif [[ -d "${CASE_DIR_TYPE}" ]]; then
-            CASE_DIR="${CASE_DIR_TYPE}"
-        else
-            echo "  Type ${TYPE}: skipped (no directory found)"
-            {
-                echo "-- Type: ${TYPE} --"
-                echo "Skipped: no directory found"
-                echo
-            } >>"${RESULT_FILE}"
-            continue
-        fi
-
-        mapfile -t CASES < <(find "${CASE_DIR}" -maxdepth 1 -type f -name '*.case' | sort)
         if [[ ${#CASES[@]} -eq 0 ]]; then
-            echo "  Type ${TYPE}: skipped (no .case files in ${CASE_DIR})"
+            echo "  Type ${TYPE}: skipped (no .case files found in ${CASES_DIR}/*/${TYPE})"
             {
                 echo "-- Type: ${TYPE} --"
-                echo "Directory: ${CASE_DIR}"
-                echo "Skipped: no .case files"
+                echo "Skipped: no .case files found"
                 echo
             } >>"${RESULT_FILE}"
             continue
@@ -363,13 +390,14 @@ for backend_raw in "${BACKENDS[@]}"; do
         echo "  Type ${TYPE}: ${#CASES[@]} case(s)"
         {
             echo "-- Type: ${TYPE} --"
-            echo "Directory: ${CASE_DIR}"
             echo "Cases: ${#CASES[@]}"
             echo
         } >>"${RESULT_FILE}"
 
         for CASE in "${CASES[@]}"; do
             NAME="$(basename "${CASE}")"
+            # Optional: to make the output clearer in the log file, we can extract the parent directory name
+            # ALGO_DIR="$(basename "$(dirname "$(dirname "${CASE}")")")"
             OUTPUT="$(mktemp)"
             CASE_STATUS="FAIL"
             CASE_REASON="non-zero exit"
@@ -382,7 +410,8 @@ for backend_raw in "${BACKENDS[@]}"; do
 
             if [[ "${CASE_ENERGY_MODE}" == "rapl" || "${CASE_ENERGY_MODE}" == "gpu" ]]; then
                 CASE_STEM="${NAME%.case}"
-                ENERGY_CASE_FILE="${ENERGY_OUT_DIR}/${RUN_ID}_${BACKEND}_${TYPE}_${CASE_STEM}_${CASE_ENERGY_MODE}.txt"
+                CASE_ALGO="$(extract_case_algo "${CASE}")"
+                ENERGY_CASE_FILE="${ENERGY_OUT_DIR}/${RUN_ID}_${BACKEND}_${TYPE}_${CASE_ALGO}_${CASE_STEM}_${CASE_ENERGY_MODE}.txt"
             fi
 
             if [[ "${CASE_ENERGY_MODE}" == "none" ]]; then

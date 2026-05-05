@@ -1,0 +1,2 @@
+q=12 k=8 mode=max dtype=double run=trunc debug=false threads=8 seed=112 check=true algo=map_reduce
+999.924 999.891 999.597 999.467 999.432 998.964 998.537 998.523

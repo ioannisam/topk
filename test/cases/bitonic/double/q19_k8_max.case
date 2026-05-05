@@ -1,0 +1,2 @@
+q=19 k=8 mode=max dtype=double run=trunc debug=false threads=8 seed=119 check=true
+999.995 999.994 999.994 999.991  999.99 999.989 999.986 999.986

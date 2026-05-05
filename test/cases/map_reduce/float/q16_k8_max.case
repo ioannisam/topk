@@ -1,0 +1,2 @@
+q=16 k=8 mode=max dtype=float run=trunc debug=false threads=8 seed=116 check=true algo=map_reduce
+999.963 999.946 999.938  999.93 999.927 999.909  999.89 999.888

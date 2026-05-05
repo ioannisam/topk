@@ -1,0 +1,2 @@
+q=7 k=8 mode=max dtype=fp16 run=trunc debug=false threads=8 seed=107 check=true
+997.5 991 989.5 978.5 975.5 970 943.5 934.5

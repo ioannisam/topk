@@ -1,0 +1,2 @@
+q=12 k=8 mode=max dtype=int run=trunc debug=false threads=8 seed=112 check=true algo=map_reduce
+1000 1000 1000  999  999  999  999  999

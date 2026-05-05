@@ -1,0 +1,2 @@
+q=5 k=8 mode=max dtype=double run=trunc debug=false threads=8 seed=105 check=true algo=map_reduce
+979.725 977.701 969.386 962.283 920.409 916.038  915.65 907.812
