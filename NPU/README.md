@@ -32,18 +32,19 @@ cmake -S . -B build -DDEBUG=ON
 ## Run
 
 ```bash
-./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [run=full|trunc|both] [debug=true|false] [seed=<seed>]
+./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>]
 ```
 
 Only `key=value` arguments are accepted. Required key: `q`.
 
-Or run from a testcase file:
+Defaults:
+- `k=N`, `mode=max`, `run=trunc`, `seed=42`
+- `verify=false`
+- random range `min=0`, `max=1000`
 
-```bash
-./build/topk <testcase-file>
-./build/topk --case <testcase-file>
-./build/topk case=<testcase-file>
-```
+Notes:
+- `threads=<num>` is accepted by the shared CLI for backend parity; NPU dispatch itself is controlled by offload runtime behavior.
+- `verify=true` enables an additional CPU sorted-reference correctness check after NPU execution.
 
 ## Offload Configuration
 

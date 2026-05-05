@@ -58,23 +58,4 @@ template <typename T> bool value_equal(T lhs, T rhs) {
 	return lhs == rhs;
 }
 
-template <typename T> bool validate_expected_output(const config::Config& cfg, const std::vector<T>& output) {
-	if (!cfg.has_expected_output) {
-		return true;
-	}
-
-	if (cfg.expected_output_tokens.size() != output.size()) {
-		return false;
-	}
-
-	for (std::size_t i = 0; i < output.size(); ++i) {
-		const T expected = parse_expected_value<T>(cfg.expected_output_tokens[i]);
-		if (!value_equal(output[i], expected)) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
 } // namespace common::utils

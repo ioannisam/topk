@@ -102,10 +102,8 @@ void print_configuration(const common::config::Config& cfg, std::size_t n, std::
 	print_key_value("Mode", (cfg.want_max ? "max" : "min"));
 	print_key_value(run_mode_label, run_mode_name(cfg.run_mode));
 	print_key_value("Debug output", (cfg.debug_output ? "on" : "off"));
-	if (!cfg.testcase_path.empty()) {
-		print_key_value("Testcase answer check", (cfg.run_check ? "on" : "off"));
-		print_key_value("Testcase file", std::filesystem::path(cfg.testcase_path).filename().string());
-	}
+	print_key_value("CPU reference verify", (cfg.verify_output ? "on" : "off"));
+	print_key_value("Random range", std::to_string(cfg.rand_min) + ".." + std::to_string(cfg.rand_max));
 }
 
 void print_timing_lines(const std::vector<std::pair<std::string, std::optional<double>>>& lines) {

@@ -17,9 +17,6 @@
 
 namespace common::topk {
 
-constexpr int kDefaultRandMin = 0;
-constexpr int kDefaultRandMax = 1000;
-
 struct BasicRunStats {
 	double end_to_end_ms = 0.0;
 	double algorithm_ms = 0.0;
@@ -94,14 +91,11 @@ template <typename T> std::vector<T> build_reference_topk(const std::vector<T>& 
 	}
 
 	if (want_max) {
-		std::nth_element(ref.begin(), ref.begin() + static_cast<std::ptrdiff_t>(k), ref.end(), std::greater<T>());
-		ref.resize(k);
 		std::sort(ref.begin(), ref.end(), std::greater<T>());
 	} else {
-		std::nth_element(ref.begin(), ref.begin() + static_cast<std::ptrdiff_t>(k), ref.end(), std::less<T>());
-		ref.resize(k);
 		std::sort(ref.begin(), ref.end(), std::less<T>());
 	}
+	ref.resize(k);
 
 	return ref;
 }
@@ -138,14 +132,15 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 	const std::size_t n = std::size_t{1} << cfg.q;
 	hooks.print_configuration(cfg, n);
 
-    // Build the dynamic instruction sets
 	auto trunc_layers = common::bitonic::build_layers(n, cfg.k);
 	auto full_layers = common::bitonic::build_layers(n, n); // topk = n yields a full sort
     
 	const std::size_t full_cmp = common::bitonic::count_full_comparators(n);
 	const std::size_t trunc_cmp = common::bitonic::count_trunc_comparators(trunc_layers);
 
-	std::vector<T> input = common::utils::generate_random_input<T>(n, cfg.seed, kDefaultRandMin, kDefaultRandMax);
+	const std::vector<T> raw_input =
+		common::utils::generate_random_input<T>(n, cfg.seed, cfg.rand_min, cfg.rand_max);
+	std::vector<T> input = raw_input;
 	apply_mode_transform(input, cfg.want_max);
 
 	const bool run_trunc = cfg.run_mode != common::config::RunMode::Full;
@@ -168,7 +163,6 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 	const bool run_both = cfg.run_mode == common::config::RunMode::Both;
 	const bool both_ok = run_both ? compare_topk_prefix(trunc, full, cfg.k) : true;
 
-	// Print timing lines; ensure an explicit newline after the Full timing block
 	common::reporting::print_section_header("Timing");
 	if (run_full) {
 		common::reporting::print_key_value("Full bitonic end-to-end time (ms)", full_stats.end_to_end_ms, 3);
@@ -178,8 +172,6 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 		common::reporting::print_key_value("Full bitonic algorithmic time (ms)", "skipped");
 	}
 
-	// Ensure a separating newline after the Full bitonic timings to avoid
-	// accidental concatenation with subsequent output (fixes parsing bugs).
 	std::cout << std::endl;
 
 	if (run_trunc) {
@@ -211,11 +203,12 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 
 	const std::vector<T>& chosen_network_output = (cfg.run_mode == common::config::RunMode::Full) ? full : trunc;
 	std::vector<T> output = build_output(chosen_network_output, cfg);
-	if (cfg.run_check && cfg.has_expected_output) {
-		const bool expected_ok = common::utils::validate_expected_output(cfg, output);
-		std::cout << "Top-k correctness vs testcase answer: " << (expected_ok ? "OK" : "FAIL") << "\n";
-		if (!expected_ok) {
-			return 3;
+	if (cfg.verify_output) {
+		const std::vector<T> ref = build_reference_topk(raw_input, cfg.k, cfg.want_max);
+		const bool ref_ok = equal_output(output, ref);
+		common::reporting::print_check_result("Top-k correctness vs CPU sorted reference", true, ref_ok);
+		if (!ref_ok) {
+			return 2;
 		}
 	}
 
@@ -227,7 +220,7 @@ template <typename T> int execute_map_reduce(const common::config::Config& cfg, 
 	const std::size_t n = std::size_t{1} << cfg.q;
 	hooks.print_configuration(cfg, n);
 
-	std::vector<T> input = common::utils::generate_random_input<T>(n, cfg.seed, kDefaultRandMin, kDefaultRandMax);
+	std::vector<T> input = common::utils::generate_random_input<T>(n, cfg.seed, cfg.rand_min, cfg.rand_max);
 
 	MapReduceRunStats run_stats{};
 	std::vector<T> output = hooks.run(input, cfg, &run_stats);
@@ -237,27 +230,19 @@ template <typename T> int execute_map_reduce(const common::config::Config& cfg, 
 		{"Map-reduce top-k algorithmic time (ms)", std::optional<double>(run_stats.algorithm_ms)},
 	});
 
-	const bool check_vs_reference = cfg.run_mode == common::config::RunMode::Both;
+	const bool check_vs_reference = cfg.verify_output || cfg.run_mode == common::config::RunMode::Both;
 	bool reference_ok = true;
 	if (check_vs_reference) {
 		const std::vector<T> ref = build_reference_topk(input, cfg.k, cfg.want_max);
 		reference_ok = equal_output(output, ref);
 	}
-	common::reporting::print_check_result("Top-k correctness vs nth_element reference", check_vs_reference,
+	common::reporting::print_check_result("Top-k correctness vs CPU sorted reference", check_vs_reference,
 										  reference_ok);
 	if (!reference_ok) {
 		return 2;
 	}
 
 	hooks.print_debug_metrics(cfg, run_stats);
-
-	if (cfg.run_check && cfg.has_expected_output) {
-		const bool expected_ok = common::utils::validate_expected_output(cfg, output);
-		std::cout << "Top-k correctness vs testcase answer: " << (expected_ok ? "OK" : "FAIL") << "\n";
-		if (!expected_ok) {
-			return 3;
-		}
-	}
 
 	common::reporting::print_output(cfg, common::utils::format_output(output));
 	return 0;

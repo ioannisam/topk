@@ -36,11 +36,9 @@ struct Config {
 	bool debug_output;
 	std::size_t ex_threads;
 	std::uint64_t seed;
-
-	std::string testcase_path;
-	bool run_check;
-	std::vector<std::string> expected_output_tokens;
-	bool has_expected_output;
+	bool verify_output;
+	int rand_min;
+	int rand_max;
 };
 
 Config parse_args(int argc, char** argv);

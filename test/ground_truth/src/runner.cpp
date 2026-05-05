@@ -19,9 +19,6 @@ namespace {
 using common::config::Config;
 using common::config::DataType;
 
-constexpr int kRandMin = 0;
-constexpr int kRandMax = 1000;
-
 template <typename T> std::vector<T> topk_ground_truth(std::vector<T> values, std::size_t k, bool want_max) {
 	if (k >= values.size()) {
 		if (want_max) {
@@ -48,12 +45,36 @@ template <typename T> std::vector<T> topk_ground_truth(std::vector<T> values, st
 	return values;
 }
 
+template <typename T> std::vector<T> sorted_topk_reference(std::vector<T> values, std::size_t k, bool want_max) {
+	if (want_max) {
+		std::sort(values.begin(), values.end(), std::greater<T>());
+	} else {
+		std::sort(values.begin(), values.end());
+	}
+	if (k < values.size()) {
+		values.resize(k);
+	}
+	return values;
+}
+
+template <typename T> bool equal_typed(const std::vector<T>& lhs, const std::vector<T>& rhs) {
+	if (lhs.size() != rhs.size()) {
+		return false;
+	}
+	for (std::size_t i = 0; i < lhs.size(); ++i) {
+		if (!common::utils::value_equal(lhs[i], rhs[i])) {
+			return false;
+		}
+	}
+	return true;
+}
+
 template <typename T> int topk_typed(const Config& cfg) {
 	const std::size_t n = std::size_t{1} << cfg.q;
 	const std::size_t k = std::min(cfg.k, n);
 	common::reporting::print_configuration(cfg, n, std::nullopt, "Run mode", "gt");
 
-	const std::vector<T> input = common::utils::generate_random_input<T>(n, cfg.seed, kRandMin, kRandMax);
+	const std::vector<T> input = common::utils::generate_random_input<T>(n, cfg.seed, cfg.rand_min, cfg.rand_max);
 
 	const int warmup_iters = std::max(1, common::benchmark::kWarmupIters);
 	const int measure_iters = std::max(1, common::benchmark::kMeasureIters);
@@ -79,11 +100,12 @@ template <typename T> int topk_typed(const Config& cfg) {
 	const double avg_select_sort_ms = total_ms / static_cast<double>(measure_iters);
 	common::reporting::print_timing_lines({{"Ground truth average partial-sort time (ms)", avg_select_sort_ms}});
 
-	if (cfg.run_check && cfg.has_expected_output) {
-		const bool expected_ok = common::utils::validate_expected_output(cfg, output);
-		std::cout << "Top-k correctness vs testcase answer: " << (expected_ok ? "OK" : "FAIL") << "\n";
-		if (!expected_ok) {
-			return 3;
+	if (cfg.verify_output) {
+		const std::vector<T> ref = sorted_topk_reference(input, k, cfg.want_max);
+		const bool ok = equal_typed(output, ref);
+		common::reporting::print_check_result("Top-k correctness vs CPU sorted reference", true, ok);
+		if (!ok) {
+			return 2;
 		}
 	}
 

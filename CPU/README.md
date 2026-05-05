@@ -16,10 +16,10 @@ It supports:
 
 Shared backend-agnostic foundation now lives in `../common`:
 
-- `../common/include/common/config.hpp` + `../common/src/config.cpp`: config types and CLI/testcase parsing
+- `../common/include/common/config.hpp` + `../common/src/config.cpp`: config types and key=value CLI parsing
 - `../common/include/common/bitonic.hpp` + `../common/src/bitonic.cpp`: bitonic layers, masks, and comparator counting
 - `../common/include/common/random.hpp` + `../common/src/random.cpp`: deterministic random input generation
-- `../common/include/common/validation.hpp`: output formatting and testcase-answer validation helpers
+- `../common/include/common/validation.hpp`: output formatting and numeric comparison helpers
 - `../common/include/common/reporting.hpp` + `../common/src/reporting.cpp`: reusable reporting primitives (configuration, timing, output)
 - `../common/include/common/runner.hpp`: shared top-k runner flow and hook interface reused by CPU/GPU/NPU.
 
@@ -43,21 +43,11 @@ cmake -S . -B build \
 ## Run
 
 ```bash
-./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [algo=bitonic|map_reduce] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>]
+./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [algo=bitonic|map_reduce] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>]
 ```
 
 Only `key=value` arguments are accepted. Required key: `q`.
 Arguments are accepted in any order, but examples below use the canonical order above for consistency.
-
-Or run from a testcase file:
-
-```bash
-./build/topk <testcase-file>
-# or
-./build/topk --case <testcase-file>
-# or
-./build/topk case=<testcase-file>
-```
 
 - `N = 2^q` total elements
 - execution threads default to hardware concurrency (capped by `N`)
@@ -66,6 +56,8 @@ Or run from a testcase file:
 - `mode` defaults to `max`
 - `debug` defaults from `DEBUG`
 - run mode defaults to `trunc`
+- `verify` defaults to `false`
+- random range defaults to `min=0`, `max=1000`
 - `threads=<num>` optionally overrides execution threads
 - `dtype=<type>` selects value type: `int`, `uint`, `float`, `double`, `fp16` (fp16 requires compiler support)
 - `algo=<name>` chooses backend algorithm: `bitonic` (default) or `map_reduce`
@@ -73,7 +65,7 @@ Or run from a testcase file:
 Example:
 
 ```bash
-./build/topk q=13 k=128 mode=min dtype=float algo=map_reduce run=both debug=true threads=16 seed=42
+./build/topk q=13 k=128 mode=min dtype=float algo=map_reduce run=both debug=true threads=16 seed=42 verify=true min=0 max=1000
 ```
 
 Runtime tokens:
@@ -81,34 +73,16 @@ Runtime tokens:
 - `algo=bitonic|map_reduce`: sorting-network path or map-reduce path
 - `debug=true|false`: enable/disable debug metrics
 - `run=trunc|full|both`: select network execution mode
+- `verify=true|false`: validate final top-k against a CPU full-sort reference
+- `min=<int>`, `max=<int>`: inclusive random input range (`max` must be `>= min`)
 
-For `algo=map_reduce`, the runtime is a single map-reduce pass; `run=both` enables an internal correctness check against an `nth_element` reference.
+For `algo=map_reduce`, runtime is a single map-reduce pass. Use `verify=true` for explicit correctness validation against the CPU sorted reference.
 
-## Testcase File Format
+## Profiling Workflow (Dynamic Cases)
 
-Testcase files can hold everything a full CLI command includes.
+The old static `.case` workflow has been removed. Use dynamic generation instead:
 
-Rules:
-- First non-comment line: command arguments (same tokens you would pass to `./build/topk`, without the program name).
-- Last non-comment line: expected top-k output values in sorted order.
-- Lines starting with `#` are ignored.
-- `check=true|false` is allowed only in testcase mode.
-
-Minimal example:
-
-```text
-q=4 k=5 mode=max dtype=int run=both debug=false threads=4 seed=7 check=true
-979 978 780 724 539
+```bash
+cd /home/ioannis/Development/Thesis
+./test/prof/cases/run_testcases.sh cpu int --q-min 1 --q-max 16 --verify true --min 0 --max 1000
 ```
-
-Optional tagged format is also supported:
-
-```text
-command: q=4 k=5 mode=max dtype=int run=both debug=false threads=4 seed=7 check=true
-answer: 979 978 780 724 539
-```
-
-Validation behavior:
-- `both` compares trunc top-k vs full-network top-k.
-- If testcase command includes `check=true`, output is also validated against testcase expected-answer line.
-- If testcase command includes `check=false`, testcase expected-answer validation is skipped.

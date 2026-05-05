@@ -36,20 +36,10 @@ cmake -S . -B build \
 ## Run
 
 ```bash
-./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>]
+./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>]
 ```
 
 Only key=value arguments are accepted. Required key: q.
-
-Or run from a testcase file:
-
-```bash
-./build/topk <testcase-file>
-# or
-./build/topk --case <testcase-file>
-# or
-./build/topk case=<testcase-file>
-```
 
 Notes:
 - N = 2^q total elements
@@ -58,17 +48,28 @@ Notes:
 - run mode defaults to trunc
 - seed defaults to 42
 - debug defaults from DEBUG
+- verify defaults to false
+- random range defaults to min=0 and max=1000
 - threads is accepted by shared CLI for parity across backends, but GPU launch geometry is selected internally by the CUDA backend
 - dtype supports int, uint, float, double, fp16 (fp16 uses float input with CUDA half compute path)
 
 ## Example
 
 ```bash
-./build/topk q=13 k=128 mode=min dtype=float run=both debug=true seed=42
+./build/topk q=13 k=128 mode=min dtype=float run=both debug=true seed=42 verify=true min=0 max=1000
 ```
 
 This backend reports:
 - CUDA device in configuration/debug sections
 - Full and trunc execution timing
 - Comparator skip metrics
-- Optional full vs trunc correctness check when run=both
+- Optional CPU sorted-reference correctness check when verify=true
+
+## Profiling Workflow (Dynamic Cases)
+
+Use the dynamic profiler runner (no static `.case` files):
+
+```bash
+cd /home/ioannis/Development/Thesis
+./test/prof/cases/run_testcases.sh gpu float --q-min 1 --q-max 16 --verify true --min 0 --max 1000
+```

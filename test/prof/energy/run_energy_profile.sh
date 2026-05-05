@@ -14,7 +14,6 @@ fi
 MEASURE_DIR="${ROOT_DIR}/test/prof/results/measurements"
 PLOTS_DIR="${ROOT_DIR}/test/prof/results/plots"
 MEAS_CSV="${ROOT_DIR}/test/prof/results/profile_measurements.csv"
-CASE_PATH="${ROOT_DIR}/test/prof/cases/bitonic/int/q10_k8_max.case"
 TOPK_BIN="${ROOT_DIR}/build/CPU/topk"
 SLEEP_SECONDS="1"
 GPU_INDEX="0"
@@ -23,6 +22,7 @@ RAPL_PATH=""
 SKIP_GPU="no"
 SKIP_RAPL="no"
 SKIP_PLOTS="no"
+TOPK_ARGS=("q=10" "k=8" "mode=max" "dtype=int" "algo=bitonic" "run=trunc" "debug=false" "threads=8" "seed=110" "verify=true")
 
 usage() {
     cat <<'EOF'
@@ -30,10 +30,9 @@ Usage:
     test/prof/energy/run_energy_profile.sh [options]
 
 Options:
-  --case <path>              Testcase path for topk run
-                             (default: test/prof/cases/bitonic/int/q10_k8_max.case)
   --topk-bin <path>          Top-k binary to execute for workload run
                              (default: build/CPU/topk)
+    --                          Everything after -- is passed as key=value args to topk
   --sleep-seconds <sec>      Sleep duration for baseline runs (default: 1)
   --gpu-index <idx>          GPU index for measure_smi.sh (default: 0)
   --gpu-interval-ms <ms>     Sampling interval in ms for GPU script (default: 100)
@@ -57,9 +56,12 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --case)
-            CASE_PATH="$2"
-            shift 2
+        --)
+            shift
+            if [[ $# -gt 0 ]]; then
+                TOPK_ARGS=("$@")
+            fi
+            break
             ;;
         --topk-bin)
             TOPK_BIN="$2"
@@ -146,11 +148,6 @@ if [[ ! -x "${TOPK_BIN}" ]]; then
     exit 1
 fi
 
-if [[ ! -f "${CASE_PATH}" ]]; then
-    echo "error: testcase not found: ${CASE_PATH}" >&2
-    exit 1
-fi
-
 mkdir -p "${MEASURE_DIR}" "${PLOTS_DIR}"
 
 run_stamp="$(date +%Y%m%d_%H%M%S)"
@@ -167,12 +164,14 @@ if [[ "${SKIP_GPU}" == "no" ]]; then
         --out "${gpu_sleep_out}" \
         -- sleep "${SLEEP_SECONDS}"
 
-    echo "[2/3] GPU workload measurement (${TOPK_BIN} ${CASE_PATH})"
+    echo "[2/3] GPU workload measurement (${TOPK_BIN} ${TOPK_ARGS[*]})"
+    topk_cmd=("${TOPK_BIN}" "${TOPK_ARGS[@]}")
+
     "${MEASURE_SMI_SH}" \
         --gpu-index "${GPU_INDEX}" \
         --interval-ms "${GPU_INTERVAL_MS}" \
         --out "${gpu_topk_out}" \
-        -- "${TOPK_BIN}" "${CASE_PATH}"
+        -- "${topk_cmd[@]}"
 fi
 
 if [[ "${SKIP_RAPL}" == "no" ]]; then
