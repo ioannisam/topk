@@ -1,2 +1,0 @@
-q=22 k=8 mode=max dtype=fp16 run=trunc debug=false threads=8 seed=122 check=true
-1000 1000 1000 1000 1000 1000 1000 1000

@@ -19,6 +19,7 @@ if [[ -d "${RESULTS_DIR}" ]]; then
     echo "  -> Removing log files and reports from ${RESULTS_DIR}"
     rm -f "${RESULTS_DIR}"/*.txt
     rm -f "${RESULTS_DIR}"/*.md
+    rm -f "${RESULTS_DIR}"/*.json
 
     if [[ -d "${RESULTS_DIR}/plots" ]]; then
         echo "  -> Emptying plots directory"

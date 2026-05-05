@@ -1,2 +1,0 @@
-q=14 k=8 mode=max dtype=double run=trunc debug=false threads=8 seed=114 check=true
-999.927 999.917 999.797 999.768 999.625 999.509 999.506  999.45

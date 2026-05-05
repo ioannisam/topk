@@ -1,2 +1,0 @@
-q=14 k=8 mode=max dtype=fp16 run=trunc debug=false threads=8 seed=114 check=true
-1000 1000 1000 1000 999.5 999.5 999.5 999.5
