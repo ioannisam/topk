@@ -5,19 +5,22 @@ from collections import defaultdict
 from typing import Optional
 
 from ..models import MeasurementRecord
-from .common import aggregate_value, error_bounds, plt, style_axes
+from .common import aggregate_value, error_bounds, label_with_algorithm, plt, style_axes
 
 
 def plot(
     records: list[MeasurementRecord], out_path: str, agg: str, compare_n: Optional[int], error_bars: str
 ) -> Optional[str]:
     grouped: dict[str, list[float]] = defaultdict(list)
+    algorithms = {rec.algorithm for rec in records if rec.algorithm}
+    include_algorithm = len(algorithms) > 1
     for rec in records:
         if rec.average_watts is None or rec.average_watts < 0:
             continue
         if compare_n is not None and rec.n != compare_n:
             continue
-        label = rec.backend if rec.backend else rec.source
+        base_label = rec.backend if rec.backend else rec.source
+        label = label_with_algorithm(base_label, rec.algorithm, include_algorithm)
         grouped[label].append(rec.average_watts)
 
     if not grouped:

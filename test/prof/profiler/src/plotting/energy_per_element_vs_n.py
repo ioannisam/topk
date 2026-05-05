@@ -5,16 +5,19 @@ from collections import defaultdict
 from typing import Optional
 
 from ..models import MeasurementRecord
-from .common import aggregate_value, error_bounds, plt, style_axes
+from .common import aggregate_value, error_bounds, label_with_algorithm, plt, style_axes
 
 
 def plot(records: list[MeasurementRecord], out_path: str, agg: str, error_bars: str) -> Optional[str]:
     grouped: dict[str, dict[int, list[float]]] = defaultdict(lambda: defaultdict(list))
+    algorithms = {rec.algorithm for rec in records if rec.algorithm}
+    include_algorithm = len(algorithms) > 1
     for rec in records:
         if rec.n is None or rec.n <= 0 or rec.energy_joules is None or rec.energy_joules < 0:
             continue
         e_per_elem = rec.energy_joules / float(rec.n)
-        label = rec.backend if rec.backend else rec.source
+        base_label = rec.backend if rec.backend else rec.source
+        label = label_with_algorithm(base_label, rec.algorithm, include_algorithm)
         grouped[label][rec.n].append(e_per_elem)
 
     if not grouped:

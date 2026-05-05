@@ -8,6 +8,7 @@ from .models import CaseRecord, MeasurementRecord
 def filter_records(
     records: Iterable[CaseRecord],
     dtypes: set[str],
+    algorithms: set[str],
     mode: Optional[str],
     k_value: Optional[int],
     backends: set[str],
@@ -15,6 +16,8 @@ def filter_records(
     out: list[CaseRecord] = []
     for rec in records:
         if dtypes and rec.dtype not in dtypes:
+            continue
+        if algorithms and rec.backend != "gt" and rec.algorithm not in algorithms:
             continue
         if mode and rec.mode != mode:
             continue
@@ -29,6 +32,7 @@ def filter_records(
 def filter_measurements(
     records: Iterable[MeasurementRecord],
     dtypes: set[str],
+    algorithms: set[str],
     mode: Optional[str],
     k_value: Optional[int],
     backends: set[str],
@@ -36,6 +40,8 @@ def filter_measurements(
     out: list[MeasurementRecord] = []
     for rec in records:
         if dtypes and rec.dtype and rec.dtype not in dtypes:
+            continue
+        if algorithms and rec.backend != "gt" and rec.algorithm and rec.algorithm not in algorithms:
             continue
         if mode and rec.mode and rec.mode != mode:
             continue

@@ -5,13 +5,16 @@ from collections import defaultdict
 from typing import Optional
 
 from ..models import CaseRecord
-from .common import plt, style_axes
+from .common import label_with_algorithm, plt, style_axes
 
 
 def plot(records: list[CaseRecord], out_path: str) -> Optional[str]:
     stats: dict[str, list[bool]] = defaultdict(list)
+    algorithms = {rec.algorithm for rec in records if rec.algorithm}
+    include_algorithm = len(algorithms) > 1
     for rec in records:
-        stats[rec.backend].append(rec.pass_bool)
+        label = label_with_algorithm(rec.backend, rec.algorithm, include_algorithm)
+        stats[label].append(rec.pass_bool)
 
     if not stats:
         return None

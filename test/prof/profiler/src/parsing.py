@@ -11,6 +11,53 @@ BACKEND_HEADER_RE = re.compile(r"^== Backend:\s*(?P<backend>[^=]+?)\s*==$")
 CASE_HEADER_RE = re.compile(r"^### Case:\s*(?P<name>.+)$")
 KV_RE = re.compile(r"^\s{2}(?P<key>[^:]+):\s*(?P<value>.+)$")
 MEASURE_KV_RE = re.compile(r"^-\s+(?P<key>[a-zA-Z0-9_]+):\s*(?P<value>.+)$")
+COMMAND_RE = re.compile(r"^Command:\s*(?P<cmd>.+)$")
+
+
+def infer_backend_from_command(cmd: str) -> str:
+    text = cmd.lower()
+    # Prefer ground-truth if present anywhere in the binary path.
+    if "ground_truth" in text or "/gt/" in text:
+        return "gt"
+    if "/cpu/" in text or "cpu/build/topk" in text:
+        return "cpu"
+    if "/gpu/" in text or "gpu/build/topk" in text:
+        return "gpu"
+    if "/npu/" in text or "npu/build/topk" in text:
+        return "npu"
+    return ""
+
+
+def infer_algorithm_and_dtype_from_command(cmd: str) -> tuple[str, str]:
+    # Prefer explicit CLI tokens when present (dynamic-args mode).
+    lower = cmd.lower()
+    m_algo = re.search(r"(?:^|\s)algo=(bitonic|map_reduce|mapreduce)(?:\s|$)", lower)
+    m_dtype = re.search(r"(?:^|\s)dtype=(int|uint|float|double|fp16)(?:\s|$)", lower)
+    algo = ""
+    dtype = ""
+    if m_algo:
+        algo = m_algo.group(1)
+        if algo == "mapreduce":
+            algo = "map_reduce"
+    if m_dtype:
+        dtype = m_dtype.group(1)
+    if algo or dtype:
+        return algo, dtype
+
+    # The testcase path is usually the last token in the command line.
+    # We parse the algorithm + dtype from the path shape:
+    #   .../test/cases/<algo>/<dtype>/<case>.case
+    #   .../test/cases/<algo>/<dtype>/<case>.case
+    # Where <algo> is bitonic or map_reduce.
+    #
+    # This inference is a fallback to keep plots correct even when the
+    # program output omits fields or when input logs are merged.
+    m = re.search(r"/(bitonic|map_reduce)/([^/]+)/[^/]+\.case\b", cmd)
+    if not m:
+        return "", ""
+    algo = m.group(1)
+    dtype = m.group(2)
+    return algo, dtype
 
 
 def parse_int(value: str) -> Optional[int]:
@@ -30,6 +77,57 @@ def parse_float(value: str) -> Optional[float]:
         return None
 
 
+def select_time_fields(timings: dict[str, float]) -> tuple[str, Optional[float], str, Optional[float]]:
+    if not timings:
+        return "", None, "", None
+
+    e2e_priority = [
+        "Trunc bitonic end-to-end time (ms)",
+        "Trunc bitonic time (ms)",
+        "Map-reduce top-k end-to-end time (ms)",
+        "Map-reduce top-k time (ms)",
+        "Ground truth average partial-sort time (ms)",
+        "Ground truth average select/sort time (ms)",
+        "Ground truth select/sort time (ms)",
+        "Full bitonic end-to-end time (ms)",
+        "Full bitonic time (ms)",
+    ]
+
+    algo_priority = [
+        "Trunc bitonic algorithmic time (ms)",
+        "Map-reduce top-k algorithmic time (ms)",
+        "Full bitonic algorithmic time (ms)",
+    ]
+
+    e2e_label = ""
+    e2e_value: Optional[float] = None
+    algo_label = ""
+    algo_value: Optional[float] = None
+
+    for label in e2e_priority:
+        if label in timings:
+            e2e_label = label
+            e2e_value = timings[label]
+            break
+
+    for label in algo_priority:
+        if label in timings:
+            algo_label = label
+            algo_value = timings[label]
+            break
+
+    if e2e_value is None:
+        label, value = next(iter(timings.items()))
+        e2e_label = label
+        e2e_value = value
+
+    if algo_value is None:
+        algo_label = e2e_label
+        algo_value = e2e_value
+
+    return e2e_label, e2e_value, algo_label, algo_value
+
+
 def infer_measurement_metadata(path: str) -> dict[str, object]:
     base = os.path.basename(path).lower()
     if base.endswith(".txt"):
@@ -38,6 +136,7 @@ def infer_measurement_metadata(path: str) -> dict[str, object]:
 
     backend = ""
     dtype = ""
+    algorithm = ""
     mode = ""
     source_hint = ""
     k: Optional[int] = None
@@ -46,9 +145,11 @@ def infer_measurement_metadata(path: str) -> dict[str, object]:
     for token in tokens:
         if token in {"cpu", "gpu", "npu", "gt"}:
             backend = token
+        elif token in {"bitonic", "map_reduce", "mapreduce"}:
+            algorithm = "map_reduce" if token == "mapreduce" else token
         elif token in {"rapl", "smi"}:
             source_hint = token
-        elif token in {"int", "float", "uint"}:
+        elif token in {"int", "uint", "float", "double", "fp16"}:
             dtype = token
         elif token in {"max", "min"}:
             mode = token
@@ -58,9 +159,13 @@ def infer_measurement_metadata(path: str) -> dict[str, object]:
         elif token.startswith("k") and token[1:].isdigit():
             k = int(token[1:])
 
+    if backend == "gt":
+        algorithm = ""
+
     return {
         "backend": backend,
         "dtype": dtype,
+        "algorithm": algorithm,
         "mode": mode,
         "k": k,
         "n": n,
@@ -84,6 +189,7 @@ def parse_measurement_file(path: str) -> list[MeasurementRecord]:
                     file_path=path,
                     backend=str(meta["backend"]),
                     dtype=str(meta["dtype"]),
+                    algorithm=str(meta["algorithm"]),
                     mode=str(meta["mode"]),
                     k=meta["k"],
                     n=meta["n"],
@@ -97,6 +203,7 @@ def parse_measurement_file(path: str) -> list[MeasurementRecord]:
                     file_path=path,
                     backend=str(meta["backend"]),
                     dtype=str(meta["dtype"]),
+                    algorithm=str(meta["algorithm"]),
                     mode=str(meta["mode"]),
                     k=meta["k"],
                     n=meta["n"],
@@ -131,6 +238,7 @@ def parse_measurement_file(path: str) -> list[MeasurementRecord]:
                 file_path=path,
                 backend=str(meta["backend"]),
                 dtype=str(meta["dtype"]),
+                algorithm=str(meta["algorithm"]),
                 mode=str(meta["mode"]),
                 k=meta["k"],
                 n=meta["n"],
@@ -153,6 +261,7 @@ def parse_test_output(path: str) -> list[CaseRecord]:
     records: list[CaseRecord] = []
     current_backend = ""
     current: Optional[CaseRecord] = None
+    current_timings: dict[str, float] = {}
 
     with open(path, "r", encoding="utf-8") as f:
         for raw_line in f:
@@ -166,7 +275,15 @@ def parse_test_output(path: str) -> list[CaseRecord]:
             case_match = CASE_HEADER_RE.match(line)
             if case_match:
                 if current is not None:
+                    e2e_label, e2e_ms, algo_label, algo_ms = select_time_fields(current_timings)
+                    current.timing_label_e2e = e2e_label
+                    current.time_end_to_end_ms = e2e_ms
+                    current.timing_label_algorithmic = algo_label
+                    current.time_algorithmic_ms = algo_ms
+                    current.timing_label = e2e_label
+                    current.time_ms = e2e_ms if e2e_ms is not None else algo_ms
                     records.append(current)
+                current_timings = {}
                 current = CaseRecord(
                     backend=current_backend,
                     case_name=case_match.group("name").strip(),
@@ -174,6 +291,21 @@ def parse_test_output(path: str) -> list[CaseRecord]:
                 continue
 
             if current is None:
+                continue
+
+            cmd_match = COMMAND_RE.match(line)
+            if cmd_match:
+                cmd = cmd_match.group("cmd").strip()
+                inferred_backend = infer_backend_from_command(cmd)
+                inferred_algo, inferred_dtype = infer_algorithm_and_dtype_from_command(cmd)
+
+                # Override with per-case inference when available.
+                if inferred_backend:
+                    current.backend = inferred_backend
+                if inferred_algo and current.backend != "gt":
+                    current.algorithm = inferred_algo
+                if inferred_dtype and not current.dtype:
+                    current.dtype = inferred_dtype
                 continue
 
             if line.startswith("Status:"):
@@ -192,6 +324,12 @@ def parse_test_output(path: str) -> list[CaseRecord]:
 
             if key == "Data type":
                 current.dtype = value.lower()
+            elif key == "Algorithm":
+                alg = value.lower()
+                if current_backend == "gt":
+                    current.algorithm = ""
+                else:
+                    current.algorithm = "map_reduce" if alg == "mapreduce" else alg
             elif key == "Mode":
                 current.mode = value.lower()
             elif key == "Requested top-k":
@@ -200,11 +338,17 @@ def parse_test_output(path: str) -> list[CaseRecord]:
                 current.n = parse_int(value)
             elif key.endswith("time (ms)"):
                 t = parse_float(value)
-                if t is not None and current.time_ms is None:
-                    current.timing_label = key
-                    current.time_ms = t
+                if t is not None:
+                    current_timings[key] = t
 
     if current is not None:
+        e2e_label, e2e_ms, algo_label, algo_ms = select_time_fields(current_timings)
+        current.timing_label_e2e = e2e_label
+        current.time_end_to_end_ms = e2e_ms
+        current.timing_label_algorithmic = algo_label
+        current.time_algorithmic_ms = algo_ms
+        current.timing_label = e2e_label
+        current.time_ms = e2e_ms if e2e_ms is not None else algo_ms
         records.append(current)
 
     return records

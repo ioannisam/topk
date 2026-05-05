@@ -18,11 +18,16 @@ def write_case_csv(records: Iterable[CaseRecord], out_path: str) -> None:
                 "status",
                 "reason",
                 "dtype",
+                "algorithm",
                 "mode",
                 "k",
                 "n",
                 "timing_label",
                 "time_ms",
+                "timing_label_e2e",
+                "time_end_to_end_ms",
+                "timing_label_algorithmic",
+                "time_algorithmic_ms",
             ]
         )
         for rec in records:
@@ -33,11 +38,16 @@ def write_case_csv(records: Iterable[CaseRecord], out_path: str) -> None:
                     rec.status,
                     rec.reason,
                     rec.dtype,
+                    rec.algorithm,
                     rec.mode,
                     rec.k if rec.k is not None else "",
                     rec.n if rec.n is not None else "",
                     rec.timing_label,
                     "" if rec.time_ms is None else f"{rec.time_ms:.12g}",
+                    rec.timing_label_e2e,
+                    "" if rec.time_end_to_end_ms is None else f"{rec.time_end_to_end_ms:.12g}",
+                    rec.timing_label_algorithmic,
+                    "" if rec.time_algorithmic_ms is None else f"{rec.time_algorithmic_ms:.12g}",
                 ]
             )
 
@@ -51,6 +61,7 @@ def write_measurement_csv(records: Iterable[MeasurementRecord], out_path: str) -
                 "source",
                 "backend",
                 "dtype",
+                "algorithm",
                 "mode",
                 "k",
                 "n",
@@ -67,6 +78,7 @@ def write_measurement_csv(records: Iterable[MeasurementRecord], out_path: str) -
                     rec.source,
                     rec.backend,
                     rec.dtype,
+                    rec.algorithm,
                     rec.mode,
                     "" if rec.k is None else rec.k,
                     "" if rec.n is None else rec.n,

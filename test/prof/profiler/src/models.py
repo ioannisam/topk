@@ -11,11 +11,16 @@ class CaseRecord:
     status: str = "UNKNOWN"
     reason: str = ""
     dtype: str = ""
+    algorithm: str = ""
     mode: str = ""
     k: Optional[int] = None
     n: Optional[int] = None
     timing_label: str = ""
     time_ms: Optional[float] = None
+    timing_label_e2e: str = ""
+    time_end_to_end_ms: Optional[float] = None
+    timing_label_algorithmic: str = ""
+    time_algorithmic_ms: Optional[float] = None
 
     @property
     def pass_bool(self) -> bool:
@@ -28,6 +33,7 @@ class MeasurementRecord:
     file_path: str
     backend: str = ""
     dtype: str = ""
+    algorithm: str = ""
     mode: str = ""
     k: Optional[int] = None
     n: Optional[int] = None
