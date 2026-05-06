@@ -34,8 +34,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--input",
         nargs="+",
-        default=["test/prof/results/test_output.txt"],
-        help="Path(s) to testcase output text file(s).",
+        default=["test/prof/results/test_output.json"],
+        help="Path(s) to testcase output file(s) (.json or .txt).",
     )
     parser.add_argument(
         "--output-dir",
