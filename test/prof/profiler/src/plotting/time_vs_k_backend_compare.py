@@ -5,7 +5,16 @@ from collections import defaultdict
 from typing import Optional
 
 from ..models import CaseRecord
-from .common import add_time_metric_legend, aggregate_value, error_bounds, plt, select_time_ms, style_axes, time_metric_style
+from .common import (
+    add_time_metric_legend,
+    aggregate_value,
+    error_bounds,
+    plt,
+    select_time_ms,
+    style_axes,
+    time_metric_style,
+)
+
 
 def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) -> Optional[list[str]]:
     # grouped[n][algorithm][backend][metric][k] = list[time]
@@ -14,15 +23,19 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
     )
 
     for rec in records:
-        if rec.backend in {"", "gt"} or rec.algorithm not in {"bitonic", "map_reduce"}: continue
-        if rec.n is None or rec.k is None: continue
-        
+        if rec.backend in {"", "gt"} or rec.algorithm not in {"bitonic", "map_reduce"}:
+            continue
+        if rec.n is None or rec.k is None:
+            continue
+
         for metric in ("algorithmic", "end-to-end"):
             time_ms = select_time_ms(rec, metric)
-            if time_ms is None or time_ms <= 0: continue
+            if time_ms is None or time_ms <= 0:
+                continue
             grouped[rec.n][rec.algorithm][rec.backend][metric][rec.k].append(time_ms)
 
-    if not grouped: return None
+    if not grouped:
+        return None
 
     base_dir, base_name = os.path.dirname(out_path) or ".", os.path.splitext(os.path.basename(out_path))[0]
     outputs: list[str] = []
@@ -30,10 +43,10 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
     # Generate one plot per N, per Algorithm
     for n, algo_map in sorted(grouped.items()):
         for algorithm, backend_map in sorted(algo_map.items()):
-            
             # Skip if we only have one K value tested for this N
             all_ks = {k for b in backend_map.values() for m in b.values() for k in m.keys()}
-            if len(all_ks) < 2: continue
+            if len(all_ks) < 2:
+                continue
 
             fig, ax = plt.subplots(figsize=(10, 6))
             for backend, metric_map in sorted(backend_map.items()):
@@ -52,7 +65,8 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
                         uppers.append(hi)
                     (line,) = ax.plot(xs, ys, **time_metric_style("algorithmic", label=backend))
                     color = line.get_color()
-                    if error_bars != "none": ax.fill_between(xs, lowers, uppers, alpha=0.15, color=color)
+                    if error_bars != "none":
+                        ax.fill_between(xs, lowers, uppers, alpha=0.15, color=color)
 
                 if e2e_series:
                     xs = sorted(e2e_series.keys())

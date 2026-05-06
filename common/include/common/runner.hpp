@@ -35,7 +35,7 @@ template <typename T> class BitonicRunnerHooks {
 
 	virtual void print_configuration(const common::config::Config& cfg, std::size_t n) = 0;
 	virtual BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) = 0;
-    
+
 	virtual void print_debug_metrics(const common::config::Config& cfg, std::size_t layer_count, std::size_t full_cmp,
 									 std::size_t trunc_cmp, const BasicRunStats* full_stats,
 									 const BasicRunStats* trunc_stats) = 0;
@@ -134,12 +134,11 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 
 	auto trunc_layers = common::bitonic::build_layers(n, cfg.k);
 	auto full_layers = common::bitonic::build_layers(n, n); // topk = n yields a full sort
-    
+
 	const std::size_t full_cmp = common::bitonic::count_full_comparators(n);
 	const std::size_t trunc_cmp = common::bitonic::count_trunc_comparators(trunc_layers);
 
-	const std::vector<T> raw_input =
-		common::utils::generate_random_input<T>(n, cfg.seed, cfg.rand_min, cfg.rand_max);
+	const std::vector<T> raw_input = common::utils::generate_random_input<T>(n, cfg.seed, cfg.rand_min, cfg.rand_max);
 	std::vector<T> input = raw_input;
 	apply_mode_transform(input, cfg.want_max);
 

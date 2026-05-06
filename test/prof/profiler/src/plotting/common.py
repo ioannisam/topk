@@ -6,6 +6,7 @@ from typing import Any, Literal
 
 try:
     import matplotlib.pyplot as plt
+
     MATPLOTLIB_AVAILABLE = True
 except Exception:
     plt = None
@@ -25,7 +26,7 @@ def time_metric_style(metric: str, *, color: Any = None, label: str | None = Non
             "color": color,
             "alpha": 0.4,
             "label": label,
-            "zorder": 2
+            "zorder": 2,
         }
     return {
         "linestyle": E2E_DASH_PATTERN,
@@ -35,7 +36,7 @@ def time_metric_style(metric: str, *, color: Any = None, label: str | None = Non
         "markeredgewidth": 2.0,
         "color": color,
         "label": label,
-        "zorder": 3
+        "zorder": 3,
     }
 
 

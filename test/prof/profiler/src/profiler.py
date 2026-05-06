@@ -29,6 +29,7 @@ from .plotting import time_vs_k_backend_compare
 from .plotting import time_vs_n_k_colored
 from .plotting import heatmap_time
 
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Parse testcase output and generate profiler plots.")
     parser.add_argument(
@@ -40,7 +41,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         default="test/prof/results/plots",
-        help="Root directory where plots are written (plots are placed under <output-dir>/<dtype>/{time,correctness,energy}/).",
+        help=(
+            "Root directory where plots are written "
+            "(plots are placed under <output-dir>/<dtype>/{time,correctness,energy}/)."
+        ),
     )
     parser.add_argument(
         "--plot",
@@ -199,7 +203,7 @@ def main() -> int:
         requested.remove("none")
 
     if not requested:
-        if not records and not measurement_records:
+        if not all_records and not measurement_records:
             print("No data available.")
             return 2
         return 0
@@ -325,19 +329,19 @@ def main() -> int:
                 collect_output(out)
             else:
                 print(f"Skipped time-vs-n-metric-compare ({dtype_dir}): no timing points found.")
-        
+
         if "time-vs-k-backend-compare" in requested:
-                out = time_vs_k_backend_compare.plot(
-                    records,
-                    os.path.join(out_time, "time_vs_k_backend_compare.png"),
-                    args.agg,
-                    args.error_bars,
-                )
-                if out:
-                    collect_output(out)
-                else:
-                    print(f"Skipped time-vs-k-backend-compare ({dtype_dir}): missing multi-k timing points.")
-        
+            out = time_vs_k_backend_compare.plot(
+                records,
+                os.path.join(out_time, "time_vs_k_backend_compare.png"),
+                args.agg,
+                args.error_bars,
+            )
+            if out:
+                collect_output(out)
+            else:
+                print(f"Skipped time-vs-k-backend-compare ({dtype_dir}): missing multi-k timing points.")
+
         if "time-vs-n-k-colored" in requested:
             out = time_vs_n_k_colored.plot(
                 records,
@@ -483,7 +487,9 @@ def main() -> int:
             if out:
                 collect_output(out)
             else:
-                print(f"Skipped edp-vs-n ({dtype_dir}): no measurement records with elapsed time and energy were found.")
+                print(
+                    f"Skipped edp-vs-n ({dtype_dir}): no measurement records with elapsed time and energy were found."
+                )
 
         if "energy-per-element-vs-n" in requested:
             out = energy_per_element_vs_n.plot(
@@ -495,7 +501,10 @@ def main() -> int:
             if out:
                 collect_output(out)
             else:
-                print(f"Skipped energy-per-element-vs-n ({dtype_dir}): no measurement records with N and energy were found.")
+                print(
+                    f"Skipped energy-per-element-vs-n ({dtype_dir}): "
+                    "no measurement records with N and energy were found."
+                )
 
     if generated:
         print("Generated plot files:")

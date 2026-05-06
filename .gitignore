@@ -4,3 +4,4 @@ npu_env
 .venv
 __pycache__
 build
+.ruff_cache

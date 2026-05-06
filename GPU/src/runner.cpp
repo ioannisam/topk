@@ -38,37 +38,42 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 		common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
 			std::vector<T> temp = data_backup;
 			if constexpr (std::is_same_v<T, float>) {
-				if (use_fp16_path) gpu::bitonic::run_network_cuda_fp16(temp, layers);
-				else gpu::bitonic::run_network_cuda(temp, layers);
+				if (use_fp16_path)
+					gpu::bitonic::run_network_cuda_fp16(temp, layers);
+				else
+					gpu::bitonic::run_network_cuda(temp, layers);
 			} else {
 				gpu::bitonic::run_network_cuda(temp, layers);
 			}
 		});
 
 		// measurement
-		auto best = common::benchmark::measure_best(common::benchmark::kMeasureIters, [&]()
-			-> common::benchmark::TimedValueWithStats<std::vector<T>, gpu::bitonic::RunStats> {
-			std::vector<T> temp = data_backup;
-			gpu::bitonic::RunStats stats{0.0, 0, 0, 0};
-			
-			auto t0 = std::chrono::high_resolution_clock::now();
+		auto best = common::benchmark::measure_best(
+			common::benchmark::kMeasureIters,
+			[&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, gpu::bitonic::RunStats> {
+				std::vector<T> temp = data_backup;
+				gpu::bitonic::RunStats stats{0.0, 0, 0, 0};
 
-			if constexpr (std::is_same_v<T, float>) {
-				if (use_fp16_path) stats = gpu::bitonic::run_network_cuda_fp16(temp, layers);
-				else stats = gpu::bitonic::run_network_cuda(temp, layers);
-			} else {
-				stats = gpu::bitonic::run_network_cuda(temp, layers);
-			}
+				auto t0 = std::chrono::high_resolution_clock::now();
 
-			auto t1 = std::chrono::high_resolution_clock::now();
-			double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+				if constexpr (std::is_same_v<T, float>) {
+					if (use_fp16_path)
+						stats = gpu::bitonic::run_network_cuda_fp16(temp, layers);
+					else
+						stats = gpu::bitonic::run_network_cuda(temp, layers);
+				} else {
+					stats = gpu::bitonic::run_network_cuda(temp, layers);
+				}
 
-			return common::benchmark::TimedValueWithStats<std::vector<T>, gpu::bitonic::RunStats>{
-				elapsed_wall_ms,
-				std::move(temp),
-				stats,
-			};
-		});
+				auto t1 = std::chrono::high_resolution_clock::now();
+				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+				return common::benchmark::TimedValueWithStats<std::vector<T>, gpu::bitonic::RunStats>{
+					elapsed_wall_ms,
+					std::move(temp),
+					stats,
+				};
+			});
 
 		gpu::bitonic::RunStats best_stats = best.stats;
 		data = std::move(best.value);
@@ -119,7 +124,7 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 
 	std::vector<T> run(const std::vector<T>& input, const Config& cfg,
 					   common::topk::MapReduceRunStats* stats) override {
-		
+
 		// warmup
 		common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
 			gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
@@ -127,24 +132,25 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 		});
 
 		// measurement
-		auto best = common::benchmark::measure_best(common::benchmark::kMeasureIters, [&]()
-			-> common::benchmark::TimedValueWithStats<std::vector<T>, gpu::map_reduce::RunStats> {
-			gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
+		auto best = common::benchmark::measure_best(
+			common::benchmark::kMeasureIters,
+			[&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, gpu::map_reduce::RunStats> {
+				gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
 
-			auto t0 = std::chrono::high_resolution_clock::now();
+				auto t0 = std::chrono::high_resolution_clock::now();
 
-			std::vector<T> output =
-				gpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
+				std::vector<T> output =
+					gpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
 
-			auto t1 = std::chrono::high_resolution_clock::now();
-			double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+				auto t1 = std::chrono::high_resolution_clock::now();
+				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-			return common::benchmark::TimedValueWithStats<std::vector<T>, gpu::map_reduce::RunStats>{
-				elapsed_wall_ms,
-				std::move(output),
-				map_stats,
-			};
-		});
+				return common::benchmark::TimedValueWithStats<std::vector<T>, gpu::map_reduce::RunStats>{
+					elapsed_wall_ms,
+					std::move(output),
+					map_stats,
+				};
+			});
 
 		const double end_to_end_ms = best.elapsed_ms;
 		const double algorithm_ms = best.stats.elapsed_ms;

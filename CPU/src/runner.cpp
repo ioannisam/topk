@@ -36,7 +36,8 @@ Context build_context(const Config& cfg) {
 
 template <typename T> class CpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
   public:
-	explicit CpuBitonicRunnerHooks(const Context& ctx) : context(ctx) {}
+	explicit CpuBitonicRunnerHooks(const Context& ctx) : context(ctx) {
+	}
 
 	void print_configuration(const Config& cfg, std::size_t n) override {
 		cpu::reporting::print_configuration(cfg, context.ex_threads, n);
@@ -44,7 +45,7 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 
 	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) override {
 		std::vector<T> data_backup = data;
-		
+
 		// warmpup
 		common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
 			std::vector<T> temp = data_backup;
@@ -52,15 +53,15 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 		});
 
 		// measurement
-		auto best = common::benchmark::measure_best(common::benchmark::kMeasureIters, [&]()
-			-> common::benchmark::TimedValue<std::vector<T>> {
-			std::vector<T> temp = data_backup;
-			auto t0 = std::chrono::high_resolution_clock::now();
-			cpu::bitonic::run_topk(temp, layers, context.ex_threads);
-			auto t1 = std::chrono::high_resolution_clock::now();
-			double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
-			return common::benchmark::TimedValue<std::vector<T>>{elapsed, std::move(temp)};
-		});
+		auto best = common::benchmark::measure_best(
+			common::benchmark::kMeasureIters, [&]() -> common::benchmark::TimedValue<std::vector<T>> {
+				std::vector<T> temp = data_backup;
+				auto t0 = std::chrono::high_resolution_clock::now();
+				cpu::bitonic::run_topk(temp, layers, context.ex_threads);
+				auto t1 = std::chrono::high_resolution_clock::now();
+				double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
+				return common::benchmark::TimedValue<std::vector<T>>{elapsed, std::move(temp)};
+			});
 
 		data = std::move(best.value); // Keep the fastest sorted result for correctness
 		common::topk::BasicRunStats stats{};
@@ -74,8 +75,8 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 							 const common::topk::BasicRunStats* full_stats,
 							 const common::topk::BasicRunStats* trunc_stats) override {
 		cpu::reporting::print_debug_metrics(cfg, context.hw_threads, context.ex_threads, layer_count, full_cmp,
-										trunc_cmp, full_stats != nullptr ? full_stats->algorithm_ms : 0.0,
-										trunc_stats != nullptr ? trunc_stats->algorithm_ms : 0.0);
+											trunc_cmp, full_stats != nullptr ? full_stats->algorithm_ms : 0.0,
+											trunc_stats != nullptr ? trunc_stats->algorithm_ms : 0.0);
 	}
 
   private:
@@ -84,7 +85,8 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 
 template <typename T> class CpuMapReduceHooks final : public common::topk::MapReduceRunnerHooks<T> {
   public:
-	explicit CpuMapReduceHooks(const Context& ctx) : context(ctx) {}
+	explicit CpuMapReduceHooks(const Context& ctx) : context(ctx) {
+	}
 
 	void print_configuration(const Config& cfg, std::size_t n) override {
 		cpu::reporting::print_configuration(cfg, context.ex_threads, n);
@@ -98,20 +100,21 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 		});
 
 		// measuement
-		auto best = common::benchmark::measure_best(common::benchmark::kMeasureIters, [&]()
-			-> common::benchmark::TimedValueWithStats<std::vector<T>, cpu::map_reduce::RunStats> {
-			cpu::map_reduce::RunStats run_stats{};
-			auto t0 = std::chrono::high_resolution_clock::now();
-			std::vector<T> output =
-				cpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, context.ex_threads, &run_stats);
-			auto t1 = std::chrono::high_resolution_clock::now();
-			double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
-			return common::benchmark::TimedValueWithStats<std::vector<T>, cpu::map_reduce::RunStats>{
-				elapsed,
-				std::move(output),
-				run_stats,
-			};
-		});
+		auto best = common::benchmark::measure_best(
+			common::benchmark::kMeasureIters,
+			[&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, cpu::map_reduce::RunStats> {
+				cpu::map_reduce::RunStats run_stats{};
+				auto t0 = std::chrono::high_resolution_clock::now();
+				std::vector<T> output =
+					cpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, context.ex_threads, &run_stats);
+				auto t1 = std::chrono::high_resolution_clock::now();
+				double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
+				return common::benchmark::TimedValueWithStats<std::vector<T>, cpu::map_reduce::RunStats>{
+					elapsed,
+					std::move(output),
+					run_stats,
+				};
+			});
 
 		const double end_to_end_ms = best.elapsed_ms;
 		const double algorithm_ms = best.elapsed_ms;

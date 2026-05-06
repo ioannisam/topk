@@ -11,7 +11,7 @@ PKG_ROOT = THIS_DIR
 if str(PKG_ROOT) not in sys.path:
     sys.path.insert(0, str(PKG_ROOT))
 
-from src.profiler import main
+from src.profiler import main  # noqa: E402
 
 
 if __name__ == "__main__":

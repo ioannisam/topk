@@ -228,11 +228,11 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 
 	const std::size_t data_bytes = n * sizeof(T);
 	const std::size_t data_group = dpu_abi ? safe_group_id(kernel, 3) : safe_group_id(kernel, 0);
-	
+
 	// Create ping-pong buffers
 	xrt::bo src_bo = alloc_bo_for_kernel(hwctx, dev, data_bytes, data_group, dpu_abi);
 	xrt::bo dst_bo = alloc_bo_for_kernel(hwctx, dev, data_bytes, data_group, dpu_abi);
-	
+
 	std::memcpy(src_bo.map<void*>(), data.data(), data_bytes);
 	src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
@@ -360,8 +360,7 @@ RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic
 }
 
 template RunStats run_network_npu<std::int32_t>(std::vector<std::int32_t>& data,
-												const std::vector<common::bitonic::Layer>& layers,
-												std::size_t workers);
+												const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
 template RunStats run_network_npu<std::uint32_t>(std::vector<std::uint32_t>& data,
 												 const std::vector<common::bitonic::Layer>& layers,
 												 std::size_t workers);
@@ -372,8 +371,7 @@ template RunStats run_network_npu<double>(std::vector<double>& data, const std::
 
 #if defined(__FLT16_MANT_DIG__)
 template RunStats run_network_npu<_Float16>(std::vector<_Float16>& data,
-											const std::vector<common::bitonic::Layer>& layers,
-											std::size_t workers);
+											const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
 #endif
 
 } // namespace npu::bitonic

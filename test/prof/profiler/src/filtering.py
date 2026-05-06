@@ -18,7 +18,7 @@ def filter_records(
         # drop failed runs
         if not rec.pass_bool:
             continue
-            
+
         if dtypes and rec.dtype not in dtypes:
             continue
         if algorithms and rec.backend != "gt" and rec.algorithm not in algorithms:
@@ -46,7 +46,7 @@ def filter_measurements(
         # drop failed energy measurements
         if rec.command_exit_code is not None and rec.command_exit_code != 0:
             continue
-            
+
         if dtypes and rec.dtype and rec.dtype not in dtypes:
             continue
         if algorithms and rec.backend != "gt" and rec.algorithm and rec.algorithm not in algorithms:

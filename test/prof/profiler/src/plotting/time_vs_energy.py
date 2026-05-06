@@ -5,34 +5,53 @@ from typing import Optional
 from ..models import CaseRecord, MeasurementRecord
 from .common import aggregate_value, label_with_algorithm, plt, select_time_ms, style_axes
 
-def plot(case_records: list[CaseRecord], measurement_records: list[MeasurementRecord], out_path: str, agg: str, compare_n: Optional[int]) -> Optional[str]:
+
+def plot(
+    case_records: list[CaseRecord],
+    measurement_records: list[MeasurementRecord],
+    out_path: str,
+    agg: str,
+    compare_n: Optional[int],
+) -> Optional[str]:
     time_map: dict[tuple[str, str, str, Optional[int], Optional[int], str], list[float]] = defaultdict(list)
     for rec in case_records:
-        if rec.n is None or (compare_n is not None and rec.n != compare_n): continue
+        if rec.n is None or (compare_n is not None and rec.n != compare_n):
+            continue
         key = (rec.backend, rec.dtype, rec.mode, rec.k, rec.n, rec.algorithm)
         t = select_time_ms(rec, "algorithmic")
-        if t is not None: time_map[key].append(t)
+        if t is not None:
+            time_map[key].append(t)
 
     energy_map: dict[tuple[str, str, str, Optional[int], Optional[int], str], list[float]] = defaultdict(list)
     for rec in measurement_records:
-        if rec.energy_joules is None or rec.energy_joules < 0 or rec.n is None or (compare_n is not None and rec.n != compare_n): continue
+        if (
+            rec.energy_joules is None
+            or rec.energy_joules < 0
+            or rec.n is None
+            or (compare_n is not None and rec.n != compare_n)
+        ):
+            continue
         backend = rec.backend if rec.backend else rec.source
         key = (backend, rec.dtype, rec.mode, rec.k, rec.n, rec.algorithm)
         energy_map[key].append(rec.energy_joules)
 
     points: dict[str, list[tuple[float, float]]] = defaultdict(list)
-    algorithms = {rec.algorithm for rec in case_records if rec.algorithm} | {rec.algorithm for rec in measurement_records if rec.algorithm}
+    algorithms = {rec.algorithm for rec in case_records if rec.algorithm} | {
+        rec.algorithm for rec in measurement_records if rec.algorithm
+    }
     include_algorithm = len(algorithms) > 1
 
     for key, t_list in time_map.items():
         e_list = energy_map.get(key)
-        if not e_list: continue
+        if not e_list:
+            continue
         t_ms, e_j = aggregate_value(t_list, agg), aggregate_value(e_list, agg)
         if t_ms > 0 and e_j > 0:
             label = label_with_algorithm(key[0], key[5], include_algorithm)
             points[label].append((t_ms, e_j))
 
-    if not points: return None
+    if not points:
+        return None
 
     fig, ax = plt.subplots(figsize=(10, 6))
     for label, pts in sorted(points.items()):
@@ -42,7 +61,8 @@ def plot(case_records: list[CaseRecord], measurement_records: list[MeasurementRe
     ax.set_xscale("log")
     ax.set_yscale("log")
     title = "Algorithmic Time vs Energy (Pareto View)"
-    if compare_n is not None: title += f" (N={compare_n})"
+    if compare_n is not None:
+        title += f" (N={compare_n})"
     style_axes(ax, title, "Time (ms)", "Energy (J)")
     ax.legend(title="Configuration", loc="best")
     fig.tight_layout()

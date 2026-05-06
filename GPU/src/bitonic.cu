@@ -41,8 +41,7 @@ struct FusedLayers {
 	int count;
 };
 
-template <typename T>
-__global__ void bitonic_fused_shared(T* data, std::size_t total_pairs, FusedLayers layers) {
+template <typename T> __global__ void bitonic_fused_shared(T* data, std::size_t total_pairs, FusedLayers layers) {
 	extern __shared__ char smem[];
 	T* s_data = reinterpret_cast<T*>(smem);
 
@@ -82,8 +81,10 @@ __global__ void bitonic_fused_shared(T* data, std::size_t total_pairs, FusedLaye
 		__syncthreads();
 	}
 
-	if (idx1 < n) data[idx1] = s_data[tid];
-	if (idx2 < n) data[idx2] = s_data[tid + block_size];
+	if (idx1 < n)
+		data[idx1] = s_data[tid];
+	if (idx2 < n)
+		data[idx2] = s_data[tid + block_size];
 }
 
 template <typename T>

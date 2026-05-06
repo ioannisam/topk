@@ -4,8 +4,10 @@ namespace common::bitonic {
 
 std::vector<Layer> build_layers(std::size_t n, std::size_t topk) {
 	std::vector<Layer> layers;
-	if (topk > n) topk = n;
-	if (topk == 0) return layers;
+	if (topk > n)
+		topk = n;
+	if (topk == 0)
+		return layers;
 
 	std::size_t topk_pow2 = 1;
 	while (topk_pow2 < topk) {
@@ -27,7 +29,7 @@ std::vector<Layer> build_layers(std::size_t n, std::size_t topk) {
 	// truncated merges
 	while (current_n > topk_pow2) {
 		layers.push_back({LayerType::Truncate, current_n, topk_pow2 * 2, topk_pow2});
-		
+
 		current_n /= 2;
 		for (std::size_t j = topk_pow2 >> 1; j > 0; j >>= 1) {
 			layers.push_back({LayerType::Normal, current_n, topk_pow2, j});

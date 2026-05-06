@@ -34,10 +34,16 @@ void run_layer_intra_simd(T* ptr, std::size_t begin, std::size_t end, std::size_
 	// Scalar fallback for remaining elements
 	for (; i < end; ++i) {
 		const std::size_t ixj = i ^ static_cast<std::size_t>(J);
-		if (ixj <= i) continue;
+		if (ixj <= i)
+			continue;
 		const bool ascending = (i & k) == 0;
-		if (ascending) { if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
-		else { if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
+		if (ascending) {
+			if (ptr[i] > ptr[ixj])
+				std::swap(ptr[i], ptr[ixj]);
+		} else {
+			if (ptr[i] < ptr[ixj])
+				std::swap(ptr[i], ptr[ixj]);
+		}
 	}
 }
 
@@ -53,7 +59,8 @@ void run_layer_inter_simd(T* ptr, std::size_t begin, std::size_t end, std::size_
 		}
 
 		std::size_t chunk_end = std::min((i | (j - 1)) + 1, end);
-		if (chunk_end > n) chunk_end = n;
+		if (chunk_end > n)
+			chunk_end = n;
 
 		for (; i + TraitsT::width - 1 < chunk_end; i += TraitsT::width) {
 			const bool asc = (i & k) == 0;
@@ -78,8 +85,13 @@ void run_layer_inter_simd(T* ptr, std::size_t begin, std::size_t end, std::size_
 		for (; i < chunk_end; ++i) {
 			const std::size_t ixj = i + j;
 			const bool ascending = (i & k) == 0;
-			if (ascending) { if (ptr[i] > ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
-			else { if (ptr[i] < ptr[ixj]) std::swap(ptr[i], ptr[ixj]); }
+			if (ascending) {
+				if (ptr[i] > ptr[ixj])
+					std::swap(ptr[i], ptr[ixj]);
+			} else {
+				if (ptr[i] < ptr[ixj])
+					std::swap(ptr[i], ptr[ixj]);
+			}
 		}
 	}
 }
@@ -100,11 +112,12 @@ void run_layer_truncate_simd(const T* src, T* dst, std::size_t begin, std::size_
 		}
 
 		std::size_t chunk_end = std::min((i | j_minus_1) + 1, end);
-		if (chunk_end > n) chunk_end = n;
+		if (chunk_end > n)
+			chunk_end = n;
 
 		for (; i + TraitsT::width - 1 < chunk_end; i += TraitsT::width) {
 			std::size_t ixj = i + j;
-			
+
 			// 1-cycle bitwise calculation instead of slow division
 			std::size_t out_idx = ((i >> 1) & j_mask) | (i & j_minus_1);
 
@@ -124,15 +137,20 @@ void run_layer_truncate_simd(const T* src, T* dst, std::size_t begin, std::size_
 }
 
 template <typename T>
-bool try_run_simd_layer_normal(T* ptr, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, std::size_t n) {
+bool try_run_simd_layer_normal(T* ptr, std::size_t begin, std::size_t end, std::size_t k, std::size_t j,
+							   std::size_t n) {
 #if defined(__x86_64__) || defined(__i386__)
 	if (cpu::simd::cpu_supports_avx512f() && k <= std::numeric_limits<std::int32_t>::max()) {
 		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>) {
 			if (j <= 8) {
-				if (j == 1) run_layer_intra_simd<T, 1, cpu::simd::SimdTraits512>(ptr, begin, end, k);
-				else if (j == 2) run_layer_intra_simd<T, 2, cpu::simd::SimdTraits512>(ptr, begin, end, k);
-				else if (j == 4) run_layer_intra_simd<T, 4, cpu::simd::SimdTraits512>(ptr, begin, end, k);
-				else if (j == 8) run_layer_intra_simd<T, 8, cpu::simd::SimdTraits512>(ptr, begin, end, k);
+				if (j == 1)
+					run_layer_intra_simd<T, 1, cpu::simd::SimdTraits512>(ptr, begin, end, k);
+				else if (j == 2)
+					run_layer_intra_simd<T, 2, cpu::simd::SimdTraits512>(ptr, begin, end, k);
+				else if (j == 4)
+					run_layer_intra_simd<T, 4, cpu::simd::SimdTraits512>(ptr, begin, end, k);
+				else if (j == 8)
+					run_layer_intra_simd<T, 8, cpu::simd::SimdTraits512>(ptr, begin, end, k);
 				return true;
 			}
 			if (j >= 16) {
@@ -146,9 +164,12 @@ bool try_run_simd_layer_normal(T* ptr, std::size_t begin, std::size_t end, std::
 		// 32-bit types (Width = 8)
 		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>) {
 			if (j <= 4) {
-				if (j == 1) run_layer_intra_simd<T, 1, cpu::simd::SimdTraits256>(ptr, begin, end, k);
-				else if (j == 2) run_layer_intra_simd<T, 2, cpu::simd::SimdTraits256>(ptr, begin, end, k);
-				else if (j == 4) run_layer_intra_simd<T, 4, cpu::simd::SimdTraits256>(ptr, begin, end, k);
+				if (j == 1)
+					run_layer_intra_simd<T, 1, cpu::simd::SimdTraits256>(ptr, begin, end, k);
+				else if (j == 2)
+					run_layer_intra_simd<T, 2, cpu::simd::SimdTraits256>(ptr, begin, end, k);
+				else if (j == 4)
+					run_layer_intra_simd<T, 4, cpu::simd::SimdTraits256>(ptr, begin, end, k);
 				return true;
 			}
 			if (j >= 8) {
@@ -160,8 +181,10 @@ bool try_run_simd_layer_normal(T* ptr, std::size_t begin, std::size_t end, std::
 		// 64-bit types (Width = 4)
 		if constexpr (std::is_same_v<T, double>) {
 			if (j <= 2) {
-				if (j == 1) run_layer_intra_simd<T, 1, cpu::simd::SimdTraits256>(ptr, begin, end, k);
-				else if (j == 2) run_layer_intra_simd<T, 2, cpu::simd::SimdTraits256>(ptr, begin, end, k);
+				if (j == 1)
+					run_layer_intra_simd<T, 1, cpu::simd::SimdTraits256>(ptr, begin, end, k);
+				else if (j == 2)
+					run_layer_intra_simd<T, 2, cpu::simd::SimdTraits256>(ptr, begin, end, k);
 				return true;
 			}
 			if (j >= 4) {
@@ -175,7 +198,8 @@ bool try_run_simd_layer_normal(T* ptr, std::size_t begin, std::size_t end, std::
 }
 
 template <typename T>
-bool try_run_simd_layer_truncate(const T* src, T* dst, std::size_t begin, std::size_t end, std::size_t j, std::size_t n) {
+bool try_run_simd_layer_truncate(const T* src, T* dst, std::size_t begin, std::size_t end, std::size_t j,
+								 std::size_t n) {
 #if defined(__x86_64__) || defined(__i386__)
 	if (cpu::simd::cpu_supports_avx512f()) {
 		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>) {
@@ -205,7 +229,8 @@ bool try_run_simd_layer_truncate(const T* src, T* dst, std::size_t begin, std::s
 
 class SpinBarrier {
   public:
-	explicit SpinBarrier(std::size_t participants) : threshold(participants), count(participants), generation(0) {}
+	explicit SpinBarrier(std::size_t participants) : threshold(participants), count(participants), generation(0) {
+	}
 
 	void wait() {
 		const std::size_t gen = generation.load(std::memory_order_acquire);
@@ -235,11 +260,11 @@ class SpinBarrier {
 template <typename T>
 void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers) {
 	const std::size_t n = data.size();
-    
-    // Allocate a secondary buffer to ping-pong compacted arrays
-    std::vector<T> alt_buffer(n);
-    T* src = data.data();
-    T* dst = alt_buffer.data();
+
+	// Allocate a secondary buffer to ping-pong compacted arrays
+	std::vector<T> alt_buffer(n);
+	T* src = data.data();
+	T* dst = alt_buffer.data();
 
 	SpinBarrier barrier(workers);
 	std::vector<std::thread> pool;
@@ -247,7 +272,6 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 
 	for (std::size_t tid = 0; tid < workers; tid++) {
 		pool.emplace_back([&, tid]() {
-
 			for (std::size_t layer_idx = 0; layer_idx < layers.size(); layer_idx++) {
 				const auto& layer = layers[layer_idx];
 				const std::size_t active_n = layer.active_n;
@@ -262,51 +286,54 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 				if (tid < effective_workers) {
 					std::size_t raw_begin = (active_n * tid) / effective_workers;
 					std::size_t raw_end = (active_n * (tid + 1)) / effective_workers;
-					
+
 					// snap boundaries to the nearest multiple of 16 for perfect SIMD alignment
 					begin = (raw_begin / 16) * 16;
 					end = (tid + 1 == effective_workers) ? active_n : ((raw_end / 16) * 16);
 				}
 
-                if (begin >= end) {
-                    barrier.wait();
-                    if (tid == 0 && layer.type == common::bitonic::LayerType::Truncate) {
-                        std::swap(src, dst);
-                    }
-                    barrier.wait();
-                    continue;
-                }
+				if (begin >= end) {
+					barrier.wait();
+					if (tid == 0 && layer.type == common::bitonic::LayerType::Truncate) {
+						std::swap(src, dst);
+					}
+					barrier.wait();
+					continue;
+				}
 
-                if (layer.type == common::bitonic::LayerType::Normal) {
-                    // try SIMD-accelerated layer
-                    if (!try_run_simd_layer_normal(src, begin, end, layer.k, layer.j, active_n)) {
-                        // fallback scalar loop
-                        std::size_t i = begin;
-                        while (i < end) {
-                            if ((i & layer.j) != 0) {
-                                i = (i | ((layer.j << 1) - 1)) + 1;
-                                continue;
-                            }
+				if (layer.type == common::bitonic::LayerType::Normal) {
+					// try SIMD-accelerated layer
+					if (!try_run_simd_layer_normal(src, begin, end, layer.k, layer.j, active_n)) {
+						// fallback scalar loop
+						std::size_t i = begin;
+						while (i < end) {
+							if ((i & layer.j) != 0) {
+								i = (i | ((layer.j << 1) - 1)) + 1;
+								continue;
+							}
 
-                            std::size_t chunk_end = std::min((i | (layer.j - 1)) + 1, end);
-                            if (chunk_end > active_n) chunk_end = active_n;
+							std::size_t chunk_end = std::min((i | (layer.j - 1)) + 1, end);
+							if (chunk_end > active_n)
+								chunk_end = active_n;
 
-                            for (; i < chunk_end; ++i) {
-                                const std::size_t ixj = i + layer.j;
-                                const bool ascending = (i & layer.k) == 0;
-                                if (ascending) {
-                                    if (src[i] > src[ixj]) std::swap(src[i], src[ixj]);
-                                } else {
-                                    if (src[i] < src[ixj]) std::swap(src[i], src[ixj]);
-                                }
-                            }
-                        }
-                    }
-                } else {
+							for (; i < chunk_end; ++i) {
+								const std::size_t ixj = i + layer.j;
+								const bool ascending = (i & layer.k) == 0;
+								if (ascending) {
+									if (src[i] > src[ixj])
+										std::swap(src[i], src[ixj]);
+								} else {
+									if (src[i] < src[ixj])
+										std::swap(src[i], src[ixj]);
+								}
+							}
+						}
+					}
+				} else {
 					// LayerType::Truncate
 					if (!try_run_simd_layer_truncate(src, dst, begin, end, layer.j, active_n)) {
 						std::size_t i = begin;
-						
+
 						const std::size_t j_minus_1 = layer.j - 1;
 						const std::size_t j_mask = ~j_minus_1;
 
@@ -317,7 +344,8 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 							}
 
 							std::size_t chunk_end = std::min((i | j_minus_1) + 1, end);
-							if (chunk_end > active_n) chunk_end = active_n;
+							if (chunk_end > active_n)
+								chunk_end = active_n;
 
 							for (; i < chunk_end; ++i) {
 								const std::size_t ixj = i + layer.j;
@@ -330,13 +358,13 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 				}
 
 				barrier.wait();
-                
-                // Swap active buffers! Thread 0 does this safely for the group.
-                if (tid == 0 && layer.type == common::bitonic::LayerType::Truncate) {
-                    std::swap(src, dst);
-                }
-                
-                barrier.wait();
+
+				// Swap active buffers! Thread 0 does this safely for the group.
+				if (tid == 0 && layer.type == common::bitonic::LayerType::Truncate) {
+					std::swap(src, dst);
+				}
+
+				barrier.wait();
 			}
 		});
 	}
@@ -345,20 +373,25 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 		t.join();
 	}
 
-    // If there was an odd number of truncate operations, the final result is in alt_buffer.
-    // We copy it back to original data vector as that's expected by the top-level runner.
-    if (src != data.data()) {
-        std::copy(alt_buffer.begin(), alt_buffer.end(), data.begin());
-    }
+	// If there was an odd number of truncate operations, the final result is in alt_buffer.
+	// We copy it back to original data vector as that's expected by the top-level runner.
+	if (src != data.data()) {
+		std::copy(alt_buffer.begin(), alt_buffer.end(), data.begin());
+	}
 }
 
-template void run_topk<std::int32_t>(std::vector<std::int32_t>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
-template void run_topk<std::uint32_t>(std::vector<std::uint32_t>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
-template void run_topk<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
-template void run_topk<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
+template void run_topk<std::int32_t>(std::vector<std::int32_t>& data, const std::vector<common::bitonic::Layer>& layers,
+									 std::size_t workers);
+template void run_topk<std::uint32_t>(std::vector<std::uint32_t>& data,
+									  const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
+template void run_topk<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
+							  std::size_t workers);
+template void run_topk<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers,
+							   std::size_t workers);
 
 #if defined(__FLT16_MANT_DIG__)
-template void run_topk<_Float16>(std::vector<_Float16>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
+template void run_topk<_Float16>(std::vector<_Float16>& data, const std::vector<common::bitonic::Layer>& layers,
+								 std::size_t workers);
 #endif
 
 } // namespace cpu::bitonic

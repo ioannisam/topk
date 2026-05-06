@@ -69,7 +69,7 @@ benchmark:
 	$(MAKE) run-profiler ARGS="--plot all --error-bars none"
 
 lint:
-	./scripts/lint_cpp.sh $(ARGS)
+	./scripts/lint.sh $(ARGS)
 
 specs:
 	./scripts/validate_specs.sh $(ARGS)

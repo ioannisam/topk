@@ -11,13 +11,11 @@ namespace gpu::map_reduce {
 
 namespace {
 
-template <typename T> 
-__device__ __forceinline__ bool beats_threshold(T candidate, T threshold, bool want_max) {
+template <typename T> __device__ __forceinline__ bool beats_threshold(T candidate, T threshold, bool want_max) {
 	return want_max ? (candidate > threshold) : (candidate < threshold);
 }
 
-template <typename T> 
-__device__ void sift_down(T* heap, int size, int root, bool want_max) {
+template <typename T> __device__ void sift_down(T* heap, int size, int root, bool want_max) {
 	int current = root;
 	while (true) {
 		int left_child = 2 * current + 1;
@@ -44,8 +42,8 @@ __device__ void sift_down(T* heap, int size, int root, bool want_max) {
 
 template <typename T>
 __global__ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k, bool want_max,
-							    T* __restrict__ thread_workspaces, int* __restrict__ thread_counts, 
-                                T* __restrict__ block_outputs, T sentinel) {
+								T* __restrict__ thread_workspaces, int* __restrict__ thread_counts,
+								T* __restrict__ block_outputs, T sentinel) {
 	if (k <= 0) {
 		return;
 	}
@@ -55,11 +53,11 @@ __global__ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int 
 
 	T* local_heap = thread_workspaces + (tid * k);
 	int current_size = 0;
-	
+
 	// PHASE 1: MAP
 	for (std::size_t i = tid; i < n; i += stride) {
 		T val = input[i];
-		
+
 		if (current_size < k) {
 			local_heap[current_size] = val;
 			current_size++;
@@ -74,7 +72,7 @@ __global__ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int 
 		}
 	}
 
-    // Explicitly track how many valid elements this thread processed
+	// Explicitly track how many valid elements this thread processed
 	thread_counts[tid] = current_size;
 	__syncthreads();
 
@@ -83,25 +81,26 @@ __global__ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int 
 		// STRATEGY A: Parallel Tree Reduction
 		for (int step = 1; step < blockDim.x; step *= 2) {
 			int index = 2 * step * threadIdx.x;
-			
+
 			if (index < blockDim.x) {
 				const std::size_t my_global_tid = blockIdx.x * blockDim.x + index;
 				const std::size_t other_global_tid = blockIdx.x * blockDim.x + index + step;
-				
+
 				T* my_heap = thread_workspaces + (my_global_tid * k);
 				T* other_heap = thread_workspaces + (other_global_tid * k);
-				
-                // Only iterate over strictly valid elements in the other heap
+
+				// Only iterate over strictly valid elements in the other heap
 				int c_other = thread_counts[other_global_tid];
 				for (int j = 0; j < c_other; ++j) {
 					T val = other_heap[j];
 					int c_my = thread_counts[my_global_tid];
-					
+
 					if (c_my < k) {
 						my_heap[c_my] = val;
 						thread_counts[my_global_tid]++;
 						if (thread_counts[my_global_tid] == k) {
-							for (int h = k / 2 - 1; h >= 0; --h) sift_down(my_heap, k, h, want_max);
+							for (int h = k / 2 - 1; h >= 0; --h)
+								sift_down(my_heap, k, h, want_max);
 						}
 					} else if (beats_threshold(val, my_heap[0], want_max)) {
 						my_heap[0] = val;
@@ -109,18 +108,18 @@ __global__ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int 
 					}
 				}
 			}
-			__syncthreads(); 
+			__syncthreads();
 		}
 
 		if (threadIdx.x == 0) {
 			const std::size_t my_global_tid = blockIdx.x * blockDim.x;
 			T* final_block_heap = thread_workspaces + (my_global_tid * k);
 			int final_count = thread_counts[my_global_tid];
-			
+
 			for (int j = 0; j < final_count; ++j) {
 				block_outputs[blockIdx.x * k + j] = final_block_heap[j];
 			}
-            // Pad remaining space with sentinels so the CPU reduction doesn't sort garbage memory
+			// Pad remaining space with sentinels so the CPU reduction doesn't sort garbage memory
 			for (int j = final_count; j < k; ++j) {
 				block_outputs[blockIdx.x * k + j] = sentinel;
 			}
@@ -142,12 +141,13 @@ __global__ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int 
 
 				for (int j = 0; j < c_t; ++j) {
 					T val = t_heap[j];
-					
+
 					if (block_heap_size < k) {
 						block_heap[block_heap_size] = val;
 						block_heap_size++;
 						if (block_heap_size == k) {
-							for (int h = k / 2 - 1; h >= 0; --h) sift_down(block_heap, k, h, want_max);
+							for (int h = k / 2 - 1; h >= 0; --h)
+								sift_down(block_heap, k, h, want_max);
 						}
 					} else if (beats_threshold(val, block_heap[0], want_max)) {
 						block_heap[0] = val;
@@ -206,8 +206,8 @@ std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_ma
 	cudaEventCreate(&stop);
 	cudaEventRecord(start);
 
-	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(d_input, n, static_cast<int>(k), want_max,
-											   d_thread_workspaces, d_thread_counts, d_block_outputs, sentinel);
+	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(
+		d_input, n, static_cast<int>(k), want_max, d_thread_workspaces, d_thread_counts, d_block_outputs, sentinel);
 
 	cudaEventRecord(stop);
 	cudaEventSynchronize(stop);

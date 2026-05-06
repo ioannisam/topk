@@ -69,14 +69,18 @@ std::vector<T> map(const std::vector<T>& data, std::size_t begin, std::size_t en
 	while (i < end) {
 		const T threshold = heap.front();
 		const std::size_t remaining = end - i;
-		
+
 		if (block > 1) {
 			// unroll by 4 to maximize ILP
 			if (remaining >= block * 4) {
-				std::uint64_t m0 = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i, threshold, use_avx512f, use_avx2);
-				std::uint64_t m1 = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i + block, threshold, use_avx512f, use_avx2);
-				std::uint64_t m2 = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i + block * 2, threshold, use_avx512f, use_avx2);
-				std::uint64_t m3 = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i + block * 3, threshold, use_avx512f, use_avx2);
+				std::uint64_t m0 =
+					cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i, threshold, use_avx512f, use_avx2);
+				std::uint64_t m1 = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i + block, threshold,
+																				  use_avx512f, use_avx2);
+				std::uint64_t m2 = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i + block * 2,
+																				  threshold, use_avx512f, use_avx2);
+				std::uint64_t m3 = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i + block * 3,
+																				  threshold, use_avx512f, use_avx2);
 
 				if ((m0 | m1 | m2 | m3) == 0) {
 					i += block * 4;
@@ -86,8 +90,9 @@ std::vector<T> map(const std::vector<T>& data, std::size_t begin, std::size_t en
 
 			// fallback
 			if (remaining >= block) {
-				std::uint64_t mask = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i, threshold, use_avx512f, use_avx2);
-				
+				std::uint64_t mask =
+					cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i, threshold, use_avx512f, use_avx2);
+
 				if (mask == 0) {
 					i += block;
 					continue;
@@ -104,7 +109,7 @@ std::vector<T> map(const std::vector<T>& data, std::size_t begin, std::size_t en
 
 					mask &= (mask - 1); // clear the lowest set bit
 				}
-				
+
 				i += block;
 				continue;
 			}
@@ -137,7 +142,7 @@ template <bool WantMax, typename T> std::vector<T> reduce(std::vector<T> aggrega
 		return lhs < rhs;
 	};
 
-	// capped at size <= k and is a valid heap 
+	// capped at size <= k and is a valid heap
 	std::sort(aggregated.begin(), aggregated.end(), cmp);
 	return aggregated;
 }
