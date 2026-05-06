@@ -42,7 +42,7 @@ def parse_args():
     parser.add_argument("--gpu-interval-ms", type=int, default=100)
     parser.add_argument("--q-min", type=int, default=1)
     parser.add_argument("--q-max", type=int, default=21)
-    parser.add_argument("--k", type=int, default=8)
+    parser.add_argument("--k", type=int, nargs="+", default=[8, 256, 4096, 131072], help="List of K values to test")
     parser.add_argument("--mode", choices=["max", "min"], default="max")
     parser.add_argument("--run", choices=["trunc", "full", "both"], default="trunc")
     parser.add_argument("--threads", type=int, default=8)
@@ -133,85 +133,87 @@ def main():
             for algo in algorithms:
                 for q in range(args.q_min, args.q_max + 1):
                     n = 1 << q
-                    k_eff = min(args.k, n)
-                    seed = args.seed_base + q
-                    case_name = f"q{q:02d}_k{k_eff}_{args.mode}"
-
-                    case_args = [
-                        f"q={q}", f"k={k_eff}", f"mode={args.mode}", f"dtype={dtype}",
-                        f"algo={algo}", f"run={args.run}", "debug=false",
-                        f"threads={args.threads}", f"seed={seed}", f"verify={args.verify}",
-                        f"min={args.min}", f"max={args.max}"
-                    ]
-
-                    energy_mode = resolve_energy_mode(backend, args.energy)
-                    energy_case_file = ""
-                    run_cmd = []
-
-                    if energy_mode == "none":
-                        run_cmd = [binary_path] + case_args
-                    elif energy_mode == "rapl":
-                        energy_case_file = os.path.join(args.energy_out_dir, f"{run_id}_{backend}_{dtype}_{algo}_{case_name}_{energy_mode}.txt")
-                        run_cmd = [os.path.join(ROOT_DIR, "test/prof/energy/measure_rapl.sh"), "--out", energy_case_file]
-                        if args.rapl_path:
-                            run_cmd.extend(["--path", args.rapl_path])
-                        run_cmd.extend(["--", binary_path] + case_args)
-                    elif energy_mode == "gpu":
-                        energy_case_file = os.path.join(args.energy_out_dir, f"{run_id}_{backend}_{dtype}_{algo}_{case_name}_{energy_mode}.txt")
-                        run_cmd = [
-                            os.path.join(ROOT_DIR, "test/prof/energy/measure_smi.sh"),
-                            "--out", energy_case_file,
-                            "--gpu-index", str(args.gpu_index),
-                            "--interval-ms", str(args.gpu_interval_ms),
-                            "--", binary_path
-                        ] + case_args
-
-                    # Execute Subprocess
-                    result = subprocess.run(run_cmd, capture_output=True, text=True)
-                    stdout = result.stdout
                     
-                    case_status = "FAIL"
-                    case_reason = "non-zero exit"
+                    effective_ks = sorted(list(set(k_val for k_val in args.k if k_val <= n)))
+                    for k_eff in effective_ks:
+                        seed = args.seed_base + q + k_eff
+                        case_name = f"q{q:02d}_k{k_eff}_{args.mode}"
 
-                    if result.returncode == 0:
-                        if args.verify == "true" and expected_marker not in stdout:
-                            case_reason = "PASS marker missing"
-                            print(f"    [FAIL] {case_name} ({case_reason})")
-                            type_fail += 1
+                        case_args = [
+                            f"q={q}", f"k={k_eff}", f"mode={args.mode}", f"dtype={dtype}",
+                            f"algo={algo}", f"run={args.run}", "debug=false",
+                            f"threads={args.threads}", f"seed={seed}", f"verify={args.verify}",
+                            f"min={args.min}", f"max={args.max}"
+                        ]
+
+                        energy_mode = resolve_energy_mode(backend, args.energy)
+                        energy_case_file = ""
+                        run_cmd = []
+
+                        if energy_mode == "none":
+                            run_cmd = [binary_path] + case_args
+                        elif energy_mode == "rapl":
+                            energy_case_file = os.path.join(args.energy_out_dir, f"{run_id}_{backend}_{dtype}_{algo}_{case_name}_{energy_mode}.txt")
+                            run_cmd = [os.path.join(ROOT_DIR, "test/prof/energy/measure_rapl.sh"), "--out", energy_case_file]
+                            if args.rapl_path:
+                                run_cmd.extend(["--path", args.rapl_path])
+                            run_cmd.extend(["--", binary_path] + case_args)
+                        elif energy_mode == "gpu":
+                            energy_case_file = os.path.join(args.energy_out_dir, f"{run_id}_{backend}_{dtype}_{algo}_{case_name}_{energy_mode}.txt")
+                            run_cmd = [
+                                os.path.join(ROOT_DIR, "test/prof/energy/measure_smi.sh"),
+                                "--out", energy_case_file,
+                                "--gpu-index", str(args.gpu_index),
+                                "--interval-ms", str(args.gpu_interval_ms),
+                                "--", binary_path
+                            ] + case_args
+
+                        # Execute Subprocess
+                        result = subprocess.run(run_cmd, capture_output=True, text=True)
+                        stdout = result.stdout
+                        
+                        case_status = "FAIL"
+                        case_reason = "non-zero exit"
+
+                        if result.returncode == 0:
+                            if args.verify == "true" and expected_marker not in stdout:
+                                case_reason = "PASS marker missing"
+                                print(f"    [FAIL] {case_name} ({case_reason})")
+                                type_fail += 1
+                            else:
+                                case_status = "PASS"
+                                case_reason = "ok"
+                                print(f"    [PASS] {case_name}")
+                                type_pass += 1
                         else:
-                            case_status = "PASS"
-                            case_reason = "ok"
-                            print(f"    [PASS] {case_name}")
-                            type_pass += 1
-                    else:
-                        print(f"    [FAIL] {case_name} (non-zero exit)")
-                        type_fail += 1
+                            print(f"    [FAIL] {case_name} (non-zero exit)")
+                            type_fail += 1
 
-                    # Write Raw File
-                    with open(args.output_raw, "a", encoding="utf-8") as f_raw:
-                        f_raw.write(f"### Case: {case_name}\n")
-                        f_raw.write(f"Status: {case_status}\n")
-                        f_raw.write(f"Reason: {case_reason}\n")
-                        f_raw.write(f"Command: {' '.join(run_cmd)}\n")
-                        if energy_case_file:
-                            f_raw.write(f"Measurement file: {energy_case_file}\n")
-                        f_raw.write(f"Output:\n{stdout}\n\n")
+                        # Write Raw File
+                        with open(args.output_raw, "a", encoding="utf-8") as f_raw:
+                            f_raw.write(f"### Case: {case_name}\n")
+                            f_raw.write(f"Status: {case_status}\n")
+                            f_raw.write(f"Reason: {case_reason}\n")
+                            f_raw.write(f"Command: {' '.join(run_cmd)}\n")
+                            if energy_case_file:
+                                f_raw.write(f"Measurement file: {energy_case_file}\n")
+                            f_raw.write(f"Output:\n{stdout}\n\n")
 
-                    # Append to JSON structure
-                    json_data["results"].append({
-                        "backend": backend,
-                        "type": dtype,
-                        "algorithm": algo,
-                        "case_name": case_name,
-                        "q": q,
-                        "k": k_eff,
-                        "status": case_status,
-                        "reason": case_reason,
-                        "command": " ".join(run_cmd),
-                        "energy_file": energy_case_file,
-                        "exit_code": result.returncode,
-                        "stdout": stdout.strip()
-                    })
+                        # Append to JSON structure
+                        json_data["results"].append({
+                            "backend": backend,
+                            "type": dtype,
+                            "algorithm": algo,
+                            "case_name": case_name,
+                            "q": q,
+                            "k": k_eff,
+                            "status": case_status,
+                            "reason": case_reason,
+                            "command": " ".join(run_cmd),
+                            "energy_file": energy_case_file,
+                            "exit_code": result.returncode,
+                            "stdout": stdout.strip()
+                        })
 
             print(f"    Type {dtype} summary: pass={type_pass} fail={type_fail}")
             backend_pass += type_pass

@@ -24,7 +24,10 @@ from .plotting import time_vs_n_algo_compare
 from .plotting import time_vs_energy
 from .plotting import time_vs_n
 from .plotting import time_vs_n_backend_compare
-
+from .plotting import time_vs_n_metric_compare
+from .plotting import time_vs_k_backend_compare
+from .plotting import time_vs_n_k_colored
+from .plotting import heatmap_time
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Parse testcase output and generate profiler plots.")
@@ -49,6 +52,7 @@ def parse_args() -> argparse.Namespace:
             "time-vs-n",
             "time-vs-n-algo-compare",
             "time-vs-n-backend-compare",
+            "time-vs-n-metric-compare",
             "speedup-vs-gt",
             "pass-rate",
             "energy-by-source",
@@ -61,6 +65,9 @@ def parse_args() -> argparse.Namespace:
             "edp-vs-n",
             "energy-per-element-vs-n",
             "time-per-element-vs-n",
+            # "time-vs-k-backend-compare",
+            "time-vs-n-k-colored",
+            "heatmap-time",
         ],
         help="Plot(s) to generate.",
     )
@@ -171,6 +178,7 @@ def main() -> int:
             "time-vs-n",
             "time-vs-n-algo-compare",
             "time-vs-n-backend-compare",
+            "time-vs-n-metric-compare",
             "speedup-vs-gt",
             "pass-rate",
             "energy-by-source",
@@ -183,6 +191,9 @@ def main() -> int:
             "edp-vs-n",
             "energy-per-element-vs-n",
             "time-per-element-vs-n",
+            # "time-vs-k-backend-compare",
+            "time-vs-n-k-colored",
+            "heatmap-time",
         }
     if "none" in requested:
         requested.remove("none")
@@ -303,8 +314,54 @@ def main() -> int:
             else:
                 print(f"Skipped time-vs-n-backend-compare ({dtype_dir}): no timing points found.")
 
+        if "time-vs-n-metric-compare" in requested:
+            out = time_vs_n_metric_compare.plot(
+                records,
+                os.path.join(out_time, "time_vs_n_metric_compare.png"),
+                args.agg,
+                args.error_bars,
+            )
+            if out:
+                collect_output(out)
+            else:
+                print(f"Skipped time-vs-n-metric-compare ({dtype_dir}): no timing points found.")
+        
+        if "time-vs-k-backend-compare" in requested:
+                out = time_vs_k_backend_compare.plot(
+                    records,
+                    os.path.join(out_time, "time_vs_k_backend_compare.png"),
+                    args.agg,
+                    args.error_bars,
+                )
+                if out:
+                    collect_output(out)
+                else:
+                    print(f"Skipped time-vs-k-backend-compare ({dtype_dir}): missing multi-k timing points.")
+        
+        if "time-vs-n-k-colored" in requested:
+            out = time_vs_n_k_colored.plot(
+                records,
+                os.path.join(out_time, "time_vs_n_k_colored.png"),
+                args.agg,
+            )
+            if out:
+                collect_output(out)
+            else:
+                print(f"Skipped time-vs-n-k-colored ({dtype_dir}): missing data.")
+
+        if "heatmap-time" in requested:
+            out = heatmap_time.plot(
+                records,
+                os.path.join(out_time, "heatmap_time.png"),
+                args.agg,
+            )
+            if out:
+                collect_output(out)
+            else:
+                print(f"Skipped heatmap-time ({dtype_dir}): missing data.")
+
         if "speedup-vs-gt" in requested:
-            out = speedup_vs_gt.plot(records, os.path.join(out_time, "speedup_vs_gt.png"))
+            out = speedup_vs_gt.plot(records, os.path.join(out_time, "speedup_vs_gt.png"), args.agg)
             if out:
                 collect_output(out)
             else:

@@ -1,66 +1,72 @@
 from __future__ import annotations
-
 import os
 from collections import defaultdict
 from typing import Optional
-
 from ..models import CaseRecord
-from .common import add_time_metric_legend, aggregate_value, error_bounds, label_with_algorithm, plt, select_time_ms, style_axes, time_metric_style
+from .common import aggregate_value, error_bounds, label_with_algorithm, plt, select_time_ms, style_axes
 
-
-def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) -> Optional[str]:
-    grouped: dict[str, dict[str, dict[int, list[float]]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) -> Optional[list[str]]:
+    # Grouped by: K -> label -> N -> list of times per element
+    grouped: dict[int, dict[str, dict[int, list[float]]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(list))
+    )
+    
     algorithms = {rec.algorithm for rec in records if rec.algorithm}
     include_algorithm = len(algorithms) > 1
+    
     for rec in records:
-        if rec.n is None or rec.n <= 0:
-            continue
+        if rec.n is None or rec.n <= 0 or rec.k is None: continue
         label = label_with_algorithm(rec.backend, rec.algorithm, include_algorithm)
-        for metric in ("algorithmic", "end-to-end"):
-            time_ms = select_time_ms(rec, metric)
-            if time_ms is None or time_ms < 0:
-                continue
-            t_per_elem = time_ms / float(rec.n)
-            grouped[label][metric][rec.n].append(t_per_elem)
+        time_ms = select_time_ms(rec, "algorithmic")
+        if time_ms is None or time_ms <= 0: continue
+        
+        # Calculate time per element and store it under the specific K
+        grouped[rec.k][label][rec.n].append(time_ms / float(rec.n))
 
-    if not grouped:
-        return None
+    if not grouped: return None
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    for label in sorted(grouped.keys()):
-        algo_map = grouped[label].get("algorithmic", {})
-        e2e_map = grouped[label].get("end-to-end", {})
-        color = None
+    base_dir = os.path.dirname(out_path) or "."
+    base_name, ext = os.path.splitext(os.path.basename(out_path))
+    outputs: list[str] = []
 
-        if algo_map:
-            xs = sorted(algo_map.keys())
-            ys = []
-            lowers = []
-            uppers = []
+    # Generate one plot per K
+    for k, label_map in sorted(grouped.items()):
+        fig, ax = plt.subplots(figsize=(10, 6))
+        has_data = False
+        
+        for label, n_map in sorted(label_map.items()):
+            xs = sorted(n_map.keys())
+            ys, lowers, uppers = [], [], []
             for n in xs:
-                center = aggregate_value(algo_map[n], agg)
-                lo, hi = error_bounds(algo_map[n], center, error_bars)
+                center = aggregate_value(n_map[n], agg)
+                lo, hi = error_bounds(n_map[n], center, error_bars)
                 ys.append(center)
                 lowers.append(lo)
                 uppers.append(hi)
-            (line,) = ax.plot(xs, ys, **time_metric_style("algorithmic", label=label))
-            color = line.get_color()
-            if error_bars != "none":
-                ax.fill_between(xs, lowers, uppers, alpha=0.15, color=color)
+            
+            if xs:
+                has_data = True
+                (line,) = ax.plot(xs, ys, marker="o", linewidth=2, label=label)
+                if error_bars != "none": 
+                    ax.fill_between(xs, lowers, uppers, alpha=0.15, color=line.get_color())
 
-        if e2e_map:
-            xs = sorted(e2e_map.keys())
-            ys = [aggregate_value(e2e_map[n], agg) for n in xs]
-            ax.plot(xs, ys, **time_metric_style("end-to-end", color=color, label="_nolegend_"))
+        if not has_data:
+            plt.close(fig)
+            continue
 
-    ax.set_xscale("log", base=2)
-    ax.set_yscale("log")
-    style_axes(ax, "Time per Element vs Input Size", "N (log2 scale)", "Time / element (ms)")
-    config_leg = ax.legend(title="Configuration", loc="best")
-    ax.add_artist(config_leg)
-    add_time_metric_legend(ax, loc="lower right")
-    fig.tight_layout()
-    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    fig.savefig(out_path, dpi=160)
-    plt.close(fig)
-    return out_path
+        ax.set_xscale("log", base=2)
+        ax.set_yscale("log")
+        style_axes(ax, f"Algorithmic Time per Element vs Input Size (K = {k})", "N (log2 scale)", "Time / element (ms)")
+        
+        # Pin legend to the top left
+        ax.legend(title="Configuration", loc="upper left")
+        fig.tight_layout()
+        
+        os.makedirs(base_dir, exist_ok=True)
+        # Suffix the filename with _k<value>
+        out_file = os.path.join(base_dir, f"{base_name}_k{k}{ext}")
+        fig.savefig(out_file, dpi=160, bbox_inches="tight")
+        plt.close(fig)
+        outputs.append(out_file)
+
+    return outputs

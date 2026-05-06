@@ -3,8 +3,8 @@ BUILD_DIR := build
 ARGS ?=
 
 .PHONY: all help build-all build-cpu build-gpu build-npu build-gt clean \
-	run-tests testcases run-profiler profiler-bootstrap profiler-clean \
-	energy-profile smoke lint validate-specs a-test ab-test
+	run-cases run-energy run-profiler profiler-bootstrap profiler-clean \
+	smoke lint specs a-test ab-test
 
 all: build-all
 
@@ -12,9 +12,9 @@ help:
 	@echo "Targets:"
 	@echo "  build-all | build-cpu | build-gpu | build-npu | build-gt"
 	@echo "  smoke                           - run smoke tests"
-	@echo "  run-cases                       - run testcase suite"
+	@echo "  run-cases                       - run testcase suite via runner.py (ARGS=...)"
 	@echo "  run-energy                      - energy measurement run (ARGS=...)"
-	@echo "  run-profiler                    - run Python profiler (ARGS=...)"
+	@echo "  run-profiler                    - run Python profiler to generate plots (ARGS=...)"
 	@echo "  profiler-bootstrap              - create profiler venv"
 	@echo "  profiler-clean                  - clean profiler artifacts"
 	@echo "  lint | specs | a-test | ab-test"
@@ -46,7 +46,7 @@ smoke:
 	./test/smoke/run_smoke_tests.sh
 
 run-cases:
-	./test/prof/cases/run_testcases.sh cpu gpu npu gt
+	python3 ./test/prof/runner.py $(ARGS)
 
 run-energy:
 	./test/prof/energy/run_energy_profile.sh $(ARGS)

@@ -19,19 +19,23 @@ def time_metric_style(metric: str, *, color: Any = None, label: str | None = Non
     if metric == "algorithmic":
         return {
             "linestyle": "-",
-            "linewidth": 2.2,
+            "linewidth": 3.0,
             "marker": "o",
             "markersize": 5,
             "color": color,
+            "alpha": 0.4,
             "label": label,
+            "zorder": 2
         }
     return {
         "linestyle": E2E_DASH_PATTERN,
-        "linewidth": 2.2,
+        "linewidth": 2.0,
         "marker": "x",
-        "markersize": 5,
+        "markersize": 8,
+        "markeredgewidth": 2.0,
         "color": color,
         "label": label,
+        "zorder": 3
     }
 
 
@@ -54,7 +58,7 @@ def add_time_metric_legend(
         else:
             handles = [
                 Line2D([0], [0], color="black", linestyle="-", linewidth=2.2, label="Algorithmic"),
-                Line2D([0], [0], color="black", linestyle=E2E_DASH_PATTERN, linewidth=2.2, label="End-to-end"),
+                Line2D([0], [0], color="black", linestyle="--", linewidth=2.2, label="End-to-end"),
             ]
         ax.legend(handles=handles, title=title, loc=loc)
     except Exception:
