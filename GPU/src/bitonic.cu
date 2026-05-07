@@ -49,18 +49,17 @@ struct FusedLayers {
 	int count;
 };
 
-// --- FP16 Cast Kernels ---
-__global__ void cast_float_to_half_kernel(const float* __restrict__ src, __half* __restrict__ dst, std::size_t n) {
+__global__ void cast_float_to_half_vec2(const float2* __restrict__ src, __half2* __restrict__ dst, std::size_t num_vecs) {
 	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-	if (tid < n) {
-		dst[tid] = __float2half(src[tid]);
+	if (tid < num_vecs) {
+		dst[tid] = __float22half2_rn(src[tid]);
 	}
 }
 
-__global__ void cast_half_to_float_kernel(const __half* __restrict__ src, float* __restrict__ dst, std::size_t n) {
+__global__ void cast_half_to_float_vec2(const __half2* __restrict__ src, float2* __restrict__ dst, std::size_t num_vecs) {
 	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-	if (tid < n) {
-		dst[tid] = __half2float(src[tid]);
+	if (tid < num_vecs) {
+		dst[tid] = __half22float2(src[tid]);
 	}
 }
 
@@ -310,8 +309,13 @@ RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<commo
 
 	CUDA_CHECK(cudaMemcpy(d_float_data, data.data(), n * sizeof(float), cudaMemcpyHostToDevice));
 
-	const dim3 grid((n + block_size - 1) / block_size);
-	cast_float_to_half_kernel<<<grid, block_size>>>(d_float_data, d_half_data, n);
+	const std::size_t n_vec = n / 2;
+	const dim3 grid_vec((n_vec + block_size - 1) / block_size);
+	cast_float_to_half_vec2<<<grid_vec, block_size>>>(
+		reinterpret_cast<const float2*>(d_float_data), 
+		reinterpret_cast<__half2*>(d_half_data), 
+		n_vec
+	);
 	CUDA_CHECK(cudaGetLastError());
 
 	double elapsed_ms = 0.0;
@@ -322,8 +326,14 @@ RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<commo
 	__half* final_src = execute_network_kernels(d_half_data, d_half_alt, n, layers, block_size, elapsed_ms, launches,
 												comparators, final_n);
 
-	const dim3 final_grid((final_n + block_size - 1) / block_size);
-	cast_half_to_float_kernel<<<final_grid, block_size>>>(final_src, d_float_data, final_n);
+	// OPTIMIZATION 1: Launch vectorized half-to-float return cast
+	const std::size_t final_n_vec = final_n / 2;
+	const dim3 final_grid_vec((final_n_vec + block_size - 1) / block_size);
+	cast_half_to_float_vec2<<<final_grid_vec, block_size>>>(
+		reinterpret_cast<const __half2*>(final_src), 
+		reinterpret_cast<float2*>(d_float_data), 
+		final_n_vec
+	);
 	CUDA_CHECK(cudaGetLastError());
 	CUDA_CHECK(cudaDeviceSynchronize());
 
