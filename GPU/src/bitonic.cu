@@ -35,6 +35,14 @@ template <typename T> __device__ __forceinline__ bool less_than(T a, T b) {
 	return a < b;
 }
 
+template <typename T> __device__ __forceinline__ T device_min(T a, T b) {
+	return less_than(a, b) ? a : b;
+}
+
+template <typename T> __device__ __forceinline__ T device_max(T a, T b) {
+	return greater_than(a, b) ? a : b;
+}
+
 struct FusedLayers {
 	std::uint32_t stages[16];
 	std::uint32_t steps[16];
@@ -116,10 +124,12 @@ __global__ void bitonic_layer_global_coalesced(T* data, std::size_t total_pairs,
 
 	const T a = data[i];
 	const T b = data[ixj];
-	if ((ascending && greater_than(a, b)) || (!ascending && less_than(a, b))) {
-		data[i] = b;
-		data[ixj] = a;
-	}
+
+	const T min_val = device_min(a, b); 
+	const T max_val = device_max(a, b); 
+
+	data[i]   = ascending ? min_val : max_val;
+	data[ixj] = ascending ? max_val : min_val;
 }
 
 template <typename T>
