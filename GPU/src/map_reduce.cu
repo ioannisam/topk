@@ -1,4 +1,5 @@
 #include "../include/algorithm.hpp"
+#include "../include/device_traits.cuh"
 
 #include <algorithm>
 #include <cstdint>
@@ -22,7 +23,6 @@ namespace {
 		}                                                                                                              \
 	} while (false)
 
-// RAII wrapper for device memory - ensures cleanup even if exception occurs
 template <typename T>
 struct DeviceBuffer {
 	T* ptr = nullptr;
@@ -36,16 +36,14 @@ struct DeviceBuffer {
 
 	~DeviceBuffer() {
 		if (ptr) {
-			cudaFree(ptr);  // Silently ignore errors on destruction
+			cudaFree(ptr); 
 			ptr = nullptr;
 		}
 	}
 
-	// Deleted copy operations
 	DeviceBuffer(const DeviceBuffer&) = delete;
 	DeviceBuffer& operator=(const DeviceBuffer&) = delete;
 
-	// Move operations
 	DeviceBuffer(DeviceBuffer&& other) noexcept : ptr(other.ptr), size(other.size) {
 		other.ptr = nullptr;
 		other.size = 0;
@@ -68,7 +66,8 @@ struct DeviceBuffer {
 };
 
 template <typename T> __device__ __forceinline__ bool beats_threshold(T candidate, T threshold, bool want_max) {
-	return want_max ? (candidate > threshold) : (candidate < threshold);
+	return want_max ? gpu::traits::DeviceTraits<T>::gt(candidate, threshold)
+                    : gpu::traits::DeviceTraits<T>::lt(candidate, threshold);
 }
 
 template <typename T> __device__ void sift_down(T* heap, int size, int root, bool want_max) {
@@ -101,10 +100,13 @@ __global__
 __launch_bounds__(256, 4) 
 void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k, bool want_max,
 								T* __restrict__ thread_workspaces, int* __restrict__ thread_counts,
-								T* __restrict__ block_outputs, T sentinel) {
+								T* __restrict__ block_outputs) {
 	if (k <= 0) {
 		return;
 	}
+
+	// Fetch sentinel strictly on the device!
+	const T sentinel = gpu::traits::DeviceTraits<T>::sentinel(want_max);
 
 	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 	const std::size_t stride = blockDim.x * gridDim.x;
@@ -112,7 +114,6 @@ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k, bool wan
 	T* local_heap = thread_workspaces + (tid * k);
 	int current_size = 0;
 
-	// PHASE 1: MAP
 	for (std::size_t i = tid; i < n; i += stride) {
 		T val = input[i];
 
@@ -257,7 +258,6 @@ std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_ma
 	const size_t max_workspace_bytes = 1024ULL * 1024ULL * 512ULL;
 	const size_t bytes_per_thread = k * sizeof(T);
 
-	// Validate k: check that we can allocate the per-thread workspace
 	if (bytes_per_thread > max_workspace_bytes / block_size) {
 		throw std::invalid_argument(
 			"k is too large for thread-local heap MapReduce. Reduce k or use a different algorithm."
@@ -273,13 +273,6 @@ std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_ma
 
 	const int total_threads = grid_size * block_size;
 
-	T sentinel;
-	if constexpr (std::is_same_v<T, __half>) {
-		sentinel = want_max ? __float2half(-65504.0f) : __float2half(65504.0f);
-	} else {
-		sentinel = want_max ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
-	}
-
 	DeviceBuffer<T> d_input(n);
 	DeviceBuffer<T> d_thread_workspaces(static_cast<std::size_t>(total_threads) * k);
 	DeviceBuffer<int> d_thread_counts(total_threads);
@@ -293,7 +286,7 @@ std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_ma
 	CUDA_CHECK(cudaEventRecord(start));
 
 	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(
-		d_input.get(), n, static_cast<int>(k), want_max, d_thread_workspaces.get(), d_thread_counts.get(), d_block_outputs.get(), sentinel);
+		d_input.get(), n, static_cast<int>(k), want_max, d_thread_workspaces.get(), d_thread_counts.get(), d_block_outputs.get());
 
 	CUDA_CHECK(cudaEventRecord(stop));
 	CUDA_CHECK(cudaEventSynchronize(stop));
@@ -355,7 +348,6 @@ std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k,
 	const size_t max_workspace_bytes = 1024ULL * 1024ULL * 512ULL;
 	const size_t bytes_per_thread = k * sizeof(__half);
 
-	// Validate k: check that we can allocate the per-thread workspace
 	if (bytes_per_thread > max_workspace_bytes / block_size) {
 		throw std::invalid_argument(
 			"k is too large for thread-local heap MapReduce. Reduce k or use a different algorithm."
@@ -368,8 +360,6 @@ std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k,
 	if (grid_size > max_allowed_blocks) grid_size = max_allowed_blocks;
 	const int total_threads = grid_size * block_size;
 
-	__half sentinel = want_max ? __float2half(-65504.0f) : __float2half(65504.0f);
-
 	DeviceBuffer<float> d_input_float(n);
 	DeviceBuffer<__half> d_input_half(n);
 	DeviceBuffer<__half> d_thread_workspaces(static_cast<std::size_t>(total_threads) * k);
@@ -378,7 +368,6 @@ std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k,
 
 	CUDA_CHECK(cudaMemcpy(d_input_float.get(), input.data(), n * sizeof(float), cudaMemcpyHostToDevice));
 
-	// Cast float to half (vectorized + scalar tail for odd elements)
 	const std::size_t n_vec = n / 2;
 	if (n_vec > 0) {
 		const dim3 grid_vec((n_vec + block_size - 1) / block_size);
@@ -400,7 +389,7 @@ std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k,
 	CUDA_CHECK(cudaEventRecord(start));
 
 	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(
-		d_input_half.get(), n, static_cast<int>(k), want_max, d_thread_workspaces.get(), d_thread_counts.get(), d_block_outputs.get(), sentinel);
+		d_input_half.get(), n, static_cast<int>(k), want_max, d_thread_workspaces.get(), d_thread_counts.get(), d_block_outputs.get());
 
 	CUDA_CHECK(cudaEventRecord(stop));
 	CUDA_CHECK(cudaEventSynchronize(stop));
@@ -421,7 +410,6 @@ std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k,
 		stats->block_size = block_size;
 	}
 
-	// Cast the block results to host floats BEFORE std::sort to avoid host __half operator issues
 	std::vector<float> block_results(block_results_half.size());
 	for (size_t i = 0; i < block_results_half.size(); ++i) {
 		block_results[i] = __half2float(block_results_half[i]);

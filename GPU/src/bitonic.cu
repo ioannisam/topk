@@ -1,4 +1,5 @@
 #include "../include/algorithm.hpp"
+#include "../include/device_traits.cuh"
 
 #include <cstdint>
 #include <stdexcept>
@@ -64,28 +65,6 @@ struct DeviceBuffer {
 	T* operator->() const { return ptr; }
 	T& operator[](std::size_t idx) const { return ptr[idx]; }
 };
-
-template <typename T> __device__ __forceinline__ bool greater_than(T a, T b) {
-	if constexpr (std::is_same_v<T, __half>) {
-		return __hgt(a, b);
-	}
-	return a > b;
-}
-
-template <typename T> __device__ __forceinline__ bool less_than(T a, T b) {
-	if constexpr (std::is_same_v<T, __half>) {
-		return __hlt(a, b);
-	}
-	return a < b;
-}
-
-template <typename T> __device__ __forceinline__ T device_min(T a, T b) {
-	return less_than(a, b) ? a : b;
-}
-
-template <typename T> __device__ __forceinline__ T device_max(T a, T b) {
-	return greater_than(a, b) ? a : b;
-}
 
 struct FusedLayers {
 	std::uint32_t stages[16];
@@ -153,7 +132,8 @@ void bitonic_fused_shared(T* data, std::size_t total_pairs, FusedLayers layers) 
 
 			const T a = s_data[local_i];
 			const T b = s_data[local_ixj];
-			if ((ascending && greater_than(a, b)) || (!ascending && less_than(a, b))) {
+			if ((ascending && gpu::traits::DeviceTraits<T>::gt(a, b)) || 
+                (!ascending && gpu::traits::DeviceTraits<T>::lt(a, b))) {
 				s_data[local_i] = b;
 				s_data[local_ixj] = a;
 			}
@@ -182,8 +162,8 @@ __global__ void bitonic_layer_global_coalesced(T* data, std::size_t total_pairs,
 	const T a = data[i];
 	const T b = data[ixj];
 
-	const T min_val = device_min(a, b); 
-	const T max_val = device_max(a, b); 
+	const T min_val = gpu::traits::DeviceTraits<T>::min(a, b); 
+	const T max_val = gpu::traits::DeviceTraits<T>::max(a, b); 
 
 	data[i]   = ascending ? min_val : max_val;
 	data[ixj] = ascending ? max_val : min_val;
@@ -204,7 +184,7 @@ __global__ void bitonic_layer_truncate_kernel(const T* __restrict__ src, T* __re
 	const T a = src[i];
 	const T b = src[ixj];
 
-	dst[tid] = less_than(a, b) ? a : b;
+	dst[tid] = gpu::traits::DeviceTraits<T>::lt(a, b) ? a : b;
 }
 
 std::size_t choose_block_size() {
@@ -213,7 +193,6 @@ std::size_t choose_block_size() {
 	return static_cast<std::size_t>(prop.warpSize * 8);
 }
 
-// --- Core execution loop extracted for code reuse ---
 template <typename T>
 T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 						   const std::vector<common::bitonic::Layer>& layers, std::size_t block_size,
@@ -238,7 +217,7 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 		out_comparators += pairs;
 
 		if (layer.type == common::bitonic::LayerType::Truncate) {
-			out_final_n = pairs; // Array is halved in a truncate layer
+			out_final_n = pairs;
 
 			if (buffer.count > 0) {
 				const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
@@ -342,7 +321,6 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
 
 	CUDA_CHECK(cudaMemcpy(data.data(), final_src, final_n * sizeof(T), cudaMemcpyDeviceToHost));
 
-	// Resize to reflect truncation
 	data.resize(final_n);
 
 	return RunStats{elapsed_ms, launches, comparators, block_size};
@@ -362,7 +340,6 @@ RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<commo
 
 	CUDA_CHECK(cudaMemcpy(d_float_data.get(), data.data(), n * sizeof(float), cudaMemcpyHostToDevice));
 
-	// Cast float to half (vectorized + scalar tail for odd elements)
 	const std::size_t n_vec = n / 2;
 	const dim3 grid_vec((n_vec + block_size - 1) / block_size);
 	cast_float_to_half_vec2<<<grid_vec, block_size>>>(
@@ -386,7 +363,6 @@ RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<commo
 	__half* final_src = execute_network_kernels(d_half_data.get(), d_half_alt.get(), n, layers, block_size, elapsed_ms, launches,
 												comparators, final_n);
 
-	// Cast half back to float (vectorized + scalar tail for odd elements)
 	const std::size_t final_n_vec = final_n / 2;
 	const dim3 final_grid_vec((final_n_vec + block_size - 1) / block_size);
 	cast_half_to_float_vec2<<<final_grid_vec, block_size>>>(
@@ -402,10 +378,7 @@ RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<commo
 		CUDA_CHECK(cudaGetLastError());
 	}
 
-	// cudaMemcpy is synchronous, no need for explicit cudaDeviceSynchronize()
 	CUDA_CHECK(cudaMemcpy(data.data(), d_float_data.get(), final_n * sizeof(float), cudaMemcpyDeviceToHost));
-
-	// Resize to reflect truncation
 	data.resize(final_n);
 
 	return RunStats{elapsed_ms, launches, comparators, block_size};
