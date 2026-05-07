@@ -63,7 +63,9 @@ __global__ void cast_half_to_float_vec2(const __half2* __restrict__ src, float2*
 	}
 }
 
-template <typename T> __global__ void bitonic_fused_shared(T* data, std::size_t total_pairs, FusedLayers layers) {
+template <typename T> 
+__global__ __launch_bounds__(256, 4) 
+void bitonic_fused_shared(T* data, std::size_t total_pairs, FusedLayers layers) {
 	extern __shared__ char smem[];
 	T* s_data = reinterpret_cast<T*>(smem);
 
