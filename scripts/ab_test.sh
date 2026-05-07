@@ -33,12 +33,18 @@ ROOT_BUILD_DIR="${ROOT_DIR}/build"
 EXECUTABLE="${ROOT_BUILD_DIR}/${BACKEND_DIR}/topk"
 
 cases=(
-    "Small  10 16   bitonic"
-    "Medium 20 256  bitonic"
-    "Large  23 1024 bitonic"
-    "Small  10 16   map_reduce"
-    "Medium 20 256  map_reduce"
-    "Large  23 1024 map_reduce"
+    "Small  10 16   bitonic float"
+    "Small  10 16   bitonic fp16"
+    "Medium 20 256  bitonic float"
+    "Medium 20 256  bitonic fp16"
+    "Large  23 1024 bitonic float"
+    "Large  23 1024 bitonic fp16"
+    "Small  10 16   map_reduce float"
+    "Small  10 16   map_reduce fp16"
+    "Medium 20 256  map_reduce float"
+    "Medium 20 256  map_reduce fp16"
+    "Large  23 1024 map_reduce float"
+    "Large  23 1024 map_reduce fp16"
 )
 
 # Checks
@@ -84,11 +90,11 @@ run_suite() {
     > "${OUT_FILE}"
 
     for case_info in "${cases[@]}"; do
-        read -r size_name q k algo <<< "${case_info}"
+        read -r size_name q k algo dtype <<< "${case_info}"
 
         [[ "${TARGET_ALGO}" != "both" && "${algo}" != "${TARGET_ALGO}" ]] && continue
 
-        local cmd=("${EXECUTABLE}" "q=${q}" "k=${k}" "algo=${algo}")
+        local cmd=("${EXECUTABLE}" "q=${q}" "k=${k}" "algo=${algo}" "dtype=${dtype}")
         [[ "${algo}" == "bitonic" ]] && cmd+=("run=both")
 
         local min_e2e=""
@@ -108,7 +114,7 @@ run_suite() {
                 found_algo=0
                 min_e2e=""
                 min_algo=""
-                echo "   [!] ${algo} failed for q=${q}. See log: ${ERR_LOG}"
+                echo "   [!] ${algo} (${dtype}) failed for q=${q}. See log: ${ERR_LOG}"
                 break
             fi
 
@@ -148,7 +154,7 @@ run_suite() {
             duration_algo_out="ERROR"
         fi
 
-        echo "${size_name} ${q} ${k} ${algo} ${duration_e2e_out} ${duration_algo_out}" >> "${OUT_FILE}"
+        echo "${size_name} ${q} ${k} ${algo} ${dtype} ${duration_e2e_out} ${duration_algo_out}" >> "${OUT_FILE}"
     done
     echo ">> ${PHASE_NAME} run complete."
 }
@@ -178,12 +184,12 @@ if ! run_suite "Baseline (HEAD)" "${TMP_BASE}"; then exit 1; fi
 
 # Output
 echo -e "\n=== Performance Report ==="
-printf "| %-15s | %-12s | %-15s | %-14s | %-15s | %-12s | %-13s | %-12s | %-13s |\n" \
-    "Case" "Size (q/k)" "Algorithm" "Base E2E (ms)" "Base Algo (ms)" "New E2E (ms)" "New Algo (ms)" "Speedup E2E" "Speedup Algo"
-printf "|-----------------|--------------|-----------------|----------------|-----------------|--------------|---------------|--------------|---------------|\n"
+printf "| %-10s | %-12s | %-6s | %-12s | %-14s | %-15s | %-12s | %-13s | %-12s | %-13s |\n" \
+    "Case" "Size (q/k)" "Type" "Algorithm" "Base E2E (ms)" "Base Algo (ms)" "New E2E (ms)" "New Algo (ms)" "Speedup E2E" "Speedup Algo"
+printf "|------------|--------------|--------|--------------|----------------|-----------------|--------------|---------------|--------------|---------------|\n"
 
 exec 3<"${TMP_BASE}"; exec 4<"${TMP_NEW}"
-while read -u 3 base_case base_q base_k base_algo base_e2e base_algo_ms && read -u 4 new_case new_q new_k new_algo new_e2e new_algo_ms; do
+while read -u 3 base_case base_q base_k base_algo base_dtype base_e2e base_algo_ms && read -u 4 new_case new_q new_k new_algo new_dtype new_e2e new_algo_ms; do
     speedup_e2e=""
     speedup_algo=""
     if [[ "${base_e2e}" == "ERROR" || "${new_e2e}" == "ERROR" ]]; then
@@ -200,7 +206,7 @@ while read -u 3 base_case base_q base_k base_algo base_e2e base_algo_ms && read 
         else speedup_algo="$(awk -v base="${base_algo_ms}" -v new="${new_algo_ms}" 'BEGIN { printf "%.2fx", base/new }')"; fi
     fi
 
-    printf "| %-15s | %-12s | %-15s | %-14s | %-15s | %-12s | %-13s | %-12s | %-13s |\n" \
-        "${base_case}" "q=${base_q}/k=${base_k}" "${base_algo}" "${base_e2e}" "${base_algo_ms}" "${new_e2e}" "${new_algo_ms}" "${speedup_e2e}" "${speedup_algo}"
+    printf "| %-10s | %-12s | %-6s | %-12s | %-14s | %-15s | %-12s | %-13s | %-12s | %-13s |\n" \
+        "${base_case}" "q=${base_q}/k=${base_k}" "${base_dtype}" "${base_algo}" "${base_e2e}" "${base_algo_ms}" "${new_e2e}" "${new_algo_ms}" "${speedup_e2e}" "${speedup_algo}"
 done
 exec 3<&-; exec 4<&-
