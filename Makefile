@@ -64,7 +64,7 @@ benchmark:
 	@echo "=== 0. Cleaning Previous Benchmark Artifacts ==="
 	$(MAKE) profiler-clean
 	@echo "=== 1. Running Heavy Benchmark Cases ==="
-	-$(MAKE) run-cases ARGS="gt cpu gpu --types int uint float double --q-max 24 --min 0 --max 1000000000"
+	-$(MAKE) run-cases ARGS="gt cpu gpu --types int uint float double fp16 --q-max 24 --min 0 --max 1000000000"
 	@echo "=== 2. Generating Benchmark Plots ==="
 	$(MAKE) run-profiler ARGS="--plot all --error-bars none"
 

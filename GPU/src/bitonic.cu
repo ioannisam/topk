@@ -21,6 +21,50 @@ namespace {
 		}                                                                                                              \
 	} while (false)
 
+template <typename T>
+struct DeviceBuffer {
+	T* ptr = nullptr;
+	std::size_t size = 0;
+
+	explicit DeviceBuffer(std::size_t num_elements) : size(num_elements) {
+		if (size > 0) {
+			CUDA_CHECK(cudaMalloc(&ptr, size * sizeof(T)));
+		}
+	}
+
+	~DeviceBuffer() {
+		if (ptr) {
+			cudaFree(ptr);  // Silently ignore errors on destruction
+			ptr = nullptr;
+		}
+	}
+
+	// Deleted copy operations
+	DeviceBuffer(const DeviceBuffer&) = delete;
+	DeviceBuffer& operator=(const DeviceBuffer&) = delete;
+
+	// Move operations
+	DeviceBuffer(DeviceBuffer&& other) noexcept : ptr(other.ptr), size(other.size) {
+		other.ptr = nullptr;
+		other.size = 0;
+	}
+
+	DeviceBuffer& operator=(DeviceBuffer&& other) noexcept {
+		if (this != &other) {
+			if (ptr) cudaFree(ptr);
+			ptr = other.ptr;
+			size = other.size;
+			other.ptr = nullptr;
+			other.size = 0;
+		}
+		return *this;
+	}
+
+	T* get() const { return ptr; }
+	T* operator->() const { return ptr; }
+	T& operator[](std::size_t idx) const { return ptr[idx]; }
+};
+
 template <typename T> __device__ __forceinline__ bool greater_than(T a, T b) {
 	if constexpr (std::is_same_v<T, __half>) {
 		return __hgt(a, b);
@@ -56,10 +100,22 @@ __global__ void cast_float_to_half_vec2(const float2* __restrict__ src, __half2*
 	}
 }
 
+__global__ void cast_float_to_half_scalar_tail(const float* __restrict__ src, __half* __restrict__ dst, std::size_t n) {
+	if (n % 2 != 0) {
+		dst[n - 1] = __float2half(src[n - 1]);
+	}
+}
+
 __global__ void cast_half_to_float_vec2(const __half2* __restrict__ src, float2* __restrict__ dst, std::size_t num_vecs) {
 	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 	if (tid < num_vecs) {
 		dst[tid] = __half22float2(src[tid]);
+	}
+}
+
+__global__ void cast_half_to_float_scalar_tail(const __half* __restrict__ src, float* __restrict__ dst, std::size_t n) {
+	if (n % 2 != 0) {
+		dst[n - 1] = __half2float(src[n - 1]);
 	}
 }
 
@@ -271,11 +327,10 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
 	const std::size_t n = data.size();
 	const std::size_t block_size = choose_block_size();
 
-	T* d_data = nullptr;
-	T* d_data_alt = nullptr;
-	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_data), n * sizeof(T)));
-	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_data_alt), n * sizeof(T)));
-	CUDA_CHECK(cudaMemcpy(d_data, data.data(), n * sizeof(T), cudaMemcpyHostToDevice));
+	DeviceBuffer<T> d_data(n);
+	DeviceBuffer<T> d_data_alt(n);
+
+	CUDA_CHECK(cudaMemcpy(d_data.get(), data.data(), n * sizeof(T), cudaMemcpyHostToDevice));
 
 	double elapsed_ms = 0.0;
 	std::size_t launches = 0;
@@ -283,12 +338,12 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
 	std::size_t final_n = n;
 
 	T* final_src =
-		execute_network_kernels(d_data, d_data_alt, n, layers, block_size, elapsed_ms, launches, comparators, final_n);
+		execute_network_kernels(d_data.get(), d_data_alt.get(), n, layers, block_size, elapsed_ms, launches, comparators, final_n);
 
 	CUDA_CHECK(cudaMemcpy(data.data(), final_src, final_n * sizeof(T), cudaMemcpyDeviceToHost));
 
-	CUDA_CHECK(cudaFree(d_data));
-	CUDA_CHECK(cudaFree(d_data_alt));
+	// Resize to reflect truncation
+	data.resize(final_n);
 
 	return RunStats{elapsed_ms, launches, comparators, block_size};
 }
@@ -301,49 +356,57 @@ RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<commo
 	const std::size_t n = data.size();
 	const std::size_t block_size = choose_block_size();
 
-	float* d_float_data = nullptr;
-	__half* d_half_data = nullptr;
-	__half* d_half_alt = nullptr;
+	DeviceBuffer<float> d_float_data(n);
+	DeviceBuffer<__half> d_half_data(n);
+	DeviceBuffer<__half> d_half_alt(n);
 
-	CUDA_CHECK(cudaMalloc(&d_float_data, n * sizeof(float)));
-	CUDA_CHECK(cudaMalloc(&d_half_data, n * sizeof(__half)));
-	CUDA_CHECK(cudaMalloc(&d_half_alt, n * sizeof(__half)));
+	CUDA_CHECK(cudaMemcpy(d_float_data.get(), data.data(), n * sizeof(float), cudaMemcpyHostToDevice));
 
-	CUDA_CHECK(cudaMemcpy(d_float_data, data.data(), n * sizeof(float), cudaMemcpyHostToDevice));
-
+	// Cast float to half (vectorized + scalar tail for odd elements)
 	const std::size_t n_vec = n / 2;
 	const dim3 grid_vec((n_vec + block_size - 1) / block_size);
 	cast_float_to_half_vec2<<<grid_vec, block_size>>>(
-		reinterpret_cast<const float2*>(d_float_data), 
-		reinterpret_cast<__half2*>(d_half_data), 
+		reinterpret_cast<const float2*>(d_float_data.get()), 
+		reinterpret_cast<__half2*>(d_half_data.get()), 
 		n_vec
 	);
 	CUDA_CHECK(cudaGetLastError());
+
+	// Handle odd-sized input
+	if (n % 2 != 0) {
+		cast_float_to_half_scalar_tail<<<1, 1>>>(d_float_data.get(), d_half_data.get(), n);
+		CUDA_CHECK(cudaGetLastError());
+	}
 
 	double elapsed_ms = 0.0;
 	std::size_t launches = 0;
 	std::size_t comparators = 0;
 	std::size_t final_n = n;
 
-	__half* final_src = execute_network_kernels(d_half_data, d_half_alt, n, layers, block_size, elapsed_ms, launches,
+	__half* final_src = execute_network_kernels(d_half_data.get(), d_half_alt.get(), n, layers, block_size, elapsed_ms, launches,
 												comparators, final_n);
 
-	// OPTIMIZATION 1: Launch vectorized half-to-float return cast
+	// Cast half back to float (vectorized + scalar tail for odd elements)
 	const std::size_t final_n_vec = final_n / 2;
 	const dim3 final_grid_vec((final_n_vec + block_size - 1) / block_size);
 	cast_half_to_float_vec2<<<final_grid_vec, block_size>>>(
 		reinterpret_cast<const __half2*>(final_src), 
-		reinterpret_cast<float2*>(d_float_data), 
+		reinterpret_cast<float2*>(d_float_data.get()), 
 		final_n_vec
 	);
 	CUDA_CHECK(cudaGetLastError());
-	CUDA_CHECK(cudaDeviceSynchronize());
 
-	CUDA_CHECK(cudaMemcpy(data.data(), d_float_data, final_n * sizeof(float), cudaMemcpyDeviceToHost));
+	// Handle odd-sized output
+	if (final_n % 2 != 0) {
+		cast_half_to_float_scalar_tail<<<1, 1>>>(final_src, d_float_data.get(), final_n);
+		CUDA_CHECK(cudaGetLastError());
+	}
 
-	CUDA_CHECK(cudaFree(d_float_data));
-	CUDA_CHECK(cudaFree(d_half_data));
-	CUDA_CHECK(cudaFree(d_half_alt));
+	// cudaMemcpy is synchronous, no need for explicit cudaDeviceSynchronize()
+	CUDA_CHECK(cudaMemcpy(data.data(), d_float_data.get(), final_n * sizeof(float), cudaMemcpyDeviceToHost));
+
+	// Resize to reflect truncation
+	data.resize(final_n);
 
 	return RunStats{elapsed_ms, launches, comparators, block_size};
 }

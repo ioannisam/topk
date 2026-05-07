@@ -1,0 +1,675 @@
+diff --git a/GPU/include/algorithm.hpp b/GPU/include/algorithm.hpp
+index e2feccb..66501df 100644
+--- a/GPU/include/algorithm.hpp
++++ b/GPU/include/algorithm.hpp
+@@ -38,4 +38,7 @@ template <typename T>
+ std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers,
+ 						RunStats* stats = nullptr);
+ 
++std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k, bool want_max, std::size_t ex_threads,
++                                 RunStats* stats = nullptr);
++
+ } // namespace gpu::map_reduce
+diff --git a/GPU/src/bitonic.cu b/GPU/src/bitonic.cu
+index 0fcd52f..bebbdd8 100644
+--- a/GPU/src/bitonic.cu
++++ b/GPU/src/bitonic.cu
+@@ -21,6 +21,51 @@ namespace {
+ 		}                                                                                                              \
+ 	} while (false)
+ 
++// RAII wrapper for device memory - ensures cleanup even if exception occurs
++template <typename T>
++struct DeviceBuffer {
++	T* ptr = nullptr;
++	std::size_t size = 0;
++
++	explicit DeviceBuffer(std::size_t num_elements) : size(num_elements) {
++		if (size > 0) {
++			CUDA_CHECK(cudaMalloc(&ptr, size * sizeof(T)));
++		}
++	}
++
++	~DeviceBuffer() {
++		if (ptr) {
++			cudaFree(ptr);  // Silently ignore errors on destruction
++			ptr = nullptr;
++		}
++	}
++
++	// Deleted copy operations
++	DeviceBuffer(const DeviceBuffer&) = delete;
++	DeviceBuffer& operator=(const DeviceBuffer&) = delete;
++
++	// Move operations
++	DeviceBuffer(DeviceBuffer&& other) noexcept : ptr(other.ptr), size(other.size) {
++		other.ptr = nullptr;
++		other.size = 0;
++	}
++
++	DeviceBuffer& operator=(DeviceBuffer&& other) noexcept {
++		if (this != &other) {
++			if (ptr) cudaFree(ptr);
++			ptr = other.ptr;
++			size = other.size;
++			other.ptr = nullptr;
++			other.size = 0;
++		}
++		return *this;
++	}
++
++	T* get() const { return ptr; }
++	T* operator->() const { return ptr; }
++	T& operator[](std::size_t idx) const { return ptr[idx]; }
++};
++
+ template <typename T> __device__ __forceinline__ bool greater_than(T a, T b) {
+ 	if constexpr (std::is_same_v<T, __half>) {
+ 		return __hgt(a, b);
+@@ -56,6 +101,12 @@ __global__ void cast_float_to_half_vec2(const float2* __restrict__ src, __half2*
+ 	}
+ }
+ 
++__global__ void cast_float_to_half_scalar_tail(const float* __restrict__ src, __half* __restrict__ dst, std::size_t n) {
++	if (n % 2 != 0) {
++		dst[n - 1] = __float2half(src[n - 1]);
++	}
++}
++
+ __global__ void cast_half_to_float_vec2(const __half2* __restrict__ src, float2* __restrict__ dst, std::size_t num_vecs) {
+ 	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+ 	if (tid < num_vecs) {
+@@ -63,6 +114,12 @@ __global__ void cast_half_to_float_vec2(const __half2* __restrict__ src, float2*
+ 	}
+ }
+ 
++__global__ void cast_half_to_float_scalar_tail(const __half* __restrict__ src, float* __restrict__ dst, std::size_t n) {
++	if (n % 2 != 0) {
++		dst[n - 1] = __half2float(src[n - 1]);
++	}
++}
++
+ template <typename T> 
+ __global__ __launch_bounds__(256, 4) 
+ void bitonic_fused_shared(T* data, std::size_t total_pairs, FusedLayers layers) {
+@@ -271,11 +328,10 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
+ 	const std::size_t n = data.size();
+ 	const std::size_t block_size = choose_block_size();
+ 
+-	T* d_data = nullptr;
+-	T* d_data_alt = nullptr;
+-	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_data), n * sizeof(T)));
+-	CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_data_alt), n * sizeof(T)));
+-	CUDA_CHECK(cudaMemcpy(d_data, data.data(), n * sizeof(T), cudaMemcpyHostToDevice));
++	DeviceBuffer<T> d_data(n);
++	DeviceBuffer<T> d_data_alt(n);
++
++	CUDA_CHECK(cudaMemcpy(d_data.get(), data.data(), n * sizeof(T), cudaMemcpyHostToDevice));
+ 
+ 	double elapsed_ms = 0.0;
+ 	std::size_t launches = 0;
+@@ -283,12 +339,12 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
+ 	std::size_t final_n = n;
+ 
+ 	T* final_src =
+-		execute_network_kernels(d_data, d_data_alt, n, layers, block_size, elapsed_ms, launches, comparators, final_n);
++		execute_network_kernels(d_data.get(), d_data_alt.get(), n, layers, block_size, elapsed_ms, launches, comparators, final_n);
+ 
+ 	CUDA_CHECK(cudaMemcpy(data.data(), final_src, final_n * sizeof(T), cudaMemcpyDeviceToHost));
+ 
+-	CUDA_CHECK(cudaFree(d_data));
+-	CUDA_CHECK(cudaFree(d_data_alt));
++	// Resize to reflect truncation
++	data.resize(final_n);
+ 
+ 	return RunStats{elapsed_ms, launches, comparators, block_size};
+ }
+@@ -301,49 +357,57 @@ RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<commo
+ 	const std::size_t n = data.size();
+ 	const std::size_t block_size = choose_block_size();
+ 
+-	float* d_float_data = nullptr;
+-	__half* d_half_data = nullptr;
+-	__half* d_half_alt = nullptr;
++	DeviceBuffer<float> d_float_data(n);
++	DeviceBuffer<__half> d_half_data(n);
++	DeviceBuffer<__half> d_half_alt(n);
+ 
+-	CUDA_CHECK(cudaMalloc(&d_float_data, n * sizeof(float)));
+-	CUDA_CHECK(cudaMalloc(&d_half_data, n * sizeof(__half)));
+-	CUDA_CHECK(cudaMalloc(&d_half_alt, n * sizeof(__half)));
+-
+-	CUDA_CHECK(cudaMemcpy(d_float_data, data.data(), n * sizeof(float), cudaMemcpyHostToDevice));
++	CUDA_CHECK(cudaMemcpy(d_float_data.get(), data.data(), n * sizeof(float), cudaMemcpyHostToDevice));
+ 
++	// Cast float to half (vectorized + scalar tail for odd elements)
+ 	const std::size_t n_vec = n / 2;
+ 	const dim3 grid_vec((n_vec + block_size - 1) / block_size);
+ 	cast_float_to_half_vec2<<<grid_vec, block_size>>>(
+-		reinterpret_cast<const float2*>(d_float_data), 
+-		reinterpret_cast<__half2*>(d_half_data), 
++		reinterpret_cast<const float2*>(d_float_data.get()), 
++		reinterpret_cast<__half2*>(d_half_data.get()), 
+ 		n_vec
+ 	);
+ 	CUDA_CHECK(cudaGetLastError());
+ 
++	// Handle odd-sized input
++	if (n % 2 != 0) {
++		cast_float_to_half_scalar_tail<<<1, 1>>>(d_float_data.get(), d_half_data.get(), n);
++		CUDA_CHECK(cudaGetLastError());
++	}
++
+ 	double elapsed_ms = 0.0;
+ 	std::size_t launches = 0;
+ 	std::size_t comparators = 0;
+ 	std::size_t final_n = n;
+ 
+-	__half* final_src = execute_network_kernels(d_half_data, d_half_alt, n, layers, block_size, elapsed_ms, launches,
++	__half* final_src = execute_network_kernels(d_half_data.get(), d_half_alt.get(), n, layers, block_size, elapsed_ms, launches,
+ 												comparators, final_n);
+ 
+-	// OPTIMIZATION 1: Launch vectorized half-to-float return cast
++	// Cast half back to float (vectorized + scalar tail for odd elements)
+ 	const std::size_t final_n_vec = final_n / 2;
+ 	const dim3 final_grid_vec((final_n_vec + block_size - 1) / block_size);
+ 	cast_half_to_float_vec2<<<final_grid_vec, block_size>>>(
+ 		reinterpret_cast<const __half2*>(final_src), 
+-		reinterpret_cast<float2*>(d_float_data), 
++		reinterpret_cast<float2*>(d_float_data.get()), 
+ 		final_n_vec
+ 	);
+ 	CUDA_CHECK(cudaGetLastError());
+-	CUDA_CHECK(cudaDeviceSynchronize());
+ 
+-	CUDA_CHECK(cudaMemcpy(data.data(), d_float_data, final_n * sizeof(float), cudaMemcpyDeviceToHost));
++	// Handle odd-sized output
++	if (final_n % 2 != 0) {
++		cast_half_to_float_scalar_tail<<<1, 1>>>(final_src, d_float_data.get(), final_n);
++		CUDA_CHECK(cudaGetLastError());
++	}
++
++	// cudaMemcpy is synchronous, no need for explicit cudaDeviceSynchronize()
++	CUDA_CHECK(cudaMemcpy(data.data(), d_float_data.get(), final_n * sizeof(float), cudaMemcpyDeviceToHost));
+ 
+-	CUDA_CHECK(cudaFree(d_float_data));
+-	CUDA_CHECK(cudaFree(d_half_data));
+-	CUDA_CHECK(cudaFree(d_half_alt));
++	// Resize to reflect truncation
++	data.resize(final_n);
+ 
+ 	return RunStats{elapsed_ms, launches, comparators, block_size};
+ }
+diff --git a/GPU/src/map_reduce.cu b/GPU/src/map_reduce.cu
+index fa3ce89..30f3f40 100644
+--- a/GPU/src/map_reduce.cu
++++ b/GPU/src/map_reduce.cu
+@@ -3,14 +3,70 @@
+ #include <algorithm>
+ #include <cstdint>
+ #include <limits>
++#include <stdexcept>
++#include <string>
+ #include <vector>
+ 
++#include <cuda_fp16.h>
+ #include <cuda_runtime.h>
+ 
+ namespace gpu::map_reduce {
+ 
+ namespace {
+ 
++#define CUDA_CHECK(expr)                                                                                               \
++	do {                                                                                                               \
++		cudaError_t _err = (expr);                                                                                     \
++		if (_err != cudaSuccess) {                                                                                     \
++			throw std::runtime_error(std::string("CUDA error: ") + cudaGetErrorString(_err));                          \
++		}                                                                                                              \
++	} while (false)
++
++// RAII wrapper for device memory - ensures cleanup even if exception occurs
++template <typename T>
++struct DeviceBuffer {
++	T* ptr = nullptr;
++	std::size_t size = 0;
++
++	explicit DeviceBuffer(std::size_t num_elements) : size(num_elements) {
++		if (size > 0) {
++			CUDA_CHECK(cudaMalloc(&ptr, size * sizeof(T)));
++		}
++	}
++
++	~DeviceBuffer() {
++		if (ptr) {
++			cudaFree(ptr);  // Silently ignore errors on destruction
++			ptr = nullptr;
++		}
++	}
++
++	// Deleted copy operations
++	DeviceBuffer(const DeviceBuffer&) = delete;
++	DeviceBuffer& operator=(const DeviceBuffer&) = delete;
++
++	// Move operations
++	DeviceBuffer(DeviceBuffer&& other) noexcept : ptr(other.ptr), size(other.size) {
++		other.ptr = nullptr;
++		other.size = 0;
++	}
++
++	DeviceBuffer& operator=(DeviceBuffer&& other) noexcept {
++		if (this != &other) {
++			if (ptr) cudaFree(ptr);
++			ptr = other.ptr;
++			size = other.size;
++			other.ptr = nullptr;
++			other.size = 0;
++		}
++		return *this;
++	}
++
++	T* get() const { return ptr; }
++	T* operator->() const { return ptr; }
++	T& operator[](std::size_t idx) const { return ptr[idx]; }
++};
++
+ template <typename T> __device__ __forceinline__ bool beats_threshold(T candidate, T threshold, bool want_max) {
+ 	return want_max ? (candidate > threshold) : (candidate < threshold);
+ }
+@@ -41,7 +97,9 @@ template <typename T> __device__ void sift_down(T* heap, int size, int root, boo
+ }
+ 
+ template <typename T>
+-__global__ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k, bool want_max,
++__global__ 
++__launch_bounds__(256, 4) 
++void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k, bool want_max,
+ 								T* __restrict__ thread_workspaces, int* __restrict__ thread_counts,
+ 								T* __restrict__ block_outputs, T sentinel) {
+ 	if (k <= 0) {
+@@ -72,7 +130,6 @@ __global__ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int
+ 		}
+ 	}
+ 
+-	// Explicitly track how many valid elements this thread processed
+ 	thread_counts[tid] = current_size;
+ 	__syncthreads();
+ 
+@@ -89,7 +146,6 @@ __global__ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int
+ 				T* my_heap = thread_workspaces + (my_global_tid * k);
+ 				T* other_heap = thread_workspaces + (other_global_tid * k);
+ 
+-				// Only iterate over strictly valid elements in the other heap
+ 				int c_other = thread_counts[other_global_tid];
+ 				for (int j = 0; j < c_other; ++j) {
+ 					T val = other_heap[j];
+@@ -119,22 +175,20 @@ __global__ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int
+ 			for (int j = 0; j < final_count; ++j) {
+ 				block_outputs[blockIdx.x * k + j] = final_block_heap[j];
+ 			}
+-			// Pad remaining space with sentinels so the CPU reduction doesn't sort garbage memory
+ 			for (int j = final_count; j < k; ++j) {
+ 				block_outputs[blockIdx.x * k + j] = sentinel;
+ 			}
+ 		}
+ 
+ 	} else {
+-		// STRATEGY B: Sequential Merge
+-		extern __shared__ char shared_mem[];
+-		T* block_heap = reinterpret_cast<T*>(shared_mem);
+-
++		// STRATEGY B: Sequential Merge in Global Memory
+ 		if (threadIdx.x == 0) {
+-			int block_heap_size = 0;
+ 			const std::size_t block_start_tid = blockIdx.x * blockDim.x;
++			
++			T* block_heap = thread_workspaces + (block_start_tid * k);
++			int block_heap_size = thread_counts[block_start_tid];
+ 
+-			for (int t = 0; t < blockDim.x; ++t) {
++			for (int t = 1; t < blockDim.x; ++t) {
+ 				const std::size_t t_global_tid = block_start_tid + t;
+ 				T* t_heap = thread_workspaces + (t_global_tid * k);
+ 				int c_t = thread_counts[t_global_tid];
+@@ -166,6 +220,19 @@ __global__ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int
+ 	}
+ }
+ 
++__global__ void cast_float_to_half_vec2(const float2* __restrict__ src, __half2* __restrict__ dst, std::size_t num_vecs) {
++	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
++	if (tid < num_vecs) {
++		dst[tid] = __float22half2_rn(src[tid]);
++	}
++}
++
++__global__ void cast_float_to_half_scalar_tail(const float* __restrict__ src, __half* __restrict__ dst, std::size_t n) {
++	if (n % 2 != 0) {
++		dst[n - 1] = __float2half(src[n - 1]);
++	}
++}
++
+ } // namespace
+ 
+ template <typename T>
+@@ -178,52 +245,67 @@ std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_ma
+ 	}
+ 
+ 	cudaDeviceProp prop{};
+-	cudaGetDeviceProperties(&prop, 0);
++	CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
+ 	const int block_size = 256;
+ 
+-	size_t shared_mem_size = (k > 256) ? (k * sizeof(T)) : 0;
++	const size_t shared_mem_size = 0;
+ 
+ 	int num_blocks;
+-	cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, topk_map_kernel<T>, block_size, shared_mem_size);
+-	const int grid_size = prop.multiProcessorCount * num_blocks;
++	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, topk_map_kernel<T>, block_size, shared_mem_size));
++	int grid_size = prop.multiProcessorCount * num_blocks;
++
++	const size_t max_workspace_bytes = 1024ULL * 1024ULL * 512ULL;
++	const size_t bytes_per_thread = k * sizeof(T);
++
++	// Validate k: check that we can allocate the per-thread workspace
++	if (bytes_per_thread > max_workspace_bytes / block_size) {
++		throw std::invalid_argument(
++			"k is too large for thread-local heap MapReduce. Reduce k or use a different algorithm."
++		);
++	}
++
++	const int max_allowed_threads = std::max<int>(block_size, static_cast<int>(max_workspace_bytes / bytes_per_thread));
++	const int max_allowed_blocks = max_allowed_threads / block_size;
++
++	if (grid_size > max_allowed_blocks) {
++		grid_size = max_allowed_blocks;
++	}
++
+ 	const int total_threads = grid_size * block_size;
+-	const T sentinel = want_max ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
+ 
+-	T* d_input = nullptr;
+-	T* d_thread_workspaces = nullptr;
+-	int* d_thread_counts = nullptr;
+-	T* d_block_outputs = nullptr;
++	T sentinel;
++	if constexpr (std::is_same_v<T, __half>) {
++		sentinel = want_max ? __float2half(-65504.0f) : __float2half(65504.0f);
++	} else {
++		sentinel = want_max ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
++	}
+ 
+-	cudaMalloc(&d_input, n * sizeof(T));
+-	cudaMemcpy(d_input, input.data(), n * sizeof(T), cudaMemcpyHostToDevice);
++	DeviceBuffer<T> d_input(n);
++	DeviceBuffer<T> d_thread_workspaces(static_cast<std::size_t>(total_threads) * k);
++	DeviceBuffer<int> d_thread_counts(total_threads);
++	DeviceBuffer<T> d_block_outputs(static_cast<std::size_t>(grid_size) * k);
+ 
+-	cudaMalloc(&d_thread_workspaces, total_threads * k * sizeof(T));
+-	cudaMalloc(&d_thread_counts, total_threads * sizeof(int));
+-	cudaMalloc(&d_block_outputs, grid_size * k * sizeof(T));
++	CUDA_CHECK(cudaMemcpy(d_input.get(), input.data(), n * sizeof(T), cudaMemcpyHostToDevice));
+ 
+ 	cudaEvent_t start, stop;
+-	cudaEventCreate(&start);
+-	cudaEventCreate(&stop);
+-	cudaEventRecord(start);
++	CUDA_CHECK(cudaEventCreate(&start));
++	CUDA_CHECK(cudaEventCreate(&stop));
++	CUDA_CHECK(cudaEventRecord(start));
+ 
+ 	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(
+-		d_input, n, static_cast<int>(k), want_max, d_thread_workspaces, d_thread_counts, d_block_outputs, sentinel);
++		d_input.get(), n, static_cast<int>(k), want_max, d_thread_workspaces.get(), d_thread_counts.get(), d_block_outputs.get(), sentinel);
+ 
+-	cudaEventRecord(stop);
+-	cudaEventSynchronize(stop);
++	CUDA_CHECK(cudaEventRecord(stop));
++	CUDA_CHECK(cudaEventSynchronize(stop));
+ 
+ 	float elapsed_ms;
+-	cudaEventElapsedTime(&elapsed_ms, start, stop);
++	CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms, start, stop));
+ 
+-	std::vector<T> block_results(grid_size * k);
+-	cudaMemcpy(block_results.data(), d_block_outputs, grid_size * k * sizeof(T), cudaMemcpyDeviceToHost);
++	std::vector<T> block_results(static_cast<std::size_t>(grid_size) * k);
++	CUDA_CHECK(cudaMemcpy(block_results.data(), d_block_outputs.get(), static_cast<std::size_t>(grid_size) * k * sizeof(T), cudaMemcpyDeviceToHost));
+ 
+-	cudaFree(d_input);
+-	cudaFree(d_thread_workspaces);
+-	cudaFree(d_thread_counts);
+-	cudaFree(d_block_outputs);
+-	cudaEventDestroy(start);
+-	cudaEventDestroy(stop);
++	CUDA_CHECK(cudaEventDestroy(start));
++	CUDA_CHECK(cudaEventDestroy(stop));
+ 
+ 	if (stats != nullptr) {
+ 		stats->elapsed_ms = elapsed_ms;
+@@ -254,6 +336,119 @@ std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_ma
+ 	return block_results;
+ }
+ 
++std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k, bool want_max, std::size_t ex_threads,
++                                 RunStats* stats) {
++	const std::size_t n = input.size();
++	if (k == 0 || input.empty()) {
++		return {};
++	}
++
++	cudaDeviceProp prop{};
++	CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
++	const int block_size = 256;
++	const size_t shared_mem_size = 0;
++
++	int num_blocks;
++	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, topk_map_kernel<__half>, block_size, shared_mem_size));
++	int grid_size = prop.multiProcessorCount * num_blocks;
++
++	const size_t max_workspace_bytes = 1024ULL * 1024ULL * 512ULL;
++	const size_t bytes_per_thread = k * sizeof(__half);
++
++	// Validate k: check that we can allocate the per-thread workspace
++	if (bytes_per_thread > max_workspace_bytes / block_size) {
++		throw std::invalid_argument(
++			"k is too large for thread-local heap MapReduce. Reduce k or use a different algorithm."
++		);
++	}
++
++	const int max_allowed_threads = std::max<int>(block_size, static_cast<int>(max_workspace_bytes / bytes_per_thread));
++	const int max_allowed_blocks = max_allowed_threads / block_size;
++
++	if (grid_size > max_allowed_blocks) grid_size = max_allowed_blocks;
++	const int total_threads = grid_size * block_size;
++
++	__half sentinel = want_max ? __float2half(-65504.0f) : __float2half(65504.0f);
++
++	DeviceBuffer<float> d_input_float(n);
++	DeviceBuffer<__half> d_input_half(n);
++	DeviceBuffer<__half> d_thread_workspaces(static_cast<std::size_t>(total_threads) * k);
++	DeviceBuffer<int> d_thread_counts(total_threads);
++	DeviceBuffer<__half> d_block_outputs(static_cast<std::size_t>(grid_size) * k);
++
++	CUDA_CHECK(cudaMemcpy(d_input_float.get(), input.data(), n * sizeof(float), cudaMemcpyHostToDevice));
++
++	// Cast float to half (vectorized + scalar tail for odd elements)
++	const std::size_t n_vec = n / 2;
++	if (n_vec > 0) {
++		const dim3 grid_vec((n_vec + block_size - 1) / block_size);
++		cast_float_to_half_vec2<<<grid_vec, block_size>>>(
++			reinterpret_cast<const float2*>(d_input_float.get()), 
++			reinterpret_cast<__half2*>(d_input_half.get()), 
++			n_vec
++		);
++		CUDA_CHECK(cudaGetLastError());
++	}
++	if (n % 2 != 0) {
++		cast_float_to_half_scalar_tail<<<1, 1>>>(d_input_float.get(), d_input_half.get(), n);
++		CUDA_CHECK(cudaGetLastError());
++	}
++
++	cudaEvent_t start, stop;
++	CUDA_CHECK(cudaEventCreate(&start));
++	CUDA_CHECK(cudaEventCreate(&stop));
++	CUDA_CHECK(cudaEventRecord(start));
++
++	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(
++		d_input_half.get(), n, static_cast<int>(k), want_max, d_thread_workspaces.get(), d_thread_counts.get(), d_block_outputs.get(), sentinel);
++
++	CUDA_CHECK(cudaEventRecord(stop));
++	CUDA_CHECK(cudaEventSynchronize(stop));
++
++	float elapsed_ms;
++	CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms, start, stop));
++
++	std::vector<__half> block_results_half(static_cast<std::size_t>(grid_size) * k);
++	CUDA_CHECK(cudaMemcpy(block_results_half.data(), d_block_outputs.get(), static_cast<std::size_t>(grid_size) * k * sizeof(__half), cudaMemcpyDeviceToHost));
++
++	CUDA_CHECK(cudaEventDestroy(start));
++	CUDA_CHECK(cudaEventDestroy(stop));
++
++	if (stats != nullptr) {
++		stats->elapsed_ms = elapsed_ms;
++		stats->tiles_used = grid_size;
++		stats->aggregated_candidates = grid_size * k;
++		stats->block_size = block_size;
++	}
++
++	// Cast the block results to host floats BEFORE std::sort to avoid host __half operator issues
++	std::vector<float> block_results(block_results_half.size());
++	for (size_t i = 0; i < block_results_half.size(); ++i) {
++		block_results[i] = __half2float(block_results_half[i]);
++	}
++
++	if (block_results.size() > k) {
++		auto mid = block_results.begin() + static_cast<std::ptrdiff_t>(k);
++		if (want_max) {
++			std::nth_element(block_results.begin(), mid, block_results.end(), std::greater<float>());
++			block_results.resize(k);
++			std::sort(block_results.begin(), block_results.end(), std::greater<float>());
++		} else {
++			std::nth_element(block_results.begin(), mid, block_results.end(), std::less<float>());
++			block_results.resize(k);
++			std::sort(block_results.begin(), block_results.end(), std::less<float>());
++		}
++	} else {
++		if (want_max) {
++			std::sort(block_results.begin(), block_results.end(), std::greater<float>());
++		} else {
++			std::sort(block_results.begin(), block_results.end(), std::less<float>());
++		}
++	}
++
++	return block_results;
++}
++
+ template std::vector<float> run_topk<float>(const std::vector<float>&, std::size_t, bool, std::size_t, RunStats*);
+ template std::vector<std::int32_t> run_topk<std::int32_t>(const std::vector<std::int32_t>&, std::size_t, bool,
+ 														  std::size_t, RunStats*);
+diff --git a/GPU/src/runner.cpp b/GPU/src/runner.cpp
+index fd7e7ae..6c969a9 100644
+--- a/GPU/src/runner.cpp
++++ b/GPU/src/runner.cpp
+@@ -185,6 +185,67 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
+ 	gpu::map_reduce::RunStats last_stats{0.0, 0, 0, 0};
+ };
+ 
++class GpuMapReduceFp16Hooks final : public common::topk::MapReduceRunnerHooks<float> {
++  public:
++	explicit GpuMapReduceFp16Hooks() : device_name(gpu::bitonic::query_device_name()) {}
++
++	void print_configuration(const Config& cfg, std::size_t n) override {
++		gpu::reporting::print_configuration(cfg, n, device_name);
++	}
++
++	std::vector<float> run(const std::vector<float>& input, const Config& cfg,
++					       common::topk::MapReduceRunStats* stats) override {
++		common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
++			gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
++			gpu::map_reduce::run_topk_fp16(input, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
++		});
++
++		auto best = common::benchmark::measure_best(
++			common::benchmark::kMeasureIters,
++			[&]() -> common::benchmark::TimedValueWithStats<std::vector<float>, gpu::map_reduce::RunStats> {
++				gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
++				auto t0 = std::chrono::high_resolution_clock::now();
++				
++				std::vector<float> output =
++					gpu::map_reduce::run_topk_fp16(input, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
++					
++				auto t1 = std::chrono::high_resolution_clock::now();
++				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
++
++				return common::benchmark::TimedValueWithStats<std::vector<float>, gpu::map_reduce::RunStats>{
++					elapsed_wall_ms, std::move(output), map_stats
++				};
++			});
++
++		if (stats != nullptr) {
++			stats->end_to_end_ms = best.elapsed_ms;
++			stats->algorithm_ms = best.stats.elapsed_ms;
++			stats->tiles_used = best.stats.tiles_used;
++			stats->aggregated_candidates = best.stats.aggregated_candidates;
++			std::cout << "[PROFILE_TIME_MS] " << stats->end_to_end_ms << "\n";
++		} else {
++			std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
++		}
++
++		last_stats = best.stats;
++		return std::move(best.value);
++	}
++
++	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
++		if (!cfg.debug_output) return;
++		common::reporting::print_section_header("Debug Metrics");
++		common::reporting::print_key_value("CUDA device", device_name);
++		common::reporting::print_key_value("Tiles used", stats.tiles_used);
++		common::reporting::print_key_value("Aggregated candidates", stats.aggregated_candidates);
++		common::reporting::print_key_value("CUDA block size", last_stats.block_size);
++	}
++
++  private:
++	std::string device_name;
++	gpu::map_reduce::RunStats last_stats{0.0, 0, 0, 0};
++};
++
++
+ template <typename T> int topk_typed(const Config& cfg) {
+ 	GpuBitonicRunnerHooks<T> hooks(false);
+ 	return common::topk::execute_bitonic<T>(cfg, hooks);
+@@ -200,6 +261,11 @@ int topk_fp16(const Config& cfg) {
+ 	return common::topk::execute_bitonic<float>(cfg, hooks);
+ }
+ 
++int topk_fp16_map_reduce(const Config& cfg) {
++	GpuMapReduceFp16Hooks hooks;
++	return common::topk::execute_map_reduce<float>(cfg, hooks);
++}
++
+ } // namespace
+ 
+ int execute(const common::config::Config& cfg) {
+@@ -216,7 +282,7 @@ int execute(const common::config::Config& cfg) {
+ 		return cfg.algorithm == Algorithm::MapReduce ? topk_typed_map_reduce<double>(cfg) : topk_typed<double>(cfg);
+ 	case DataType::Fp16:
+ 		if (cfg.algorithm == Algorithm::MapReduce) {
+-			throw std::invalid_argument("GPU map-reduce currently supports dtype=int|uint|float|double");
++			return topk_fp16_map_reduce(cfg);
+ 		}
+ 		return topk_fp16(cfg);
+ 	}
+diff --git a/Makefile b/Makefile
+index 4ec0a7e..770c3dd 100644
+--- a/Makefile
++++ b/Makefile
+@@ -64,7 +64,7 @@ benchmark:
+ 	@echo "=== 0. Cleaning Previous Benchmark Artifacts ==="
+ 	$(MAKE) profiler-clean
+ 	@echo "=== 1. Running Heavy Benchmark Cases ==="
+-	-$(MAKE) run-cases ARGS="gt cpu gpu --types int uint float double --q-max 24 --min 0 --max 1000000000"
++	-$(MAKE) run-cases ARGS="gt cpu gpu --types int uint float double fp16 --q-max 24 --min 0 --max 1000000000"
+ 	@echo "=== 2. Generating Benchmark Plots ==="
+ 	$(MAKE) run-profiler ARGS="--plot all --error-bars none"
+ 

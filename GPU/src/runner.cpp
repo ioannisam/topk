@@ -185,6 +185,67 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 	gpu::map_reduce::RunStats last_stats{0.0, 0, 0, 0};
 };
 
+class GpuMapReduceFp16Hooks final : public common::topk::MapReduceRunnerHooks<float> {
+  public:
+	explicit GpuMapReduceFp16Hooks() : device_name(gpu::bitonic::query_device_name()) {}
+
+	void print_configuration(const Config& cfg, std::size_t n) override {
+		gpu::reporting::print_configuration(cfg, n, device_name);
+	}
+
+	std::vector<float> run(const std::vector<float>& input, const Config& cfg,
+					       common::topk::MapReduceRunStats* stats) override {
+		common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
+			gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
+			gpu::map_reduce::run_topk_fp16(input, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
+		});
+
+		auto best = common::benchmark::measure_best(
+			common::benchmark::kMeasureIters,
+			[&]() -> common::benchmark::TimedValueWithStats<std::vector<float>, gpu::map_reduce::RunStats> {
+				gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
+				auto t0 = std::chrono::high_resolution_clock::now();
+				
+				std::vector<float> output =
+					gpu::map_reduce::run_topk_fp16(input, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
+					
+				auto t1 = std::chrono::high_resolution_clock::now();
+				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+				return common::benchmark::TimedValueWithStats<std::vector<float>, gpu::map_reduce::RunStats>{
+					elapsed_wall_ms, std::move(output), map_stats
+				};
+			});
+
+		if (stats != nullptr) {
+			stats->end_to_end_ms = best.elapsed_ms;
+			stats->algorithm_ms = best.stats.elapsed_ms;
+			stats->tiles_used = best.stats.tiles_used;
+			stats->aggregated_candidates = best.stats.aggregated_candidates;
+			std::cout << "[PROFILE_TIME_MS] " << stats->end_to_end_ms << "\n";
+		} else {
+			std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
+		}
+
+		last_stats = best.stats;
+		return std::move(best.value);
+	}
+
+	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
+		if (!cfg.debug_output) return;
+		common::reporting::print_section_header("Debug Metrics");
+		common::reporting::print_key_value("CUDA device", device_name);
+		common::reporting::print_key_value("Tiles used", stats.tiles_used);
+		common::reporting::print_key_value("Aggregated candidates", stats.aggregated_candidates);
+		common::reporting::print_key_value("CUDA block size", last_stats.block_size);
+	}
+
+  private:
+	std::string device_name;
+	gpu::map_reduce::RunStats last_stats{0.0, 0, 0, 0};
+};
+
+
 template <typename T> int topk_typed(const Config& cfg) {
 	GpuBitonicRunnerHooks<T> hooks(false);
 	return common::topk::execute_bitonic<T>(cfg, hooks);
@@ -198,6 +259,11 @@ template <typename T> int topk_typed_map_reduce(const Config& cfg) {
 int topk_fp16(const Config& cfg) {
 	GpuBitonicRunnerHooks<float> hooks(true);
 	return common::topk::execute_bitonic<float>(cfg, hooks);
+}
+
+int topk_fp16_map_reduce(const Config& cfg) {
+	GpuMapReduceFp16Hooks hooks;
+	return common::topk::execute_map_reduce<float>(cfg, hooks);
 }
 
 } // namespace
@@ -216,7 +282,7 @@ int execute(const common::config::Config& cfg) {
 		return cfg.algorithm == Algorithm::MapReduce ? topk_typed_map_reduce<double>(cfg) : topk_typed<double>(cfg);
 	case DataType::Fp16:
 		if (cfg.algorithm == Algorithm::MapReduce) {
-			throw std::invalid_argument("GPU map-reduce currently supports dtype=int|uint|float|double");
+			return topk_fp16_map_reduce(cfg);
 		}
 		return topk_fp16(cfg);
 	}
