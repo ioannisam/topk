@@ -30,14 +30,27 @@ esac
 
 ROOT_BUILD_DIR="${ROOT_DIR}/build"
 EXECUTABLE="${ROOT_BUILD_DIR}/${BACKEND_DIR}/topk"
+TIMEOUT_SECONDS="${TOPK_TEST_TIMEOUT_SECONDS:-300}"
 
 cases=(
-    "Small  10 16   bitonic"
-    "Medium 20 256  bitonic"
-    "Large  23 1024 bitonic"
-    "Small  10 16   map_reduce"
-    "Medium 20 256  map_reduce"
-    "Large  23 1024 map_reduce"
+    "Small  10 16   bitonic float"
+    "Small  10 16   bitonic fp16"
+    "Small  10 16   bitonic double"
+    "Medium 20 256  bitonic float"
+    "Medium 20 256  bitonic fp16"
+    "Medium 20 256  bitonic double"
+    "Large  23 1024 bitonic float"
+    "Large  23 1024 bitonic fp16"
+    "Large  23 1024 bitonic double"
+    "Small  10 16   map_reduce float"
+    "Small  10 16   map_reduce fp16"
+    "Small  10 16   map_reduce double"
+    "Medium 20 256  map_reduce float"
+    "Medium 20 256  map_reduce fp16"
+    "Medium 20 256  map_reduce double"
+    "Large  23 1024 map_reduce float"
+    "Large  23 1024 map_reduce fp16"
+    "Large  23 1024 map_reduce double"
 )
 
 # Checks
@@ -81,11 +94,11 @@ run_suite() {
     > "${OUT_FILE}"
 
     for case_info in "${cases[@]}"; do
-        read -r size_name q k algo <<< "${case_info}"
+        read -r size_name q k algo dtype <<< "${case_info}"
 
         [[ "${TARGET_ALGO}" != "both" && "${algo}" != "${TARGET_ALGO}" ]] && continue
 
-        local cmd=("${EXECUTABLE}" "q=${q}" "k=${k}" "algo=${algo}")
+        local cmd=("${EXECUTABLE}" "q=${q}" "k=${k}" "algo=${algo}" "dtype=${dtype}")
         [[ "${algo}" == "bitonic" ]] && cmd+=("run=both")
 
         local min_e2e=""
@@ -98,14 +111,18 @@ run_suite() {
         for ((i=1; i<=runs; i++)); do
             local ERR_LOG; ERR_LOG="$(mktemp)"
             local RAW_OUTPUT
-            RAW_OUTPUT=$("${cmd[@]}" 2>>"${ERR_LOG}") || exit_code=$?
+            RAW_OUTPUT=$(timeout --preserve-status "${TIMEOUT_SECONDS}"s "${cmd[@]}" 2>>"${ERR_LOG}") || exit_code=$?
 
             if [[ ${exit_code} -ne 0 ]]; then
                 found_e2e=0
                 found_algo=0
                 min_e2e=""
                 min_algo=""
-                echo "   [!] ${algo} failed for q=${q}. See log: ${ERR_LOG}"
+                if [[ ${exit_code} -eq 124 ]]; then
+                    echo "   [!] ${algo} (${dtype}) timed out after ${TIMEOUT_SECONDS}s for q=${q}. See log: ${ERR_LOG}"
+                else
+                    echo "   [!] ${algo} (${dtype}) failed for q=${q}. See log: ${ERR_LOG}"
+                fi
                 break
             fi
 
@@ -145,7 +162,7 @@ run_suite() {
             duration_algo_out="ERROR"
         fi
 
-        echo "${size_name} ${q} ${k} ${algo} ${duration_e2e_out} ${duration_algo_out}" >> "${OUT_FILE}"
+        echo "${size_name} ${q} ${k} ${algo} ${dtype} ${duration_e2e_out} ${duration_algo_out}" >> "${OUT_FILE}"
     done
 }
 
@@ -164,12 +181,11 @@ if ! run_suite "${TMP_OUT}"; then exit 1; fi
 
 # Output
 echo -e "\n=== Performance Report ==="
-printf "| %-15s | %-12s | %-15s | %-14s | %-15s |\n" \
-    "Case" "Size (q/k)" "Algorithm" "E2E (ms)" "Algo (ms)"
-printf "|-----------------|--------------|-----------------|----------------|-----------------|
-"
+printf "| %-15s | %-12s | %-15s | %-6s | %-14s | %-15s |\n" \
+    "Case" "Size (q/k)" "Algorithm" "Type" "E2E (ms)" "Algo (ms)"
+printf "|-----------------|--------------|-----------------|--------|----------------|-----------------|\n"
 
-while read -r case_name q k algo e2e algo_ms; do
-    printf "| %-15s | %-12s | %-15s | %-14s | %-15s |\n" \
-        "${case_name}" "q=${q}/k=${k}" "${algo}" "${e2e}" "${algo_ms}"
+while read -r case_name q k algo dtype e2e algo_ms; do
+    printf "| %-15s | %-12s | %-15s | %-6s | %-14s | %-15s |\n" \
+        "${case_name}" "q=${q}/k=${k}" "${algo}" "${dtype}" "${e2e}" "${algo_ms}"
 done < "${TMP_OUT}"

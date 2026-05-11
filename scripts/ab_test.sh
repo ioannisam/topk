@@ -31,20 +31,27 @@ esac
 
 ROOT_BUILD_DIR="${ROOT_DIR}/build"
 EXECUTABLE="${ROOT_BUILD_DIR}/${BACKEND_DIR}/topk"
+TIMEOUT_SECONDS="${TOPK_TEST_TIMEOUT_SECONDS:-300}"
 
 cases=(
     "Small  10 16   bitonic float"
     "Small  10 16   bitonic fp16"
+    "Small  10 16   bitonic double"
     "Medium 20 256  bitonic float"
     "Medium 20 256  bitonic fp16"
+    "Medium 20 256  bitonic double"
     "Large  23 1024 bitonic float"
     "Large  23 1024 bitonic fp16"
+    "Large  23 1024 bitonic double"
     "Small  10 16   map_reduce float"
     "Small  10 16   map_reduce fp16"
+    "Small  10 16   map_reduce double"
     "Medium 20 256  map_reduce float"
     "Medium 20 256  map_reduce fp16"
+    "Medium 20 256  map_reduce double"
     "Large  23 1024 map_reduce float"
     "Large  23 1024 map_reduce fp16"
+    "Large  23 1024 map_reduce double"
 )
 
 # Checks
@@ -107,14 +114,18 @@ run_suite() {
         for ((i=1; i<=runs; i++)); do
             local ERR_LOG; ERR_LOG="$(mktemp)"
             local RAW_OUTPUT
-            RAW_OUTPUT=$("${cmd[@]}" 2>>"${ERR_LOG}") || exit_code=$?
+            RAW_OUTPUT=$(timeout --preserve-status "${TIMEOUT_SECONDS}"s "${cmd[@]}" 2>>"${ERR_LOG}") || exit_code=$?
 
             if [[ ${exit_code} -ne 0 ]]; then
                 found_e2e=0
                 found_algo=0
                 min_e2e=""
                 min_algo=""
-                echo "   [!] ${algo} (${dtype}) failed for q=${q}. See log: ${ERR_LOG}"
+                if [[ ${exit_code} -eq 124 ]]; then
+                    echo "   [!] ${algo} (${dtype}) timed out after ${TIMEOUT_SECONDS}s for q=${q}. See log: ${ERR_LOG}"
+                else
+                    echo "   [!] ${algo} (${dtype}) failed for q=${q}. See log: ${ERR_LOG}"
+                fi
                 break
             fi
 

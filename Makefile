@@ -3,14 +3,15 @@ BUILD_DIR := build
 ARGS ?=
 
 .PHONY: all help build-all build-cpu build-gpu build-npu build-gt clean \
-	run-cases run-energy run-profiler profiler-bootstrap profiler-clean \
-	smoke lint specs a-test ab-test
+	run-cpu run-gpu run-npu run-cases run-energy run-profiler \
+	profiler-bootstrap profiler-clean smoke lint specs a-test ab-test
 
 all: build-all
 
 help:
 	@echo "Targets:"
 	@echo "  build-all | build-cpu | build-gpu | build-npu | build-gt"
+	@echo "  run-cpu | run-gpu | run-npu       - run backend binaries (ARGS=...)"
 	@echo "  smoke                           - run smoke tests"
 	@echo "  run-cases                       - run testcase suite via runner.py (ARGS=...)"
 	@echo "  run-energy                      - energy measurement run (ARGS=...)"
@@ -41,6 +42,15 @@ build-npu: $(BUILD_DIR)
 build-gt: $(BUILD_DIR)
 	cd $(BUILD_DIR) && cmake .. -DTOPK_BUILD_CPU=OFF -DTOPK_BUILD_GPU=OFF -DTOPK_BUILD_NPU=OFF -DTOPK_BUILD_GT=ON
 	cd $(BUILD_DIR) && make -j$(shell nproc)
+
+run-cpu: build-cpu
+	./$(BUILD_DIR)/CPU/topk $(ARGS)
+
+run-gpu: build-gpu
+	./$(BUILD_DIR)/GPU/topk $(ARGS)
+
+run-npu: build-npu
+	./$(BUILD_DIR)/NPU/topk $(ARGS)
 
 smoke:
 	./test/smoke/run_smoke_tests.sh
