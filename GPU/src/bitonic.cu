@@ -169,6 +169,27 @@ __global__ void bitonic_layer_global_coalesced(T* data, std::size_t total_pairs,
 	data[ixj] = ascending ? max_val : min_val;
 }
 
+__global__ void bitonic_layer_global_coalesced_half2(__half2* data, std::size_t total_vec_pairs, std::size_t stage_vec, std::size_t step_vec) {
+	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+	if (tid >= total_vec_pairs) {
+		return;
+	}
+
+	const std::size_t low = tid & (step_vec - 1);
+	const std::size_t i = ((tid - low) << 1) + low;
+	const std::size_t ixj = i + step_vec;
+	const bool ascending = (i & stage_vec) == 0;
+
+	const __half2 a = data[i];
+	const __half2 b = data[ixj];
+
+	const __half2 min_val = __hmin2(a, b);
+	const __half2 max_val = __hmax2(a, b);
+
+	data[i]   = ascending ? min_val : max_val;
+	data[ixj] = ascending ? max_val : min_val;
+}
+
 template <typename T>
 __global__ void bitonic_layer_truncate_kernel(const T* __restrict__ src, T* __restrict__ dst, std::size_t pairs,
 											  std::size_t step) {
@@ -263,8 +284,20 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 		}
 
 		if (step > block_size) {
-			const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
-			bitonic_layer_global_coalesced<<<grid, block_size>>>(current_src, pairs, stage, step);
+			if constexpr (std::is_same_v<T, __half>) {
+				const std::size_t vec_pairs = pairs / 2;
+				const dim3 grid(static_cast<unsigned int>((vec_pairs + block_size - 1) / block_size));
+				
+				bitonic_layer_global_coalesced_half2<<<grid, block_size>>>(
+					reinterpret_cast<__half2*>(current_src), 
+					vec_pairs, 
+					stage / 2, 
+					step / 2
+				);
+			} else {
+				const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
+				bitonic_layer_global_coalesced<<<grid, block_size>>>(current_src, pairs, stage, step);
+			}
 			CUDA_CHECK(cudaGetLastError());
 			out_launches++;
 		}
