@@ -62,24 +62,33 @@ void run_layer_inter_simd(T* ptr, std::size_t begin, std::size_t end, std::size_
 		if (chunk_end > n)
 			chunk_end = n;
 
-		for (; i + TraitsT::width - 1 < chunk_end; i += TraitsT::width) {
-			const bool asc = (i & k) == 0;
-			std::size_t ixj = i + j;
+        const bool asc = (i & k) == 0;
+        if (asc) {
+            for (; i + TraitsT::width - 1 < chunk_end; i += TraitsT::width) {
+                std::size_t ixj = i + j;
+                auto v1 = TraitsT::load(ptr + i);
+                auto v2 = TraitsT::load(ptr + ixj);
 
-			auto v1 = TraitsT::load(ptr + i);
-			auto v2 = TraitsT::load(ptr + ixj);
+                auto lo = TraitsT::min(v1, v2);
+                auto hi = TraitsT::max(v1, v2);
 
-			auto lo = TraitsT::min(v1, v2);
-			auto hi = TraitsT::max(v1, v2);
+                TraitsT::store(ptr + i, lo);
+                TraitsT::store(ptr + ixj, hi);
+            }
+        } else {
+            for (; i + TraitsT::width - 1 < chunk_end; i += TraitsT::width) {
+                std::size_t ixj = i + j;
+                auto v1 = TraitsT::load(ptr + i);
+                auto v2 = TraitsT::load(ptr + ixj);
 
-			if (asc) {
-				TraitsT::store(ptr + i, lo);
-				TraitsT::store(ptr + ixj, hi);
-			} else {
-				TraitsT::store(ptr + i, hi);
-				TraitsT::store(ptr + ixj, lo);
-			}
-		}
+                auto lo = TraitsT::min(v1, v2);
+                auto hi = TraitsT::max(v1, v2);
+
+                // Store inverted for descending
+                TraitsT::store(ptr + i, hi);
+                TraitsT::store(ptr + ixj, lo);
+            }
+        }
 
 		// Scalar fallback
 		for (; i < chunk_end; ++i) {
