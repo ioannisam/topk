@@ -14,6 +14,8 @@ namespace gpu::bitonic {
 
 namespace {
 
+constexpr std::size_t BITONIC_BLOCK_SIZE = 256;
+
 #define CUDA_CHECK(expr)                                                                                               \
 	do {                                                                                                               \
 		cudaError_t _err = (expr);                                                                                     \
@@ -34,10 +36,8 @@ struct DeviceBuffer {
 	}
 
 	~DeviceBuffer() {
-		if (ptr) {
-			cudaFree(ptr);  // Silently ignore errors on destruction
-			ptr = nullptr;
-		}
+		cudaFree(ptr);
+		ptr = nullptr;
 	}
 
 	// Deleted copy operations
@@ -52,7 +52,7 @@ struct DeviceBuffer {
 
 	DeviceBuffer& operator=(DeviceBuffer&& other) noexcept {
 		if (this != &other) {
-			if (ptr) cudaFree(ptr);
+			cudaFree(ptr);
 			ptr = other.ptr;
 			size = other.size;
 			other.ptr = nullptr;
@@ -208,12 +208,6 @@ __global__ void bitonic_layer_truncate_kernel(const T* __restrict__ src, T* __re
 	dst[tid] = gpu::traits::DeviceTraits<T>::lt(a, b) ? a : b;
 }
 
-std::size_t choose_block_size() {
-	cudaDeviceProp prop{};
-	CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
-	return static_cast<std::size_t>(prop.warpSize * 8);
-}
-
 template <typename T>
 T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 						   const std::vector<common::bitonic::Layer>& layers, std::size_t block_size,
@@ -337,7 +331,7 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
 	}
 
 	const std::size_t n = data.size();
-	const std::size_t block_size = choose_block_size();
+	const std::size_t block_size = BITONIC_BLOCK_SIZE;
 
 	DeviceBuffer<T> d_data(n);
 	DeviceBuffer<T> d_data_alt(n);
@@ -365,7 +359,7 @@ RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<commo
 	}
 
 	const std::size_t n = data.size();
-	const std::size_t block_size = choose_block_size();
+	const std::size_t block_size = BITONIC_BLOCK_SIZE;
 
 	DeviceBuffer<float> d_float_data(n);
 	DeviceBuffer<__half> d_half_data(n);
