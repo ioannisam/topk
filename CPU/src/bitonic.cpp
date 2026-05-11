@@ -260,8 +260,8 @@ class SpinBarrier {
 
   private:
 	std::size_t threshold;
-	std::atomic<std::size_t> count;
-	std::atomic<std::size_t> generation;
+	alignas(64) std::atomic<std::size_t> count;
+	alignas(64) std::atomic<std::size_t> generation;
 };
 
 } // namespace
@@ -296,9 +296,10 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 					std::size_t raw_begin = (active_n * tid) / effective_workers;
 					std::size_t raw_end = (active_n * (tid + 1)) / effective_workers;
 
-					// snap boundaries to the nearest multiple of 16 for perfect SIMD alignment
-					begin = (raw_begin / 16) * 16;
-					end = (tid + 1 == effective_workers) ? active_n : ((raw_end / 16) * 16);
+					constexpr std::size_t elements_per_cacheline = 64 / sizeof(T);
+					
+					begin = (raw_begin / elements_per_cacheline) * elements_per_cacheline;
+					end = (tid + 1 == effective_workers) ? active_n : ((raw_end / elements_per_cacheline) * elements_per_cacheline);
 				}
 
 				if (begin >= end) {
