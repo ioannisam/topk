@@ -5,3 +5,4 @@ npu_env
 __pycache__
 build
 .ruff_cache
+tmp*
