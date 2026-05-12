@@ -214,11 +214,15 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 						   double& out_elapsed_ms, std::size_t& out_launches, std::size_t& out_comparators,
 						   std::size_t& out_final_n) {
 
+	cudaStream_t stream;
+	CUDA_CHECK(cudaStreamCreate(&stream));
+
 	cudaEvent_t start{};
 	cudaEvent_t stop{};
 	CUDA_CHECK(cudaEventCreate(&start));
 	CUDA_CHECK(cudaEventCreate(&stop));
-	CUDA_CHECK(cudaEventRecord(start));
+    
+	CUDA_CHECK(cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal));
 
 	FusedLayers buffer;
 	buffer.count = 0;
@@ -238,15 +242,13 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 				const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
 				const std::size_t smem_size = block_size * 2 * sizeof(T);
 
-				bitonic_fused_shared<<<grid, block_size, smem_size>>>(current_src, pairs, buffer);
-				CUDA_CHECK(cudaGetLastError());
+				bitonic_fused_shared<<<grid, block_size, smem_size, stream>>>(current_src, pairs, buffer);
 				out_launches++;
 				buffer.count = 0;
 			}
 
 			const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
-			bitonic_layer_truncate_kernel<<<grid, block_size>>>(current_src, current_dst, pairs, step);
-			CUDA_CHECK(cudaGetLastError());
+			bitonic_layer_truncate_kernel<<<grid, block_size, 0, stream>>>(current_src, current_dst, pairs, step);
 			out_launches++;
 
 			T* temp = current_src;
@@ -271,8 +273,7 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 			const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
 			const std::size_t smem_size = block_size * 2 * sizeof(T);
 
-			bitonic_fused_shared<<<grid, block_size, smem_size>>>(current_src, pairs, buffer);
-			CUDA_CHECK(cudaGetLastError());
+			bitonic_fused_shared<<<grid, block_size, smem_size, stream>>>(current_src, pairs, buffer);
 			out_launches++;
 			buffer.count = 0;
 		}
@@ -282,7 +283,7 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 				const std::size_t vec_pairs = pairs / 2;
 				const dim3 grid(static_cast<unsigned int>((vec_pairs + block_size - 1) / block_size));
 				
-				bitonic_layer_global_coalesced_half2<<<grid, block_size>>>(
+				bitonic_layer_global_coalesced_half2<<<grid, block_size, 0, stream>>>(
 					reinterpret_cast<__half2*>(current_src), 
 					vec_pairs, 
 					stage / 2, 
@@ -290,22 +291,37 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 				);
 			} else {
 				const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
-				bitonic_layer_global_coalesced<<<grid, block_size>>>(current_src, pairs, stage, step);
+				bitonic_layer_global_coalesced<<<grid, block_size, 0, stream>>>(current_src, pairs, stage, step);
 			}
-			CUDA_CHECK(cudaGetLastError());
 			out_launches++;
 		}
 	}
 
-	CUDA_CHECK(cudaEventRecord(stop));
+	cudaGraph_t graph;
+	CUDA_CHECK(cudaStreamEndCapture(stream, &graph));
+
+	cudaGraphExec_t instance;
+#if __CUDACC_VER_MAJOR__ >= 12
+	CUDA_CHECK(cudaGraphInstantiate(&instance, graph, 0));
+#else
+	CUDA_CHECK(cudaGraphInstantiate(&instance, graph, nullptr, nullptr, 0));
+#endif
+
+	CUDA_CHECK(cudaEventRecord(start, stream));
+	CUDA_CHECK(cudaGraphLaunch(instance, stream));
+	CUDA_CHECK(cudaEventRecord(stop, stream));
+
 	CUDA_CHECK(cudaEventSynchronize(stop));
 
 	float elapsed_ms_f = 0.0f;
 	CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms_f, start, stop));
 	out_elapsed_ms = static_cast<double>(elapsed_ms_f);
 
+	CUDA_CHECK(cudaGraphExecDestroy(instance));
+	CUDA_CHECK(cudaGraphDestroy(graph));
 	CUDA_CHECK(cudaEventDestroy(start));
 	CUDA_CHECK(cudaEventDestroy(stop));
+	CUDA_CHECK(cudaStreamDestroy(stream));
 
 	return current_src;
 }
