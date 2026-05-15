@@ -163,9 +163,7 @@ def main() -> int:
 
     measurement_records = parse_measurements(measurement_paths)
 
-    # Dtype selection:
-    # - if user specifies --dtype, generate plots only for those dtypes
-    # - otherwise, auto-discover dtypes from available records
+    # Dtype selection
     discovered_dtypes = sorted(
         {
             *(rec.dtype for rec in all_records if rec.dtype),
@@ -249,6 +247,10 @@ def main() -> int:
             backends=backends,
         )
 
+        # Create GT-stripped subsets for plots that shouldn't show the Ground Truth
+        records_no_gt = [r for r in records if r.algorithm != "gt"]
+        dtype_measurements_no_gt = [m for m in dtype_measurements if m.algorithm != "gt"]
+
         if not records and ("time-vs-n" in requested or "speedup-vs-gt" in requested or "pass-rate" in requested):
             print(f"No testcase records for dtype '{dtype_dir}' matched the selected filters.")
         if not dtype_measurements and any(
@@ -267,7 +269,7 @@ def main() -> int:
         ):
             print(f"No measurement records for dtype '{dtype_dir}' matched the selected filters.")
 
-        # Optional CSV exports (per dtype when multiple dtypes are selected).
+        # CSVs keep all records (including GT) for raw data completeness
         if args.csv_out:
             base, ext = os.path.splitext(args.csv_out)
             ext = ext or ".csv"
@@ -284,7 +286,7 @@ def main() -> int:
 
         if "time-vs-n" in requested:
             out = time_vs_n.plot(
-                records,
+                records_no_gt,
                 os.path.join(out_time, "time_vs_n.png"),
                 args.agg,
                 args.error_bars,
@@ -294,6 +296,7 @@ def main() -> int:
             else:
                 print(f"Skipped time-vs-n ({dtype_dir}): no timing points found.")
 
+        # HAS GT - Gets full 'records'
         if "time-vs-n-algo-compare" in requested:
             out = time_vs_n_algo_compare.plot(
                 records,
@@ -308,7 +311,7 @@ def main() -> int:
 
         if "time-vs-n-backend-compare" in requested:
             out = time_vs_n_backend_compare.plot(
-                records,
+                records_no_gt,
                 os.path.join(out_time, "time_vs_n_backend_compare.png"),
                 args.agg,
                 args.error_bars,
@@ -320,7 +323,7 @@ def main() -> int:
 
         if "time-vs-n-metric-compare" in requested:
             out = time_vs_n_metric_compare.plot(
-                records,
+                records_no_gt,
                 os.path.join(out_time, "time_vs_n_metric_compare.png"),
                 args.agg,
                 args.error_bars,
@@ -332,7 +335,7 @@ def main() -> int:
 
         if "time-vs-k-backend-compare" in requested:
             out = time_vs_k_backend_compare.plot(
-                records,
+                records_no_gt,
                 os.path.join(out_time, "time_vs_k_backend_compare.png"),
                 args.agg,
                 args.error_bars,
@@ -344,7 +347,7 @@ def main() -> int:
 
         if "time-vs-n-k-colored" in requested:
             out = time_vs_n_k_colored.plot(
-                records,
+                records_no_gt,
                 os.path.join(out_time, "time_vs_n_k_colored.png"),
                 args.agg,
             )
@@ -355,7 +358,7 @@ def main() -> int:
 
         if "heatmap-time" in requested:
             out = heatmap_time.plot(
-                records,
+                records_no_gt,
                 os.path.join(out_time, "heatmap_time.png"),
                 args.agg,
             )
@@ -364,6 +367,7 @@ def main() -> int:
             else:
                 print(f"Skipped heatmap-time ({dtype_dir}): missing data.")
 
+        # HAS GT - Gets full 'records'
         if "speedup-vs-gt" in requested:
             out = speedup_vs_gt.plot(records, os.path.join(out_time, "speedup_vs_gt.png"), args.agg)
             if out:
@@ -373,7 +377,7 @@ def main() -> int:
 
         if "time-per-element-vs-n" in requested:
             out = time_per_element_vs_n.plot(
-                records,
+                records_no_gt,
                 os.path.join(out_time, "time_per_element_vs_n.png"),
                 args.agg,
                 args.error_bars,
@@ -384,15 +388,16 @@ def main() -> int:
                 print(f"Skipped time-per-element-vs-n ({dtype_dir}): no testcase records with N and time were found.")
 
         if "pass-rate" in requested:
-            out = pass_rate.plot(records, os.path.join(out_correctness, "pass_rate.png"))
+            out = pass_rate.plot(records_no_gt, os.path.join(out_correctness, "pass_rate.png"))
             if out:
                 collect_output(out)
             else:
                 print(f"Skipped pass-rate ({dtype_dir}): no records found.")
 
+        # Energy tools use stripped data
         if "energy-by-source" in requested:
             out = energy_by_source.plot(
-                dtype_measurements,
+                dtype_measurements_no_gt,
                 os.path.join(out_energy, "energy_by_source.png"),
                 args.agg,
                 args.compare_n,
@@ -404,7 +409,7 @@ def main() -> int:
 
         if "power-by-source" in requested:
             out = power_by_source.plot(
-                dtype_measurements,
+                dtype_measurements_no_gt,
                 os.path.join(out_energy, "power_by_source.png"),
                 args.agg,
                 args.compare_n,
@@ -416,7 +421,7 @@ def main() -> int:
 
         if "energy-vs-n" in requested:
             out = energy_vs_n.plot(
-                dtype_measurements,
+                dtype_measurements_no_gt,
                 os.path.join(out_energy, "energy_vs_n.png"),
                 args.agg,
                 args.error_bars,
@@ -428,7 +433,7 @@ def main() -> int:
 
         if "power-vs-n" in requested:
             out = power_vs_n.plot(
-                dtype_measurements,
+                dtype_measurements_no_gt,
                 os.path.join(out_energy, "power_vs_n.png"),
                 args.agg,
                 args.error_bars,
@@ -440,7 +445,7 @@ def main() -> int:
 
         if "energy-by-backend" in requested:
             out = energy_by_backend.plot(
-                dtype_measurements,
+                dtype_measurements_no_gt,
                 os.path.join(out_energy, "energy_by_backend.png"),
                 args.agg,
                 args.compare_n,
@@ -453,7 +458,7 @@ def main() -> int:
 
         if "power-by-backend" in requested:
             out = power_by_backend.plot(
-                dtype_measurements,
+                dtype_measurements_no_gt,
                 os.path.join(out_energy, "power_by_backend.png"),
                 args.agg,
                 args.compare_n,
@@ -466,8 +471,8 @@ def main() -> int:
 
         if "time-vs-energy" in requested:
             out = time_vs_energy.plot(
-                records,
-                dtype_measurements,
+                records_no_gt,
+                dtype_measurements_no_gt,
                 os.path.join(out_energy, "time_vs_energy.png"),
                 args.agg,
                 args.compare_n,
@@ -479,7 +484,7 @@ def main() -> int:
 
         if "edp-vs-n" in requested:
             out = edp_vs_n.plot(
-                dtype_measurements,
+                dtype_measurements_no_gt,
                 os.path.join(out_energy, "edp_vs_n.png"),
                 args.agg,
                 args.error_bars,
@@ -493,7 +498,7 @@ def main() -> int:
 
         if "energy-per-element-vs-n" in requested:
             out = energy_per_element_vs_n.plot(
-                dtype_measurements,
+                dtype_measurements_no_gt,
                 os.path.join(out_energy, "energy_per_element_vs_n.png"),
                 args.agg,
                 args.error_bars,

@@ -13,7 +13,7 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
     )
     for rec in records:
         if (
-            rec.backend in {"", "gt"}
+            not rec.backend
             or rec.algorithm not in {"bitonic", "map_reduce"}
             or rec.n is None
             or rec.k is None

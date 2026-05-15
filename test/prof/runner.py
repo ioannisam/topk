@@ -22,7 +22,6 @@ ROOT_DIR = find_root_dir()
 
 def resolve_binary_path(backend):
     paths = {
-        "gt": "build/test/ground_truth/topk",
         "cpu": "build/CPU/topk",
         "gpu": "build/GPU/topk",
         "npu": "build/NPU/topk",
@@ -38,7 +37,7 @@ def resolve_energy_mode(backend, requested_mode):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Dynamic Top-K Test Runner")
-    parser.add_argument("backends", nargs="+", help="Backends to test (e.g., cpu gpu gt npu)")
+    parser.add_argument("backends", nargs="+", help="Backends to test (e.g., cpu gpu npu)")
     parser.add_argument(
         "--types", nargs="*", default=["double", "float", "fp16", "int", "uint"], help="Datatypes to test"
     )
@@ -67,9 +66,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    # Clean/Prepare backends and types
     backends = [b.lower().strip(", ") for b in args.backends]
-    # If the user passed comma-separated strings natively, expand them
     if len(backends) == 1 and "," in backends[0]:
         backends = backends[0].split(",")
 
@@ -135,7 +132,9 @@ def main():
             type_pass = 0
             type_fail = 0
 
-            algorithms = ["bitonic"] if backend in ("npu", "gt") else ["bitonic", "map_reduce"]
+            algorithms = ["bitonic", "map_reduce", "gt"]
+            if backend == "npu":
+                algorithms = ["bitonic", "gt"] # NPU might not have map_reduce
 
             for algo in algorithms:
                 for q in range(args.q_min, args.q_max + 1):
@@ -205,15 +204,15 @@ def main():
                         if result.returncode == 0:
                             if args.verify == "true" and expected_marker not in stdout:
                                 case_reason = "PASS marker missing"
-                                print(f"    [FAIL] {case_name} ({case_reason})")
+                                print(f"    [FAIL] {case_name} (algo={algo}) ({case_reason})")
                                 type_fail += 1
                             else:
                                 case_status = "PASS"
                                 case_reason = "ok"
-                                print(f"    [PASS] {case_name}")
+                                print(f"    [PASS] {case_name} (algo={algo})")
                                 type_pass += 1
                         else:
-                            print(f"    [FAIL] {case_name} (non-zero exit)")
+                            print(f"    [FAIL] {case_name} (algo={algo}) (non-zero exit)")
                             type_fail += 1
 
                         # Write Raw File

@@ -18,7 +18,7 @@ def plot(records: list[CaseRecord], out_path: str, agg: str) -> Optional[list[st
     )
 
     for rec in records:
-        if rec.backend in {"", "gt"} or rec.n is None or rec.k is None:
+        if not rec.backend or rec.n is None or rec.k is None:
             continue
         t = select_time_ms(rec, "algorithmic")
         if t is not None and t > 0:

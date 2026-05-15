@@ -5,7 +5,6 @@ from typing import Optional
 from ..models import CaseRecord
 from .common import aggregate_value, error_bounds, plt, select_time_ms, style_axes
 
-
 def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) -> Optional[list[str]]:
     # Group by: K -> backend -> algorithm -> n -> times
     grouped: dict[int, dict[str, dict[str, dict[int, list[float]]]]] = defaultdict(
@@ -13,8 +12,8 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
     )
     for rec in records:
         if (
-            rec.backend in {"", "gt"}
-            or rec.algorithm not in {"bitonic", "map_reduce"}
+            not rec.backend
+            or rec.algorithm not in {"bitonic", "map_reduce", "gt"}
             or rec.n is None
             or rec.k is None
         ):
@@ -26,6 +25,7 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
 
     if not grouped:
         return None
+        
     base_dir, base_name = os.path.dirname(out_path) or ".", os.path.splitext(os.path.basename(out_path))[0]
     outputs: list[str] = []
 
@@ -33,7 +33,9 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
         for backend, algo_map in sorted(backend_map.items()):
             fig, ax = plt.subplots(figsize=(10, 6))
             has_data = False
-            for algorithm in ("bitonic", "map_reduce"):
+            
+            # ---> Added "gt" to the plotting loop <---
+            for algorithm in ("bitonic", "map_reduce", "gt"):
                 if algorithm not in algo_map:
                     continue
                 xs = sorted(algo_map[algorithm].keys())
@@ -58,7 +60,7 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
             ax.set_yscale("log")
             style_axes(
                 ax,
-                f"Algorithmic Runtime ({backend}): bitonic vs map_reduce (K = {k})",
+                f"Algorithmic Runtime ({backend}): algorithm comparison (K = {k})",
                 "N (log2 scale)",
                 "Time (ms, log scale)",
             )

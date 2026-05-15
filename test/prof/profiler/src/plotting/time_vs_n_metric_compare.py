@@ -19,7 +19,7 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
         lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     )
     for rec in records:
-        if rec.n is None or rec.backend in {"", "gt"}:
+        if rec.n is None or not rec.backend:
             continue
         for metric in ("algorithmic", "end-to-end"):
             time_ms = select_time_ms(rec, metric)

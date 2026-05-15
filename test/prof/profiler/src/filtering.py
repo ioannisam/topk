@@ -21,7 +21,7 @@ def filter_records(
 
         if dtypes and rec.dtype not in dtypes:
             continue
-        if algorithms and rec.backend != "gt" and rec.algorithm not in algorithms:
+        if algorithms and rec.algorithm not in algorithms:
             continue
         if mode and rec.mode != mode:
             continue
@@ -49,7 +49,7 @@ def filter_measurements(
 
         if dtypes and rec.dtype and rec.dtype not in dtypes:
             continue
-        if algorithms and rec.backend != "gt" and rec.algorithm and rec.algorithm not in algorithms:
+        if algorithms and rec.algorithm not in algorithms:
             continue
         if mode and rec.mode and rec.mode != mode:
             continue
