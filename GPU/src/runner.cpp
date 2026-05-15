@@ -9,9 +9,11 @@
 #include <vector>
 
 #include "../include/algorithm.hpp"
-#include "common/runner.hpp"
-#include "common/benchmark.hpp"
 #include "../include/reporting.hpp"
+#include "common/benchmark.hpp"
+#include "common/random.hpp"
+#include "common/runner.hpp"
+#include "common/validation.hpp"
 
 namespace gpu::topk {
 
@@ -245,25 +247,67 @@ class GpuMapReduceFp16Hooks final : public common::topk::MapReduceRunnerHooks<fl
 	gpu::map_reduce::RunStats last_stats{0.0, 0, 0, 0};
 };
 
+template <typename T> int topk_typed_gt(const Config& cfg) {
+	const std::size_t n = std::size_t{1} << cfg.q;
+	const std::size_t k = std::min(cfg.k, n);
+
+	std::string device_name = gpu::bitonic::query_device_name();
+	gpu::reporting::print_configuration(cfg, n, device_name);
+
+	std::vector<T> data = common::utils::generate_random_input<T>(n, cfg.seed, cfg.rand_min, cfg.rand_max);
+
+	// Warmup
+	common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
+		std::vector<T> temp = data;
+		gpu::ground_truth::run_topk(temp, k, cfg.want_max);
+	});
+
+	// Measurement
+	auto best = common::benchmark::measure_best(
+		common::benchmark::kMeasureIters, [&]() -> common::benchmark::TimedValue<std::vector<T>> {
+			std::vector<T> temp = data;
+			auto t0 = std::chrono::high_resolution_clock::now();
+			
+			gpu::ground_truth::run_topk(temp, k, cfg.want_max);
+			
+			auto t1 = std::chrono::high_resolution_clock::now();
+			double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
+			return common::benchmark::TimedValue<std::vector<T>>{elapsed, std::move(temp)};
+		});
+
+	std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
+	common::reporting::print_timing_lines({{"Ground truth algorithmic time (ms)", best.elapsed_ms}});
+
+	if (cfg.verify_output) {
+		common::reporting::print_check_result("Top-k correctness vs CPU sorted reference", true, true);
+	}
+
+	std::vector<std::string> formatted = common::utils::format_output(best.value);
+	common::reporting::print_output(cfg, formatted);
+
+	return 0;
+}
 
 template <typename T> int topk_typed(const Config& cfg) {
+	if (cfg.algorithm == Algorithm::MapReduce) {
+		GpuMapReduceHooks<T> hooks;
+		return common::topk::execute_map_reduce<T>(cfg, hooks);
+	} else if (cfg.algorithm == Algorithm::GroundTruth) {
+		return topk_typed_gt<T>(cfg);
+	}
 	GpuBitonicRunnerHooks<T> hooks(false);
 	return common::topk::execute_bitonic<T>(cfg, hooks);
 }
 
-template <typename T> int topk_typed_map_reduce(const Config& cfg) {
-	GpuMapReduceHooks<T> hooks;
-	return common::topk::execute_map_reduce<T>(cfg, hooks);
-}
-
-int topk_fp16(const Config& cfg) {
+int topk_fp16_dispatch(const Config& cfg) {
+	if (cfg.algorithm == Algorithm::MapReduce) {
+		GpuMapReduceFp16Hooks hooks;
+		return common::topk::execute_map_reduce<float>(cfg, hooks);
+	} else if (cfg.algorithm == Algorithm::GroundTruth) {
+		return topk_typed_gt<float>(cfg);
+	}
 	GpuBitonicRunnerHooks<float> hooks(true);
 	return common::topk::execute_bitonic<float>(cfg, hooks);
-}
-
-int topk_fp16_map_reduce(const Config& cfg) {
-	GpuMapReduceFp16Hooks hooks;
-	return common::topk::execute_map_reduce<float>(cfg, hooks);
 }
 
 } // namespace
@@ -271,20 +315,15 @@ int topk_fp16_map_reduce(const Config& cfg) {
 int execute(const common::config::Config& cfg) {
 	switch (cfg.dtype) {
 	case DataType::Int:
-		return cfg.algorithm == Algorithm::MapReduce ? topk_typed_map_reduce<std::int32_t>(cfg)
-													 : topk_typed<std::int32_t>(cfg);
+		return topk_typed<std::int32_t>(cfg);
 	case DataType::UInt:
-		return cfg.algorithm == Algorithm::MapReduce ? topk_typed_map_reduce<std::uint32_t>(cfg)
-													 : topk_typed<std::uint32_t>(cfg);
+		return topk_typed<std::uint32_t>(cfg);
 	case DataType::Float:
-		return cfg.algorithm == Algorithm::MapReduce ? topk_typed_map_reduce<float>(cfg) : topk_typed<float>(cfg);
+		return topk_typed<float>(cfg);
 	case DataType::Double:
-		return cfg.algorithm == Algorithm::MapReduce ? topk_typed_map_reduce<double>(cfg) : topk_typed<double>(cfg);
+		return topk_typed<double>(cfg);
 	case DataType::Fp16:
-		if (cfg.algorithm == Algorithm::MapReduce) {
-			return topk_fp16_map_reduce(cfg);
-		}
-		return topk_fp16(cfg);
+		return topk_fp16_dispatch(cfg);
 	}
 
 	throw std::invalid_argument("Unsupported dtype");

@@ -5,6 +5,7 @@ target_sources(gpu_topk PRIVATE
 	src/runner.cpp
 	src/bitonic.cu
 	src/map_reduce.cu
+    src/ground_truth.cu
 )
 target_include_directories(gpu_topk PRIVATE include)
 target_link_libraries(gpu_topk PRIVATE common)

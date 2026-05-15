@@ -42,3 +42,10 @@ std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k,
                                  RunStats* stats = nullptr);
 
 } // namespace gpu::map_reduce
+
+namespace gpu::ground_truth {
+
+template <typename T>
+void run_topk(std::vector<T>& data, std::size_t k, bool want_max);
+
+} // namespace gpu::ground_truth
