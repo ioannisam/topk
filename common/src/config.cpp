@@ -292,6 +292,9 @@ Algorithm parse_algorithm(const std::string& token) {
 	if (value == "map_reduce" || value == "mapreduce") {
 		return Algorithm::MapReduce;
 	}
+    if (value == "gt") {
+		return Algorithm::GroundTruth;
+	}
 	throw std::invalid_argument("Unsupported algorithm. Use one of: bitonic, map_reduce");
 }
 

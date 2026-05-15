@@ -24,3 +24,10 @@ std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max
 						RunStats* stats = nullptr);
 
 } // namespace cpu::map_reduce
+
+namespace cpu::ground_truth {
+
+template <typename T>
+void run_topk(std::vector<T>& data, std::size_t k, bool want_max);
+
+} // namespace cpu::ground_truth

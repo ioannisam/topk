@@ -3,6 +3,7 @@ target_sources(cpu_topk PRIVATE
 	src/main.cpp
 	src/bitonic.cpp
 	src/map_reduce.cpp
+    src/ground_truth.cpp
 	src/reporting.cpp
 	src/runner.cpp
 )

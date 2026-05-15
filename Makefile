@@ -2,7 +2,7 @@ BUILD_DIR := build
 
 ARGS ?=
 
-.PHONY: all help build-all build-cpu build-gpu build-npu build-gt clean \
+.PHONY: all help build-all build-cpu build-gpu build-npu clean \
 	run-cpu run-gpu run-npu run-cases run-energy run-profiler \
 	profiler-bootstrap profiler-clean smoke lint specs a-test ab-test
 
@@ -10,7 +10,7 @@ all: build-all
 
 help:
 	@echo "Targets:"
-	@echo "  build-all | build-cpu | build-gpu | build-npu | build-gt"
+	@echo "  build-all | build-cpu | build-gpu | build-npu"
 	@echo "  run-cpu | run-gpu | run-npu       - run backend binaries (ARGS=...)"
 	@echo "  smoke                           - run smoke tests"
 	@echo "  run-cases                       - run testcase suite via runner.py (ARGS=...)"
@@ -24,23 +24,19 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 build-all: $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake .. -DTOPK_BUILD_CPU=ON -DTOPK_BUILD_GPU=ON -DTOPK_BUILD_NPU=ON -DTOPK_BUILD_GT=ON
+	cd $(BUILD_DIR) && cmake .. -DTOPK_BUILD_CPU=ON -DTOPK_BUILD_GPU=ON -DTOPK_BUILD_NPU=ON
 	cd $(BUILD_DIR) && make -j$(shell nproc)
 
 build-cpu: $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake .. -DTOPK_BUILD_CPU=ON -DTOPK_BUILD_GPU=OFF -DTOPK_BUILD_NPU=OFF -DTOPK_BUILD_GT=ON
+	cd $(BUILD_DIR) && cmake .. -DTOPK_BUILD_CPU=ON -DTOPK_BUILD_GPU=OFF -DTOPK_BUILD_NPU=OFF
 	cd $(BUILD_DIR) && make -j$(shell nproc)
 
 build-gpu: $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake .. -DTOPK_BUILD_CPU=OFF -DTOPK_BUILD_GPU=ON -DTOPK_BUILD_NPU=OFF -DTOPK_BUILD_GT=ON
+	cd $(BUILD_DIR) && cmake .. -DTOPK_BUILD_CPU=OFF -DTOPK_BUILD_GPU=ON -DTOPK_BUILD_NPU=OFF
 	cd $(BUILD_DIR) && make -j$(shell nproc)
 
 build-npu: $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake .. -DTOPK_BUILD_CPU=OFF -DTOPK_BUILD_GPU=OFF -DTOPK_BUILD_NPU=ON -DTOPK_BUILD_GT=ON
-	cd $(BUILD_DIR) && make -j$(shell nproc)
-
-build-gt: $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake .. -DTOPK_BUILD_CPU=OFF -DTOPK_BUILD_GPU=OFF -DTOPK_BUILD_NPU=OFF -DTOPK_BUILD_GT=ON
+	cd $(BUILD_DIR) && cmake .. -DTOPK_BUILD_CPU=OFF -DTOPK_BUILD_GPU=OFF -DTOPK_BUILD_NPU=ON
 	cd $(BUILD_DIR) && make -j$(shell nproc)
 
 run-cpu: build-cpu
@@ -74,7 +70,7 @@ benchmark:
 	@echo "=== 0. Cleaning Previous Benchmark Artifacts ==="
 	$(MAKE) profiler-clean
 	@echo "=== 1. Running Heavy Benchmark Cases ==="
-	-$(MAKE) run-cases ARGS="gt cpu gpu --types int uint float double fp16 --q-max 24 --min 0 --max 1000000000"
+	-$(MAKE) run-cases ARGS="cpu gpu --types int uint float double fp16 --q-max 24 --min 0 --max 1000000000"
 	@echo "=== 2. Generating Benchmark Plots ==="
 	$(MAKE) run-profiler ARGS="--plot all --error-bars none"
 
