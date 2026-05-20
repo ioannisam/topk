@@ -28,6 +28,7 @@ from .plotting import time_vs_n_metric_compare
 from .plotting import time_vs_k_backend_compare
 from .plotting import time_vs_n_k_colored
 from .plotting import heatmap_time
+from .plotting import memory_bandwidth_vs_n
 
 
 def parse_args() -> argparse.Namespace:
@@ -43,7 +44,7 @@ def parse_args() -> argparse.Namespace:
         default="test/prof/results/plots",
         help=(
             "Root directory where plots are written "
-            "(plots are placed under <output-dir>/<dtype>/{time,correctness,energy}/)."
+            "(plots are placed under <output-dir>/<dtype>/{time,correctness,energy,memory}/)."
         ),
     )
     parser.add_argument(
@@ -69,6 +70,7 @@ def parse_args() -> argparse.Namespace:
             "edp-vs-n",
             "energy-per-element-vs-n",
             "time-per-element-vs-n",
+            "memory-bandwidth-vs-n",
             # "time-vs-k-backend-compare",
             "time-vs-n-k-colored",
             "heatmap-time",
@@ -193,6 +195,7 @@ def main() -> int:
             "edp-vs-n",
             "energy-per-element-vs-n",
             "time-per-element-vs-n",
+            "memory-bandwidth-vs-n",
             # "time-vs-k-backend-compare",
             "time-vs-n-k-colored",
             "heatmap-time",
@@ -227,6 +230,7 @@ def main() -> int:
         out_time = os.path.join(out_root, "time")
         out_correctness = os.path.join(out_root, "correctness")
         out_energy = os.path.join(out_root, "energy")
+        out_memory = os.path.join(out_root, "memory")
 
         dtype_set = {dtype} if dtype and dtype != "unknown" else set()
 
@@ -367,7 +371,6 @@ def main() -> int:
             else:
                 print(f"Skipped heatmap-time ({dtype_dir}): missing data.")
 
-        # HAS GT - Gets full 'records'
         if "speedup-vs-gt" in requested:
             out = speedup_vs_gt.plot(records, os.path.join(out_time, "speedup_vs_gt.png"), args.agg)
             if out:
@@ -386,6 +389,42 @@ def main() -> int:
                 collect_output(out)
             else:
                 print(f"Skipped time-per-element-vs-n ({dtype_dir}): no testcase records with N and time were found.")
+
+        if "memory-bandwidth-vs-n" in requested:
+            # Extract all unique K values tested for this dtype
+            unique_ks = sorted(list({r.k for r in records if r.k is not None}))
+
+            for current_k in unique_ks:
+                # all backends, no gt
+                records_no_gt_k = [r for r in records_no_gt if r.k == current_k]
+                
+                if records_no_gt_k:
+                    out_main = memory_bandwidth_vs_n.plot(
+                        records_no_gt_k,
+                        os.path.join(out_memory, f"memory_bandwidth_vs_n_k{current_k}.png"),
+                        args.agg,
+                        args.error_bars,
+                        title=f"Effective Memory Bandwidth vs. N (All Backends, K={current_k})"
+                    )
+                    if out_main:
+                        collect_output(out_main)
+
+                # per backend, with gt
+                unique_backends = sorted(list({r.backend for r in records if r.backend}))
+                for b in unique_backends:
+                    backend_records_k = [r for r in records if r.backend == b and r.k == current_k]
+                    if not backend_records_k:
+                        continue
+                    
+                    out_b = memory_bandwidth_vs_n.plot(
+                        backend_records_k,
+                        os.path.join(out_memory, f"{b}_memory_bandwidth_vs_n_k{current_k}.png"),
+                        args.agg,
+                        args.error_bars,
+                        title=f"{b.upper()} Effective Memory Bandwidth vs. N (with GT, K={current_k})"
+                    )
+                    if out_b:
+                        collect_output(out_b)
 
         if "pass-rate" in requested:
             out = pass_rate.plot(records_no_gt, os.path.join(out_correctness, "pass_rate.png"))
