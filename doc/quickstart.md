@@ -1,89 +1,42 @@
-# Quickstart: How to Run Each Backend
+# Quickstart: Build and Profile
 
-This file gives the shortest path to build and run for CPU, GPU and NPU backends using CMake + Ninja.
-
-Repository root used below:
-`topk/`
+This file gives the shortest path to build all backends and generate profiler plots.
 
 Prerequisites:
-- CMake and Ninja installed
-- Backend toolchains installed (see setup guide)
+- Build toolchains installed (see setup guide)
 
-## CPU Backend
+## Build Everything
 
-Path:
-test/smoke/CPU
+Build all backends in one shot:
 
-Build and run:
-```
-cd test/smoke/CPU
-cmake --fresh -S . -B build -G Ninja
-cmake --build build
-./build/smoke
+```bash
+make build-all
 ```
 
-Expected success line:
-CPU top-k smoke test: PASS
+Build only one backend:
 
-## GPU Backend
-
-Path:
-test/smoke/GPU
-
-Optional pre-check:
-```
-command -v nvcc
-nvidia-smi
+```bash
+make build-cpu
+make build-gpu
+make build-npu
 ```
 
-Build and run:
-```
-cd test/smoke/GPU
-cmake --fresh -S . -B build -G Ninja
-cmake --build build
-./build/smoke
-```
+Build outputs are placed under [build](build).
 
-Expected success line:
-CUDA top-k smoke test: PASS
+## Use the Profiler
 
-## NPU Backend (AMD XDNA)
+1) Run testcase sweeps to generate profiler inputs:
 
-Path:
-test/smoke/NPU
-
-Optional pre-check:
-```
-source ~/.bash/exports.sh
-xrt-smi examine
+```bash
+make run-cases ARGS="cpu gpu npu --types int float --q-max 16 --run trunc --verify true"
 ```
 
-Build and run:
-```
-cd test/smoke/NPU
-cmake --fresh -S . -B build -G Ninja
-cmake --build build
-./build/smoke
+2) Generate plots from the latest run:
+
+```bash
+make run-profiler ARGS="--plot all"
 ```
 
-Expected success line:
-NPU top-k smoke test: PASS
-
-## Rebuild Quickly After Code Changes
-
-After editing source files, rebuild only:
-```
-cmake --build build
-```
-
-Run the backend executable again from the same folder.
-
-## If CMake Cache Points to an Old Path
-
-If you see a source/cache mismatch error, clean and reconfigure:
-
-```
-rm -rf build
-cmake -S . -B build -G Ninja
-cmake --build build
-```
+Notes:
+- The profiler auto-bootstraps its Python venv the first time it runs.
+- Testcase outputs and plots are stored under [test/prof/results](test/prof/results).
