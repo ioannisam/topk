@@ -1,6 +1,11 @@
 # Setup Guide
 
-This document covers tool and environment setup specific to the current machine's specifications.
+This document covers tool and environment setup specific to the current machine's specifications:
+
+- OS: Arch Linux x86_64
+- CPU: AMD Ryzen 7 260 (Zen 4c/5, Strix, AIE2P architecture)
+- GPU: NVIDIA GeForce RTX 5060 Laptop GPU
+- NPU: RyzenAI-npu1 (AMD XDNA) at BDF 0000:66:00.1
 
 Scope:
 - CPU backend in C++
@@ -38,7 +43,7 @@ nvidia-smi
 ### NPU
 
 ```bash
-sudo pacman -S xrt xrt-plugin-amdxdna clang lld cmake ninja jq boost
+sudo pacman -S xrt xrt-plugin-amdxdna clang lld cmake ninja jq boost curl git
 ```
 
 What these provide:
@@ -84,6 +89,8 @@ sudo nvidia-smi -pl 60
 
 ### Runtime Stack (Required for C++ XRT Use)
 
+For more details, see [MLIR-AIE README](https://github.com/Xilinx/mlir-aie/blob/main/README.md).
+
 Set XRT path:
 
 ```bash
@@ -118,18 +125,16 @@ xrt-smi examine --batch
 Expected:
 - `id` includes `render` and `video`
 - `ulimit -l` is `unlimited` (or very large)
-- `xrt-smi examine --batch` lists your RyzenAI NPU device
+- `xrt-smi examine --batch` lists your RyzenAI NPU device at BDF 0000:66:00.1
 
 ### Python Toolchain
-
-If you are using only C++ + XRT runtime code, you do not need this section.
 
 Create and activate environment:
 
 ```bash
-cd /home/ioannis/Development/Thesis/NPU
-python3 -m venv npu_env
-source npu_env/bin/activate
+cd $HOME/Development/Thesis/NPU
+python3 -m venv npu_venv
+source npu_venv/bin/activate
 python3 -m pip install --upgrade pip
 ```
 
@@ -149,17 +154,23 @@ Verify:
 python3 -m pip list | grep -E 'mlir-aie|llvm-aie'
 ```
 
-### Install aiebu Tools (If Missing)
+### Arch Linux Compiler Workaround
+
+The MLIR-AIE build system expects Ubuntu-specific compiler names (gcc-13 and g++-13). Arch uses unversioned compiler binaries, so create temporary symlinks so CMake can find them.
 
 ```bash
-git clone --recursive https://github.com/Xilinx/aiebu.git
-cd aiebu
-mkdir build && cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=/usr
-cmake --build . -j"$(nproc)"
-sudo install -m 755 ../src/cpp/utils/asm/aiebu-asm /usr/bin/aiebu-asm
-sudo install -m 755 ../src/cpp/utils/transform/aiebu-transform /usr/bin/aiebu-transform
+# Create a local binary directory
+mkdir -p ~/.local/bin
+
+# Symlink native Arch compilers to the names CMake expects
+ln -s $(which gcc) ~/.local/bin/gcc-13
+ln -s $(which g++) ~/.local/bin/g++-13
+
+# Add this directory to the front of your PATH
+export PATH="$HOME/.local/bin:$PATH"
 ```
+
+Note: you must run `export PATH="$HOME/.local/bin:$PATH"` in every new terminal session before building MLIR-AIE projects.
 
 ---
 

@@ -1,7 +1,9 @@
 test/prof/results
 
-npu_env
+npu_venv
 .venv
+mlir-aie
+.python-version
 __pycache__
 build
 .ruff_cache
