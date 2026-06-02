@@ -24,3 +24,11 @@ template <typename T>
 RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
 
 } // namespace npu::bitonic
+
+namespace npu::map_reduce {
+
+template <typename T>
+std::vector<T> run_topk_npu(const std::vector<T>& data, std::size_t k, bool want_max, 
+                            std::size_t workers, npu::bitonic::RunStats* stats);
+
+} // namespace npu::map_reduce

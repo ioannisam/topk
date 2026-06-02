@@ -317,3 +317,148 @@ template RunStats run_network_npu<_Float16>(std::vector<_Float16>& data, const s
 #endif
 
 } // namespace npu::bitonic
+
+namespace npu::map_reduce {
+
+namespace {
+
+template <typename T>
+std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_t k, bool want_max, 
+                                          const npu::bitonic::OffloadConfig& offload_cfg, 
+                                          npu::bitonic::RunStats* stats) {
+    if (k == 0 || data.empty()) return {};
+
+    const std::size_t n = data.size();
+    k = std::min(k, n);
+
+    auto t0 = std::chrono::high_resolution_clock::now();
+
+    using HeapCompare = std::function<bool(const T&, const T&)>;
+    HeapCompare comp;
+    if (want_max) {
+        comp = std::greater<T>{};
+    } else {
+        comp = std::less<T>{};
+    }
+
+    std::vector<T> heap;
+    heap.reserve(k);
+
+    std::size_t initial_elements = std::min(k, n);
+    heap.assign(data.begin(), data.begin() + initial_elements);
+    std::make_heap(heap.begin(), heap.end(), comp);
+
+    xrt::device dev = npu::bitonic::open_device();
+    xrt::xclbin xclbin(offload_cfg.xclbin_path);
+    xrt::uuid uuid = dev.register_xclbin(xclbin);
+    xrt::hw_context hwctx(dev, uuid);
+    xrt::kernel kernel(hwctx, offload_cfg.kernel_name);
+
+    const std::size_t instr_group = npu::bitonic::safe_group_id(kernel, 1);
+    std::vector<uint32_t> instr_v = npu::bitonic::load_instruction_sequence(offload_cfg.xclbin_path);
+    xrt::bo instr_bo(dev, instr_v.size() * sizeof(uint32_t), xrt::bo::flags::cacheable, instr_group);
+    std::memcpy(instr_bo.map<void*>(), instr_v.data(), instr_v.size() * sizeof(uint32_t));
+    instr_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    const std::size_t chunk_size = 1024;
+    const std::size_t chunk_bytes = chunk_size * sizeof(T);
+    
+    const std::size_t cfg_group = npu::bitonic::safe_group_id(kernel, 3);
+    const std::size_t dst_group = npu::bitonic::safe_group_id(kernel, 4);
+    const std::size_t src_group = npu::bitonic::safe_group_id(kernel, 5);
+
+    xrt::bo cfg_bo(dev, 4 * sizeof(int32_t), xrt::bo::flags::host_only, cfg_group); 
+    xrt::bo dst_bo(dev, chunk_bytes, xrt::bo::flags::host_only, dst_group);
+    xrt::bo src_bo(dev, chunk_bytes, xrt::bo::flags::host_only, src_group);
+
+    T pad_val = want_max ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
+    std::size_t total_dispatches = 0;
+
+    for (std::size_t offset = initial_elements; offset < n; offset += chunk_size) {
+        std::size_t current_chunk = std::min(chunk_size, n - offset);
+        
+        T* src_map = src_bo.map<T*>();
+        std::memcpy(src_map, data.data() + offset, current_chunk * sizeof(T));
+        if (current_chunk < chunk_size) {
+             for(std::size_t p = current_chunk; p < chunk_size; ++p) src_map[p] = pad_val;
+        }
+        src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+        int32_t* cfg_map = cfg_bo.map<int32_t*>();
+        cfg_map[0] = static_cast<int32_t>(heap.front()); 
+        cfg_map[1] = want_max ? 1 : 0;
+        cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+        xrt::run run(kernel);
+        run.set_arg(0, 3);
+        run.set_arg(1, instr_bo);
+        run.set_arg(2, static_cast<uint32_t>(instr_v.size()));
+        run.set_arg(3, cfg_bo);
+        run.set_arg(4, dst_bo);
+        run.set_arg(5, src_bo);
+        
+        xrt::runlist rl(hwctx);
+        rl.add(run);
+        rl.execute();
+        npu::bitonic::wait_for_runlist_or_throw(rl, npu::bitonic::read_wait_timeout_ms());
+        total_dispatches++;
+
+        dst_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+        T* dst_map = dst_bo.map<T*>();
+        
+        for (std::size_t i = 0; i < current_chunk; ++i) {
+            T candidate = dst_map[i];
+            if (candidate != pad_val) {
+                // --- FIX 3: Re-verify against CURRENT threshold ---
+                bool is_still_candidate = want_max ? (candidate > heap.front()) : (candidate < heap.front());
+                
+                if (is_still_candidate) {
+                    std::pop_heap(heap.begin(), heap.end(), comp);
+                    heap.back() = candidate;
+                    std::push_heap(heap.begin(), heap.end(), comp);
+                }
+            }
+        }
+    }
+
+    auto cmp_sort = [&want_max](const T& lhs, const T& rhs) {
+        return want_max ? (lhs > rhs) : (lhs < rhs);
+    };
+    std::sort(heap.begin(), heap.end(), cmp_sort);
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    if (stats != nullptr) {
+        stats->elapsed_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        stats->layer_dispatches = total_dispatches;
+        stats->used_offload = true;
+    }
+
+    return heap;
+}
+
+} // namespace
+
+template <typename T>
+std::vector<T> run_topk_npu(const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers, npu::bitonic::RunStats* stats) {
+    (void)workers; // Multi-threading not currently applied to the NPU dispatch loop
+    
+    npu::bitonic::OffloadConfig offload_cfg = npu::bitonic::load_offload_config();
+    if (!offload_cfg.enabled) {
+        throw std::runtime_error("NPU offload is required. Set NPU_OFFLOAD_XCLBIN to map_reduce.xclbin.");
+    }
+    
+    return run_map_reduce_offload_xrt(data, k, want_max, offload_cfg, stats);
+}
+
+// Explicit template instantiations
+template std::vector<std::int32_t> run_topk_npu<std::int32_t>(const std::vector<std::int32_t>& data, std::size_t k, bool want_max, std::size_t workers, npu::bitonic::RunStats* stats);
+template std::vector<std::uint32_t> run_topk_npu<std::uint32_t>(const std::vector<std::uint32_t>& data, std::size_t k, bool want_max, std::size_t workers, npu::bitonic::RunStats* stats);
+template std::vector<float> run_topk_npu<float>(const std::vector<float>& data, std::size_t k, bool want_max, std::size_t workers, npu::bitonic::RunStats* stats);
+template std::vector<double> run_topk_npu<double>(const std::vector<double>& data, std::size_t k, bool want_max, std::size_t workers, npu::bitonic::RunStats* stats);
+
+#if defined(__FLT16_MANT_DIG__)
+template std::vector<_Float16> run_topk_npu<_Float16>(const std::vector<_Float16>& data, std::size_t k, bool want_max, std::size_t workers, npu::bitonic::RunStats* stats);
+#endif
+
+} // namespace npu::map_reduce

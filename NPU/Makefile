@@ -10,8 +10,7 @@ MLIR_AIE_INC := $(VIRTUAL_ENV)/lib/python3.14/site-packages/mlir_aie/include
 AIE_CXXFLAGS := -O2 -std=c++20 --target=aie2-none-unknown-elf -Wno-parentheses \
                 -Wno-attributes -Wno-macro-redefined -DNDEBUG -I $(MLIR_AIE_INC)
 
-# hardware: $(OUT_DIR)/bitonic.xclbin $(OUT_DIR)/map_reduce.xclbin
-hardware: $(OUT_DIR)/bitonic.xclbin
+hardware: $(OUT_DIR)/bitonic.xclbin $(OUT_DIR)/map_reduce.xclbin
 
 $(OUT_DIR)/%.o: src/%.cc
 	@mkdir -p $(OUT_DIR)
