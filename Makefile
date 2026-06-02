@@ -35,9 +35,12 @@ build-gpu: $(BUILD_DIR)
 	cd $(BUILD_DIR) && cmake .. -DTOPK_BUILD_CPU=OFF -DTOPK_BUILD_GPU=ON -DTOPK_BUILD_NPU=OFF
 	cd $(BUILD_DIR) && make -j$(shell nproc)
 
-build-npu: $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake .. -DTOPK_BUILD_CPU=OFF -DTOPK_BUILD_GPU=OFF -DTOPK_BUILD_NPU=ON
-	cd $(BUILD_DIR) && make -j$(shell nproc)
+run-npu: build-npu
+	@# If the user hasn't specified an offload file, default to bitonic
+	@if [ -z "$$NPU_OFFLOAD_XCLBIN" ]; then \
+		export NPU_OFFLOAD_XCLBIN="$(BUILD_DIR)/NPU/bitonic.xclbin"; \
+	fi; \
+	./$(BUILD_DIR)/NPU/topk $(ARGS)
 
 run-cpu: build-cpu
 	./$(BUILD_DIR)/CPU/topk $(ARGS)

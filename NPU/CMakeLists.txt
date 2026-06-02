@@ -1,17 +1,22 @@
-add_executable(npu_topk)
-target_sources(npu_topk PRIVATE
-	src/main.cpp
-	src/algorithm.cpp
-	src/reporting.cpp
-	src/runner.cpp
-)
-target_include_directories(npu_topk PRIVATE include)
-target_link_libraries(npu_topk PRIVATE common xrt_coreutil xrt_core uuid)
-set_target_properties(npu_topk PROPERTIES OUTPUT_NAME topk)
-target_compile_options(npu_topk PRIVATE -O3 -march=native -DNDEBUG -Wall -Wextra)
+find_package(XRT REQUIRED)
 
-if(DEBUG)
-	target_compile_definitions(npu_topk PRIVATE DEBUG=1)
-else()
-	target_compile_definitions(npu_topk PRIVATE DEBUG=0)
-endif()
+set(NPU_VENV_DIR "${CMAKE_SOURCE_DIR}/npu_venv")
+add_custom_target(npu_hardware ALL
+    COMMAND bash -c "source ${NPU_VENV_DIR}/bin/activate && $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR} OUT_DIR=${CMAKE_CURRENT_BINARY_DIR} hardware"
+    COMMENT "Building NPU Hardware (XCLBINs) via Peano/IRON..."
+    VERBATIM
+)
+
+add_executable(npu_topk
+    src/main.cpp
+    src/algorithm.cpp
+    src/reporting.cpp
+    src/runner.cpp
+)
+
+set_target_properties(npu_topk PROPERTIES OUTPUT_NAME "topk")
+
+target_link_libraries(npu_topk PRIVATE common xrt_coreutil uuid)
+target_include_directories(npu_topk PRIVATE include)
+
+add_dependencies(npu_topk npu_hardware)

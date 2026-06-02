@@ -3,12 +3,12 @@
 This directory contains an NPU backend scaffold for the bitonic top-k pipeline, aligned with the CPU/GPU backend structure and shared API contracts.
 
 Current design is offload-only:
-- Runtime requires a valid XRT device and a kernel xclbin.
-- Host side handles kernel loading, buffer management and per-layer dispatch.
+- Runtime requires a valid XRT device and a kernel `.xclbin` along with its `.bin` instructions sequence.
+- Host side handles kernel loading, buffer management, stride packing, and per-chunk dispatch.
 
 ## Layout
 
-- `include/algorithm.hpp` + `src/algorithm.cpp`: NPU offload orchestration and runtime queries
+- `include/algorithm.hpp` + `src/algorithm.cpp`: NPU offload orchestration, stride-packing fallback, and runtime queries
 - `include/reporting.hpp` + `src/reporting.cpp`: NPU-specific configuration/debug reporting hooks
 - `include/runner.hpp` + `src/runner.cpp`: NPU backend hook wiring into shared top-k pipeline
 - `src/main.cpp`: CLI entrypoint and error handling (uses shared common parser)
@@ -32,7 +32,8 @@ cmake -S . -B build -DDEBUG=ON
 ## Run
 
 ```bash
-./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>]
+NPU_OFFLOAD_XCLBIN=./build/NPU/bitonic.xclbin \
+	make run-npu ARGS="q=<q> [k=<k>] [algo=bitonic] [mode=min|max] [dtype=<type>] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>]"
 ```
 
 Only `key=value` arguments are accepted. Required key: `q`.
@@ -43,57 +44,50 @@ Defaults:
 - random range `min=0`, `max=1000`
 
 Notes:
-- `threads=<num>` is accepted by the shared CLI for backend parity; NPU dispatch itself is controlled by offload runtime behavior.
+
+- The `run-npu` target lives at the repository root and forwards `ARGS` to the NPU CLI.
 - `verify=true` enables an additional CPU sorted-reference correctness check after NPU execution.
 
 ## Offload Configuration
 
 Required environment variables:
 
-- `NPU_OFFLOAD_XCLBIN`: absolute/relative path to compiled xclbin
+- `NPU_OFFLOAD_XCLBIN`: absolute/relative path to compiled `.xclbin`. *(Note: the host expects the accompanying `.bin` instruction file to reside in the same directory).*
 
 Optional environment variables:
 
-- `NPU_OFFLOAD_KERNEL`: kernel symbol name inside xclbin (default: `bitonic_layer`)
+- `NPU_OFFLOAD_KERNEL`: kernel symbol name inside xclbin (default: `MLIR_AIE`)
 - `NPU_OFFLOAD_WAIT_MS`: dispatch wait timeout in milliseconds (default: `5000`)
-- `NPU_OFFLOAD_OPCODE`: DPU opcode override when DPU ABI is detected (default: `3`)
-- `NPU_OFFLOAD_NINSTR_BYTES`: if set to `1|true|on`, pass instruction byte-count instead of word-count for DPU ABI
-- `NPU_OFFLOAD_INSTR`: optional override path for DPU instruction binary
 
 Behavior:
 
 - If `NPU_OFFLOAD_XCLBIN` is missing, execution fails with an error.
 - If kernel launch fails, execution fails with an error.
-- No host-thread/CPU fallback is performed by this backend.
+- Global strides ($j \ge 1024$) are handled via host-side packing into 512-element disjoint streams fed directly to the NPU core.
 
 Example:
 
 ```bash
 cd /home/ioannis/Development/Thesis
-export NPU_OFFLOAD_XCLBIN=/path/to/bitonic_layer.xclbin
-export NPU_OFFLOAD_KERNEL=bitonic_layer
-
-./NPU/build/topk q=13 k=128 mode=max dtype=int run=both debug=true seed=42
+NPU_OFFLOAD_XCLBIN=./build/NPU/bitonic.xclbin \
+	make run-npu ARGS="q=17 k=15 algo=bitonic run=trunc verify=true"
 ```
 
 ## Kernel ABI Contract (Host <-> NPU)
 
-The kernel must accept arguments in this order for the standard ABI path:
+The AIE kernel logic is built via MLIR (`aiecc`) and expects the XRT run arguments mapped exactly as follows:
 
-1. `data_bo` (buffer): input/output array (`n * sizeof(T)` bytes)
-2. `pairs_bo` (buffer): truncated comparator indices (`uint32_t` base indices), can be dummy for full mode
-3. `n` (`uint32_t`): element count
-4. `stage` (`uint32_t`): bitonic stage (`k`)
-5. `step` (`uint32_t`): bitonic stride (`j`)
-6. `begin` (`uint32_t`): start offset inside `pairs_bo` for trunc mode
-7. `count` (`uint32_t`): active comparator count for this layer
-8. `trunc` (`uint32_t`): `0` for full mode, `1` for trunc mode
-
-Required per-dispatch semantics:
-
-- Full mode (`trunc=0`): perform `count = n/2` compare-swap operations for layer `(stage, step)`.
-- Trunc mode (`trunc=1`): perform `count` compare-swaps using `i = pairs_bo[begin + t]`, `ixj = i ^ step`.
-- Ascending decision must match: `ascending = ((i & stage) == 0)`.
+1. **Arg 0**: Opcode (`uint32_t`: `3` for execute)
+2. **Arg 1**: Instruction Buffer (`xrt::bo` cacheable memory containing `.bin` payload)
+3. **Arg 2**: Instruction Word Count (`uint32_t`)
+4. **Arg 3**: Configuration Buffer (`xrt::bo` array of 8 `int32_t`). Contains:
+	- `cfg[0]`: step/stride (`j`)
+	- `cfg[1]`: stage (`k`)
+	- `cfg[2]`: execution type (`0`=Normal, `1`=Truncate, `2`=Disjoint Normal, `3`=Disjoint Truncate)
+	- `cfg[3]`: global base offset chunk index
+	- `cfg[4]`: padding value
+5. **Arg 4**: Output Data Buffer (`xrt::bo` `dst_bo`)
+6. **Arg 5**: Input Data Buffer (`xrt::bo` `src_bo`)
 
 Current host offload dtype support:
 
@@ -108,5 +102,3 @@ Before expecting NPU dispatches to complete, verify:
 - `xrt-smi --version` reports expected XRT/runtime stack for your platform.
 - `xrt-smi examine` lists your NPU device.
 - `modinfo amdxdna` reports the loaded kernel module and firmware path.
-
-If basic XRT sample workloads fail on your machine, treat that as a platform/runtime issue before debugging bitonic kernel logic.

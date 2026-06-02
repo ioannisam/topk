@@ -1,16 +1,15 @@
 #include "../include/algorithm.hpp"
 
 #include <algorithm>
+#include <iostream>
 #include <chrono>
-#include <cstdlib>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <string>
 #include <stdexcept>
-#include <sstream>
 #include <vector>
-#include <optional>
+#include <limits>
 
 #include <xrt/xrt_bo.h>
 #include <xrt/xrt_device.h>
@@ -24,354 +23,297 @@ namespace npu::bitonic {
 namespace {
 
 xrt::device open_device() {
-	try {
-		return xrt::device{0};
-	} catch (const std::exception& ex) {
-		throw std::runtime_error(std::string("Failed to open NPU device 0 via XRT: ") + ex.what());
-	}
+    try {
+        return xrt::device{0};
+    } catch (const std::exception& ex) {
+        throw std::runtime_error(std::string("Failed to open NPU device 0 via XRT: ") + ex.what());
+    }
 }
 
 struct OffloadConfig {
-	bool enabled = false;
-	std::string xclbin_path;
-	std::string kernel_name = "bitonic_layer";
+    bool enabled = false;
+    std::string xclbin_path;
+    std::string kernel_name = "MLIR_AIE";
 };
 
-bool xclbin_uses_dpu_abi(const std::string& xclbin_path) {
-	const std::size_t slash = xclbin_path.find_last_of('/');
-	const std::string dir = (slash == std::string::npos) ? std::string(".") : xclbin_path.substr(0, slash);
-	const std::string metadata = dir + "/embedded_metadata.xml";
-
-	std::ifstream in(metadata);
-	if (!in.good()) {
-		return false;
-	}
-
-	std::string xml((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-	return xml.find("type=\"dpu\"") != std::string::npos && xml.find("name=\"opcode\"") != std::string::npos &&
-		   xml.find("name=\"ninstr\"") != std::string::npos;
-}
-
 const char* read_env(const char* key) {
-	const char* value = std::getenv(key);
-	if (value == nullptr || value[0] == '\0') {
-		return nullptr;
-	}
-	return value;
+    const char* value = std::getenv(key);
+    return (value == nullptr || value[0] == '\0') ? nullptr : value;
 }
 
 OffloadConfig load_offload_config() {
-	OffloadConfig cfg;
-	if (const char* xclbin = read_env("NPU_OFFLOAD_XCLBIN")) {
-		cfg.enabled = true;
-		cfg.xclbin_path = xclbin;
-	}
-	if (const char* kernel = read_env("NPU_OFFLOAD_KERNEL")) {
-		cfg.kernel_name = kernel;
-	}
-	return cfg;
+    OffloadConfig cfg;
+    if (const char* xclbin = read_env("NPU_OFFLOAD_XCLBIN")) {
+        cfg.enabled = true;
+        cfg.xclbin_path = xclbin;
+    }
+    if (const char* kernel = read_env("NPU_OFFLOAD_KERNEL")) {
+        cfg.kernel_name = kernel;
+    }
+    return cfg;
 }
 
 std::size_t safe_group_id(const xrt::kernel& kernel, int arg_index) {
-	try {
-		return static_cast<std::size_t>(kernel.group_id(arg_index));
-	} catch (...) {
-		return 0;
-	}
-}
-
-std::uint64_t read_opcode() {
-	if (const char* op = read_env("NPU_OFFLOAD_OPCODE")) {
-		return static_cast<std::uint64_t>(std::stoull(op));
-	}
-	return 3;
-}
-
-bool ninstr_is_bytes() {
-	if (const char* mode = read_env("NPU_OFFLOAD_NINSTR_BYTES")) {
-		const std::string token(mode);
-		return token == "1" || token == "true" || token == "TRUE" || token == "on";
-	}
-	return false;
+    try { 
+        std::size_t id = static_cast<std::size_t>(kernel.group_id(arg_index)); 
+        if (id == 65535 || id == static_cast<std::size_t>(-1)) {
+            return 0; 
+        }
+        return id;
+    } 
+    catch (...) { 
+        return 0; 
+    }
 }
 
 unsigned int read_wait_timeout_ms() {
-	if (const char* timeout = read_env("NPU_OFFLOAD_WAIT_MS")) {
-		return static_cast<unsigned int>(std::stoul(timeout));
-	}
-	return 5000u;
+    if (const char* timeout = read_env("NPU_OFFLOAD_WAIT_MS")) return static_cast<unsigned int>(std::stoul(timeout));
+    return 5000u;
 }
 
-const char* cmd_state_name(ert_cmd_state state) {
-	switch (state) {
-	case ERT_CMD_STATE_NEW:
-		return "NEW";
-	case ERT_CMD_STATE_QUEUED:
-		return "QUEUED";
-	case ERT_CMD_STATE_RUNNING:
-		return "RUNNING";
-	case ERT_CMD_STATE_COMPLETED:
-		return "COMPLETED";
-	case ERT_CMD_STATE_ERROR:
-		return "ERROR";
-	case ERT_CMD_STATE_ABORT:
-		return "ABORT";
-	case ERT_CMD_STATE_SUBMITTED:
-		return "SUBMITTED";
-	case ERT_CMD_STATE_TIMEOUT:
-		return "TIMEOUT";
-	case ERT_CMD_STATE_NORESPONSE:
-		return "NORESPONSE";
-	case ERT_CMD_STATE_SKERROR:
-		return "SKERROR";
-	case ERT_CMD_STATE_SKCRASHED:
-		return "SKCRASHED";
-	default:
-		return "UNKNOWN";
-	}
+void wait_for_runlist_or_throw(const xrt::runlist& rl, unsigned int timeout_ms) {
+    if (rl.wait(std::chrono::milliseconds(timeout_ms)) == std::cv_status::timeout) {
+        throw std::runtime_error("NPU command timed out");
+    }
 }
 
-void wait_for_run_or_throw(xrt::run& run, unsigned int timeout_ms, const char* launch_kind) {
-	const ert_cmd_state state = run.wait(timeout_ms);
-	if (state == ERT_CMD_STATE_COMPLETED) {
-		return;
-	}
+std::vector<uint32_t> load_instruction_sequence(const std::string& xclbin_path) {
+    auto slash_idx = xclbin_path.find_last_of('/');
+    std::string dir = (slash_idx != std::string::npos) ? xclbin_path.substr(0, slash_idx) : ".";
+    std::string file_name = (slash_idx != std::string::npos) ? xclbin_path.substr(slash_idx + 1) : xclbin_path;
+    
+    auto dot_idx = file_name.find_last_of('.');
+    std::string base_name = (dot_idx != std::string::npos) ? file_name.substr(0, dot_idx) : file_name;
 
-	if (state == ERT_CMD_STATE_TIMEOUT) {
-		(void)run.abort();
-	}
+    std::string path = dir + "/" + base_name + ".bin";
+    
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
+    if (!file) {
+        throw std::runtime_error("Could not find NPU instruction sequence at: " + path);
+    }
+    
+    std::streamsize size = file.tellg();
+    if (size <= 0) {
+        throw std::runtime_error("Instruction file is empty (0 bytes): " + path);
+    }
+    file.seekg(0, std::ios::beg);
 
-	std::ostringstream oss;
-	oss << "NPU " << launch_kind << " command failed: state=" << cmd_state_name(state) << " ("
-		<< static_cast<int>(state) << ")"
-		<< ", wait_ms=" << timeout_ms;
-	throw std::runtime_error(oss.str());
-}
+    std::vector<uint32_t> insts(size / sizeof(uint32_t));
+    file.read(reinterpret_cast<char*>(insts.data()), size);
 
-void wait_for_runlist_or_throw(const xrt::runlist& rl, unsigned int timeout_ms, const char* launch_kind) {
-	if (rl.wait(std::chrono::milliseconds(timeout_ms)) == std::cv_status::timeout) {
-		std::ostringstream oss;
-		oss << "NPU " << launch_kind << " command failed: state=TIMEOUT"
-			<< ", wait_ms=" << timeout_ms;
-		throw std::runtime_error(oss.str());
-	}
-}
-
-std::vector<std::uint32_t> read_dpu_instr_words(const std::string& xclbin_path, const std::string& kernel_name) {
-	if (const char* instr_override = read_env("NPU_OFFLOAD_INSTR")) {
-		std::ifstream in(instr_override, std::ios::binary);
-		if (in.good()) {
-			std::vector<char> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-			if (!bytes.empty()) {
-				const std::size_t padded = ((bytes.size() + 3u) / 4u) * 4u;
-				bytes.resize(padded, 0);
-				std::vector<std::uint32_t> words(padded / 4u, 0u);
-				std::memcpy(words.data(), bytes.data(), padded);
-				return words;
-			}
-		}
-	}
-
-	const std::size_t slash = xclbin_path.find_last_of('/');
-	const std::string dir = (slash == std::string::npos) ? std::string(".") : xclbin_path.substr(0, slash);
-	const std::string instr_file = dir + "/" + kernel_name + "_ctrlpkt_dma_main.bin";
-
-	std::ifstream in(instr_file, std::ios::binary);
-	if (!in.good()) {
-		return {};
-	}
-
-	std::vector<char> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-	if (bytes.empty()) {
-		return {};
-	}
-
-	const std::size_t padded = ((bytes.size() + 3u) / 4u) * 4u;
-	bytes.resize(padded, 0);
-	std::vector<std::uint32_t> words(padded / 4u, 0u);
-	std::memcpy(words.data(), bytes.data(), padded);
-	return words;
-}
-
-xrt::bo alloc_bo_for_kernel(const std::optional<xrt::hw_context>& hwctx, const xrt::device& dev, size_t bytes,
-							std::size_t group_id, bool dpu_abi) {
-	(void)hwctx;
-	(void)dpu_abi;
-	return xrt::bo(dev, bytes, xrt::bo::flags::host_only, group_id);
+    return insts;
 }
 
 template <typename T>
 RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-								 const OffloadConfig& offload_cfg) {
-	if constexpr (sizeof(T) != 4) {
-		throw std::runtime_error("NPU offload currently supports only 4-byte element types (int/uint/float)");
-	}
+                                 const OffloadConfig& offload_cfg) {
+    const std::size_t n = data.size();
+    
+    std::size_t padded_n = 1024;
+    while (padded_n < n) {
+        padded_n *= 2;
+    }
 
-	const std::size_t n = data.size();
-	std::size_t active_comparators = 0;
-	for (const auto& layer : layers) {
-		active_comparators += layer.active_n / 2;
-	}
+    std::vector<T> padded_data(padded_n, std::numeric_limits<T>::lowest());
+    std::memcpy(padded_data.data(), data.data(), n * sizeof(T));
 
-	xrt::device dev = open_device();
-	std::optional<xrt::hw_context> hwctx;
-	xrt::uuid uuid;
-	xrt::kernel kernel;
-	xrt::xclbin xclbin(offload_cfg.xclbin_path);
-	uuid = dev.register_xclbin(xclbin);
-	hwctx.emplace(dev, uuid);
-	kernel = xrt::kernel(*hwctx, offload_cfg.kernel_name);
+    xrt::device dev = open_device();
+    xrt::xclbin xclbin(offload_cfg.xclbin_path);
+    xrt::uuid uuid = dev.register_xclbin(xclbin);
+    xrt::hw_context hwctx(dev, uuid);
+    xrt::kernel kernel(hwctx, offload_cfg.kernel_name);
 
-	const bool dpu_abi = xclbin_uses_dpu_abi(offload_cfg.xclbin_path);
-	const std::uint64_t opcode = read_opcode();
-	const unsigned int wait_timeout_ms = read_wait_timeout_ms();
+    const std::size_t chunk_bytes = 1024 * sizeof(T);
+    
+    const std::size_t instr_group = safe_group_id(kernel, 1);
+    const std::size_t cfg_group   = safe_group_id(kernel, 3);
+    const std::size_t dst_group   = safe_group_id(kernel, 4);
+    const std::size_t src_group   = safe_group_id(kernel, 5);
 
-	const std::size_t data_bytes = n * sizeof(T);
-	const std::size_t data_group = dpu_abi ? safe_group_id(kernel, 3) : safe_group_id(kernel, 0);
+    std::vector<uint32_t> instr_v = load_instruction_sequence(offload_cfg.xclbin_path);
+    xrt::bo instr_bo(dev, instr_v.size() * sizeof(uint32_t), xrt::bo::flags::cacheable, instr_group);
+    std::memcpy(instr_bo.map<void*>(), instr_v.data(), instr_v.size() * sizeof(uint32_t));
+    instr_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-	// Create ping-pong buffers
-	xrt::bo src_bo = alloc_bo_for_kernel(hwctx, dev, data_bytes, data_group, dpu_abi);
-	xrt::bo dst_bo = alloc_bo_for_kernel(hwctx, dev, data_bytes, data_group, dpu_abi);
+    xrt::bo cfg_bo(dev, 8 * sizeof(int32_t), xrt::bo::flags::host_only, cfg_group); 
+    xrt::bo dst_bo(dev, chunk_bytes, xrt::bo::flags::host_only, dst_group);
+    xrt::bo src_bo(dev, chunk_bytes, xrt::bo::flags::host_only, src_group);
 
-	std::memcpy(src_bo.map<void*>(), data.data(), data_bytes);
-	src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    int32_t pad_val = static_cast<int32_t>(std::numeric_limits<T>::lowest());
+    std::size_t total_dispatches = 0;
 
-	xrt::bo instr_bo;
-	xrt::bo bo2;
-	xrt::bo bo3;
-	xrt::bo bo4;
-	std::uint32_t ninstr = 0;
-	if (dpu_abi) {
-		const std::vector<std::uint32_t> instr_words =
-			read_dpu_instr_words(offload_cfg.xclbin_path, offload_cfg.kernel_name);
-		ninstr = static_cast<std::uint32_t>(instr_words.size());
-		const std::size_t instr_bytes =
-			std::max<std::size_t>(sizeof(std::uint32_t), instr_words.size() * sizeof(std::uint32_t));
-		if (ninstr_is_bytes()) {
-			ninstr = static_cast<std::uint32_t>(instr_bytes);
-		}
+    auto t0 = std::chrono::high_resolution_clock::now();
 
-		const std::size_t instr_group = safe_group_id(kernel, 1);
-		const std::size_t bo2_group = safe_group_id(kernel, 5);
-		const std::size_t bo3_group = safe_group_id(kernel, 6);
-		const std::size_t bo4_group = safe_group_id(kernel, 7);
-		instr_bo = xrt::bo(dev, instr_bytes, xrt::bo::flags::cacheable, instr_group);
-		bo2 = xrt::bo(dev, 1u, xrt::bo::flags::host_only, bo2_group);
-		bo3 = xrt::bo(dev, 8u, xrt::bo::flags::host_only, bo3_group);
-		bo4 = xrt::bo(dev, 1u, xrt::bo::flags::host_only, bo4_group);
-		std::uint32_t* inst = instr_bo.map<std::uint32_t*>();
-		if (!instr_words.empty()) {
-			std::memcpy(inst, instr_words.data(), instr_words.size() * sizeof(std::uint32_t));
-		} else {
-			inst[0] = 0;
-		}
-		std::memset(bo2.map<void*>(), 0, 1u);
-		std::memset(bo3.map<void*>(), 0, 8u);
-		std::memset(bo4.map<void*>(), 0, 1u);
-		instr_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-		bo2.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-		bo3.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-		bo4.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-	}
+    if (padded_n <= 1024) {
+        std::memcpy(src_bo.map<void*>(), padded_data.data(), chunk_bytes);
+        src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-	std::size_t launches = 0;
+        xrt::bo current_src = src_bo;
+        xrt::bo current_dst = dst_bo;
 
-	auto t0 = std::chrono::high_resolution_clock::now();
-	for (std::size_t layer_idx = 0; layer_idx < layers.size(); ++layer_idx) {
-		const auto& layer = layers[layer_idx];
-		const std::uint32_t stage = static_cast<std::uint32_t>(layer.k);
-		const std::uint32_t step = static_cast<std::uint32_t>(layer.j);
-		const std::uint32_t active_n = static_cast<std::uint32_t>(layer.active_n);
-		const std::uint32_t is_trunc = (layer.type == common::bitonic::LayerType::Truncate) ? 1 : 0;
+        for (const auto& layer : layers) {
+            int32_t* cfg_map = cfg_bo.map<int32_t*>();
+            cfg_map[0] = static_cast<int32_t>(layer.j);
+            cfg_map[1] = static_cast<int32_t>(layer.k);
+            cfg_map[2] = static_cast<int32_t>(layer.type == common::bitonic::LayerType::Normal ? 0 : 1);
+            cfg_map[3] = 0; 
+            cfg_map[4] = pad_val;
+            cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-		// Note: The kernel signature in your actual NPU `.xclbin` code must be updated to match these arguments!
-		if (!dpu_abi) {
-			auto run = kernel(src_bo, dst_bo, active_n, stage, step, is_trunc);
-			wait_for_run_or_throw(run, wait_timeout_ms, "offload");
-		} else {
-			xrt::run run(kernel);
-			run.set_arg(0, static_cast<std::uint64_t>(opcode));
-			run.set_arg(1, instr_bo);
-			run.set_arg(2, ninstr);
-			run.set_arg(3, src_bo);
-			run.set_arg(4, dst_bo); // Swapped pairs_bo for dst_bo
-			run.set_arg(5, bo2);
-			run.set_arg(6, bo3);
-			run.set_arg(7, bo4);
-			xrt::runlist rl(*hwctx);
-			rl.add(std::move(run));
-			rl.execute();
-			wait_for_runlist_or_throw(rl, wait_timeout_ms, "dpu");
-		}
-		launches++;
+            xrt::run run(kernel);
+            run.set_arg(0, 3);
+            run.set_arg(1, instr_bo);
+            run.set_arg(2, static_cast<uint32_t>(instr_v.size()));
+            run.set_arg(3, cfg_bo);
+            run.set_arg(4, current_dst);
+            run.set_arg(5, current_src);
+            
+            xrt::runlist rl(hwctx);
+            rl.add(run);
+            rl.execute();
+            wait_for_runlist_or_throw(rl, read_wait_timeout_ms());
+            total_dispatches++;
 
-		// Ping-pong arrays after compaction
-		if (is_trunc) {
-			xrt::bo temp = src_bo;
-			src_bo = dst_bo;
-			dst_bo = temp;
-		}
-	}
-	auto t1 = std::chrono::high_resolution_clock::now();
+            current_dst.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+            std::memcpy(current_src.map<void*>(), current_dst.map<void*>(), chunk_bytes);
+            current_src.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+        }
+        current_src.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+        std::memcpy(padded_data.data(), current_src.map<void*>(), chunk_bytes);
+    } 
+    else {
+        const std::size_t chunk_size = 1024;
+        const std::size_t half_chunk = 512;
+        T type_pad_val = std::numeric_limits<T>::lowest();
 
-	src_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-	std::memcpy(data.data(), src_bo.map<void*>(), data_bytes);
+        for (const auto& layer : layers) {
+            bool is_trunc = (layer.type == common::bitonic::LayerType::Truncate);
+            std::vector<T> next_data;
+            if (is_trunc) {
+                next_data.assign(padded_n, type_pad_val);
+            }
+            
+            if (layer.j < chunk_size) {
+                for (std::size_t offset = 0; offset < padded_n; offset += chunk_size) {
+                    std::memcpy(src_bo.map<void*>(), padded_data.data() + offset, chunk_size * sizeof(T));
+                    src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-	const double elapsed_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-	if (dpu_abi && launches == 0) {
-		throw std::runtime_error("Kernel image reports DPU ABI and produced no launchable work.");
-	}
-	return RunStats{elapsed_ms, launches, active_comparators, 1, true};
+                    int32_t* cfg_map = cfg_bo.map<int32_t*>();
+                    cfg_map[0] = static_cast<int32_t>(layer.j);
+                    cfg_map[1] = static_cast<int32_t>(layer.k);
+                    cfg_map[2] = is_trunc ? 1 : 0;
+                    cfg_map[3] = static_cast<int32_t>(offset); 
+                    cfg_map[4] = pad_val;
+                    cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+                    xrt::run run(kernel);
+                    run.set_arg(0, 3); run.set_arg(1, instr_bo);
+                    run.set_arg(2, static_cast<uint32_t>(instr_v.size()));
+                    run.set_arg(3, cfg_bo); run.set_arg(4, dst_bo); run.set_arg(5, src_bo);
+                    
+                    xrt::runlist rl(hwctx); rl.add(run); rl.execute();
+                    wait_for_runlist_or_throw(rl, read_wait_timeout_ms());
+                    total_dispatches++;
+
+                    dst_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+                    
+                    if (is_trunc) {
+                        std::memcpy(next_data.data() + (offset / 2), dst_bo.map<void*>(), half_chunk * sizeof(T));
+                    } else {
+                        std::memcpy(padded_data.data() + offset, dst_bo.map<void*>(), chunk_size * sizeof(T));
+                    }
+                }
+            } 
+            else {
+                for (std::size_t i = 0; i < padded_n; i += (2 * layer.j)) {
+                    for (std::size_t offset = 0; offset < layer.j; offset += half_chunk) {
+                        std::size_t left_idx = i + offset;
+                        std::size_t right_idx = i + layer.j + offset;
+
+                        T* src_ptr = src_bo.map<T*>();
+                        std::memcpy(src_ptr, padded_data.data() + left_idx, half_chunk * sizeof(T));
+                        std::memcpy(src_ptr + half_chunk, padded_data.data() + right_idx, half_chunk * sizeof(T));
+                        src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+                        int32_t* cfg_map = cfg_bo.map<int32_t*>();
+                        cfg_map[0] = static_cast<int32_t>(layer.j);
+                        cfg_map[1] = static_cast<int32_t>(layer.k);
+                        cfg_map[2] = is_trunc ? 3 : 2;
+                        cfg_map[3] = static_cast<int32_t>(left_idx); 
+                        cfg_map[4] = pad_val;
+                        cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+                        xrt::run run(kernel);
+                        run.set_arg(0, 3); run.set_arg(1, instr_bo);
+                        run.set_arg(2, static_cast<uint32_t>(instr_v.size()));
+                        run.set_arg(3, cfg_bo); run.set_arg(4, dst_bo); run.set_arg(5, src_bo);
+                        
+                        xrt::runlist rl(hwctx); rl.add(run); rl.execute();
+                        wait_for_runlist_or_throw(rl, read_wait_timeout_ms());
+                        total_dispatches++;
+
+                        dst_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+                        T* dst_ptr = dst_bo.map<T*>();
+                        
+                        if (is_trunc) {
+                            std::size_t out_base = (i / 2) + offset;
+                            std::memcpy(next_data.data() + out_base, dst_ptr, half_chunk * sizeof(T));
+                        } else {
+                            std::memcpy(padded_data.data() + left_idx, dst_ptr, half_chunk * sizeof(T));
+                            std::memcpy(padded_data.data() + right_idx, dst_ptr + half_chunk, half_chunk * sizeof(T));
+                        }
+                    }
+                }
+            }
+            
+            if (is_trunc) {
+                padded_data = std::move(next_data);
+            }
+        }
+    }
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    std::memcpy(data.data(), padded_data.data(), n * sizeof(T));
+
+    return RunStats{std::chrono::duration<double, std::milli>(t1 - t0).count(), total_dispatches, 0, 1, true};
 }
+
 } // namespace
 
 std::string query_device_name() {
-	xrt::device dev = open_device();
-	return dev.get_info<xrt::info::device::name>();
+    xrt::device dev = open_device();
+    return dev.get_info<xrt::info::device::name>();
 }
 
 std::string query_device_bdf() {
-	xrt::device dev = open_device();
-	return dev.get_info<xrt::info::device::bdf>();
+    xrt::device dev = open_device();
+    return dev.get_info<xrt::info::device::bdf>();
 }
 
 bool is_offload_configured() {
-	return load_offload_config().enabled;
+    return load_offload_config().enabled;
 }
 
 template <typename T>
 RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers) {
-	(void)workers;
+    (void)workers;
+    if (data.empty()) return RunStats{0.0, 0, 0, 1, true};
 
-	if (data.empty()) {
-		return RunStats{0.0, 0, 0, 1, true};
-	}
-
-	// Validate runtime access to the NPU device for this backend invocation.
-	(void)open_device();
-
-	const OffloadConfig offload_cfg = load_offload_config();
-	if (!offload_cfg.enabled) {
-		throw std::runtime_error(
-			"NPU offload is required for this backend. Set NPU_OFFLOAD_XCLBIN to a valid xclbin path.");
-	}
-
-	return run_network_offload_xrt(data, layers, offload_cfg);
+    (void)open_device();
+    const OffloadConfig offload_cfg = load_offload_config();
+    if (!offload_cfg.enabled) {
+        throw std::runtime_error("NPU offload is required for this backend. Set NPU_OFFLOAD_XCLBIN to a valid xclbin path.");
+    }
+    return run_network_offload_xrt(data, layers, offload_cfg);
 }
 
-template RunStats run_network_npu<std::int32_t>(std::vector<std::int32_t>& data,
-												const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
-template RunStats run_network_npu<std::uint32_t>(std::vector<std::uint32_t>& data,
-												 const std::vector<common::bitonic::Layer>& layers,
-												 std::size_t workers);
-template RunStats run_network_npu<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
-										 std::size_t workers);
-template RunStats run_network_npu<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers,
-										  std::size_t workers);
+template RunStats run_network_npu<std::int32_t>(std::vector<std::int32_t>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
+template RunStats run_network_npu<std::uint32_t>(std::vector<std::uint32_t>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
+template RunStats run_network_npu<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
+template RunStats run_network_npu<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
 
 #if defined(__FLT16_MANT_DIG__)
-template RunStats run_network_npu<_Float16>(std::vector<_Float16>& data,
-											const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
+template RunStats run_network_npu<_Float16>(std::vector<_Float16>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
 #endif
 
 } // namespace npu::bitonic
