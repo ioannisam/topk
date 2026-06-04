@@ -21,6 +21,14 @@ case "${BACKEND_LC}" in
     *) echo "Error: Unknown backend '${BACKEND_INPUT}'." >&2; usage; exit 2 ;;
 esac
 
+if [[ "${BACKEND_LC}" == "npu" && -z "${XILINX_XRT:-}" ]]; then
+    if [[ -f "/opt/xilinx/xrt/setup.sh" ]]; then
+        source "/opt/xilinx/xrt/setup.sh"
+    else
+        echo "Warning: XILINX_XRT is not set and /opt/xilinx/xrt/setup.sh not found. Execution may fail." >&2
+    fi
+fi
+
 ALGO_INPUT="${2:-both}"
 ALGO_LC="$(echo "${ALGO_INPUT}" | tr '[:upper:]' '[:lower:]')"
 case "${ALGO_LC}" in
@@ -100,6 +108,15 @@ run_suite() {
         read -r size_name q k algo dtype <<< "${case_info}"
 
         [[ "${TARGET_ALGO}" != "both" && "${algo}" != "${TARGET_ALGO}" ]] && continue
+
+        if [[ "${BACKEND_LC}" == "npu" ]]; then
+            local xclbin_path="${ROOT_BUILD_DIR}/${BACKEND_DIR}/${algo}.xclbin"
+            if [[ ! -f "${xclbin_path}" ]]; then
+                echo "   [!] Skipping: Missing xclbin for ${algo} at ${xclbin_path}"
+                continue
+            fi
+            export NPU_OFFLOAD_XCLBIN="${xclbin_path}"
+        fi
 
         local cmd=("${EXECUTABLE}" "q=${q}" "k=${k}" "algo=${algo}" "dtype=${dtype}")
         [[ "${algo}" == "bitonic" ]] && cmd+=("run=both")
