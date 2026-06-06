@@ -272,33 +272,44 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
     std::memcpy(instr_bo.map<void*>(), instr_v.data(), instr_v.size() * sizeof(uint32_t));
     instr_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
+    const std::size_t BATCH_CHUNKS = 256;
     const std::size_t chunk_size = 1024;
-    const std::size_t chunk_bytes = chunk_size * sizeof(T);
+    const std::size_t batch_size = BATCH_CHUNKS * chunk_size;
+    const std::size_t batch_bytes = batch_size * sizeof(T);
     
     const std::size_t cfg_group = npu::bitonic::safe_group_id(kernel, 3);
     const std::size_t dst_group = npu::bitonic::safe_group_id(kernel, 4);
     const std::size_t src_group = npu::bitonic::safe_group_id(kernel, 5);
 
-    xrt::bo cfg_bo(dev, 4 * sizeof(int32_t), xrt::bo::flags::host_only, cfg_group); 
-    xrt::bo dst_bo(dev, chunk_bytes, xrt::bo::flags::host_only, dst_group);
-    xrt::bo src_bo(dev, chunk_bytes, xrt::bo::flags::host_only, src_group);
+    // Allocate batch-sized buffers
+    xrt::bo cfg_bo(dev, BATCH_CHUNKS * 4 * sizeof(int32_t), xrt::bo::flags::host_only, cfg_group); 
+    xrt::bo dst_bo(dev, batch_bytes, xrt::bo::flags::host_only, dst_group);
+    xrt::bo src_bo(dev, batch_bytes, xrt::bo::flags::host_only, src_group);
 
     T pad_val = want_max ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
     std::size_t total_dispatches = 0;
 
-    for (std::size_t offset = initial_elements; offset < n; offset += chunk_size) {
-        std::size_t current_chunk = std::min(chunk_size, n - offset);
+    for (std::size_t offset = initial_elements; offset < n; offset += batch_size) {
+        std::size_t current_batch = std::min(batch_size, n - offset);
         
         T* src_map = src_bo.map<T*>();
-        std::memcpy(src_map, data.data() + offset, current_chunk * sizeof(T));
-        if (current_chunk < chunk_size) {
-             for(std::size_t p = current_chunk; p < chunk_size; ++p) src_map[p] = pad_val;
+        std::memcpy(src_map, data.data() + offset, current_batch * sizeof(T));
+        
+        // Pad the remainder of the batch if we hit the end of the array
+        if (current_batch < batch_size) {
+             for(std::size_t p = current_batch; p < batch_size; ++p) src_map[p] = pad_val;
         }
         src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
+        // Broadcast the current threshold to all 256 chunks
         int32_t* cfg_map = cfg_bo.map<int32_t*>();
-        cfg_map[0] = static_cast<int32_t>(heap.front()); 
-        cfg_map[1] = want_max ? 1 : 0;
+        T current_threshold = heap.front();
+        for (std::size_t c = 0; c < BATCH_CHUNKS; ++c) {
+            cfg_map[c * 4 + 0] = static_cast<int32_t>(current_threshold); 
+            cfg_map[c * 4 + 1] = want_max ? 1 : 0;
+            cfg_map[c * 4 + 2] = 0; // Unused
+            cfg_map[c * 4 + 3] = 0; // Unused
+        }
         cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
         xrt::run run(kernel);
@@ -318,10 +329,10 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
         dst_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
         T* dst_map = dst_bo.map<T*>();
         
-        for (std::size_t i = 0; i < current_chunk; ++i) {
+        for (std::size_t i = 0; i < current_batch; ++i) {
             T candidate = dst_map[i];
             if (candidate != pad_val) {
-                // --- FIX 3: Re-verify against CURRENT threshold ---
+                // Re-verify against current threshold (threshold might have risen during the loop)
                 bool is_still_candidate = want_max ? (candidate > heap.front()) : (candidate < heap.front());
                 
                 if (is_still_candidate) {
