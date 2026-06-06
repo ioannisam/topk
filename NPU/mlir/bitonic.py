@@ -11,41 +11,67 @@ def build_design():
             @device(AIEDevice.npu1_1col)
             def npu_device():
                 memref_1024 = T.memref(1024, T.i32())
-                memref_8 = T.memref(8, T.i32())
-
                 ShimTile = tile(0, 0)
-                ComputeTile = tile(0, 2)
+                Core1 = tile(0, 2)
+                Core2 = tile(0, 3)
+                Core3 = tile(0, 4)
+                Core4 = tile(0, 5)
 
-                in_fifo = object_fifo("in_fifo", ShimTile, ComputeTile, 2, memref_1024)
-                out_fifo = object_fifo("out_fifo", ComputeTile, ShimTile, 2, memref_1024)
-                cfg_fifo = object_fifo("cfg_fifo", ShimTile, ComputeTile, 1, memref_8)
+                in_fifo    = object_fifo("in_fifo", ShimTile, Core1, 2, memref_1024)
+                stream_1_2 = object_fifo("stream_1_2", Core1, Core2, 2, memref_1024)
+                stream_2_3 = object_fifo("stream_2_3", Core2, Core3, 2, memref_1024)
+                stream_3_4 = object_fifo("stream_3_4", Core3, Core4, 2, memref_1024)
+                out_fifo   = object_fifo("out_fifo", Core4, ShimTile, 2, memref_1024)
 
-                bitonic_func = external_func(
-                    "bitonic_step_kernel",
-                    inputs=[memref_1024, memref_1024, memref_8],
-                    link_with="bitonic.o"
-                )
+                stage_1 = external_func("pipeline_core_1", inputs=[memref_1024, memref_1024], link_with="bitonic.o")
+                stage_2 = external_func("pipeline_core_2", inputs=[memref_1024, memref_1024], link_with="bitonic.o")
+                stage_3 = external_func("pipeline_core_3", inputs=[memref_1024, memref_1024], link_with="bitonic.o")
+                stage_4 = external_func("pipeline_core_4", inputs=[memref_1024, memref_1024], link_with="bitonic.o")
 
-                @core(ComputeTile)
-                def core_body():
+                @core(Core1)
+                def core1_body():
                     for _ in for_(sys.maxsize):
-                        elem_cfg = cfg_fifo.acquire(ObjectFifoPort.Consume, 1)
                         elem_in = in_fifo.acquire(ObjectFifoPort.Consume, 1)
-                        elem_out = out_fifo.acquire(ObjectFifoPort.Produce, 1)
-
-                        # Pass the function reference, NOT a string
-                        call(bitonic_func, [elem_in, elem_out, elem_cfg])
-
+                        elem_out = stream_1_2.acquire(ObjectFifoPort.Produce, 1)
+                        call(stage_1, [elem_in, elem_out])
                         in_fifo.release(ObjectFifoPort.Consume, 1)
-                        out_fifo.release(ObjectFifoPort.Produce, 1)
-                        cfg_fifo.release(ObjectFifoPort.Consume, 1)
+                        stream_1_2.release(ObjectFifoPort.Produce, 1)
                         yield_([])
 
-                @runtime_sequence(memref_8, memref_1024, memref_1024)
-                def seq(cfg, out, in_buf):
-                    npu_dma_memcpy_nd(metadata="cfg_fifo", bd_id=3, mem=cfg, sizes=[1, 1, 1, 8], strides=[1, 1, 1, 1])
-                    npu_dma_memcpy_nd(metadata="out_fifo", bd_id=4, mem=out, sizes=[1, 1, 4, 256], strides=[1, 1, 256, 1])
-                    npu_dma_memcpy_nd(metadata="in_fifo", bd_id=5, mem=in_buf, sizes=[1, 1, 4, 256], strides=[1, 1, 256, 1])
+                @core(Core2)
+                def core2_body():
+                    for _ in for_(sys.maxsize):
+                        elem_in = stream_1_2.acquire(ObjectFifoPort.Consume, 1)
+                        elem_out = stream_2_3.acquire(ObjectFifoPort.Produce, 1)
+                        call(stage_2, [elem_in, elem_out])
+                        stream_1_2.release(ObjectFifoPort.Consume, 1)
+                        stream_2_3.release(ObjectFifoPort.Produce, 1)
+                        yield_([])
+
+                @core(Core3)
+                def core3_body():
+                    for _ in for_(sys.maxsize):
+                        elem_in = stream_2_3.acquire(ObjectFifoPort.Consume, 1)
+                        elem_out = stream_3_4.acquire(ObjectFifoPort.Produce, 1)
+                        call(stage_3, [elem_in, elem_out])
+                        stream_2_3.release(ObjectFifoPort.Consume, 1)
+                        stream_3_4.release(ObjectFifoPort.Produce, 1)
+                        yield_([])
+
+                @core(Core4)
+                def core4_body():
+                    for _ in for_(sys.maxsize):
+                        elem_in = stream_3_4.acquire(ObjectFifoPort.Consume, 1)
+                        elem_out = out_fifo.acquire(ObjectFifoPort.Produce, 1)
+                        call(stage_4, [elem_in, elem_out])
+                        stream_3_4.release(ObjectFifoPort.Consume, 1)
+                        out_fifo.release(ObjectFifoPort.Produce, 1)
+                        yield_([])
+
+                @runtime_sequence(memref_1024, memref_1024)
+                def seq(in_buf, out_buf):
+                    npu_dma_memcpy_nd(metadata="in_fifo", bd_id=0, mem=in_buf, sizes=[1, 1, 4, 256], strides=[1, 1, 256, 1])
+                    npu_dma_memcpy_nd(metadata="out_fifo", bd_id=1, mem=out_buf, sizes=[1, 1, 4, 256], strides=[1, 1, 256, 1])
                     npu_sync(column=0, row=0, direction=0, channel=0, column_num=1, row_num=1)
 
         return module

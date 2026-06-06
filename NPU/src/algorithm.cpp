@@ -109,12 +109,13 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
                                  const OffloadConfig& offload_cfg) {
     const std::size_t n = data.size();
     
-    std::size_t padded_n = 1024;
-    while (padded_n < n) {
-        padded_n *= 2;
+    // The pipeline expects multiples of 1024
+    std::size_t padded_n = n;
+    if (n % 1024 != 0) {
+        padded_n = ((n / 1024) + 1) * 1024;
     }
 
-    std::vector<T> padded_data(padded_n, std::numeric_limits<T>::lowest());
+    std::vector<T> padded_data(padded_n, std::numeric_limits<T>::max());
     std::memcpy(padded_data.data(), data.data(), n * sizeof(T));
 
     xrt::device dev = open_device();
@@ -124,150 +125,61 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
     xrt::kernel kernel(hwctx, offload_cfg.kernel_name);
 
     const std::size_t chunk_bytes = 1024 * sizeof(T);
-    
     const std::size_t instr_group = safe_group_id(kernel, 1);
-    const std::size_t cfg_group   = safe_group_id(kernel, 3);
-    const std::size_t dst_group   = safe_group_id(kernel, 4);
-    const std::size_t src_group   = safe_group_id(kernel, 5);
+    
+    xrt::bo src_bo(dev, padded_n * sizeof(T), xrt::bo::flags::host_only, safe_group_id(kernel, 3));
+    xrt::bo dst_bo(dev, padded_n * sizeof(T), xrt::bo::flags::host_only, safe_group_id(kernel, 4));
 
     std::vector<uint32_t> instr_v = load_instruction_sequence(offload_cfg.xclbin_path);
     xrt::bo instr_bo(dev, instr_v.size() * sizeof(uint32_t), xrt::bo::flags::cacheable, instr_group);
     std::memcpy(instr_bo.map<void*>(), instr_v.data(), instr_v.size() * sizeof(uint32_t));
     instr_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-    xrt::bo cfg_bo(dev, 8 * sizeof(int32_t), xrt::bo::flags::host_only, cfg_group); 
-    xrt::bo dst_bo(dev, chunk_bytes, xrt::bo::flags::host_only, dst_group);
-    xrt::bo src_bo(dev, chunk_bytes, xrt::bo::flags::host_only, src_group);
-
-    int32_t pad_val = static_cast<int32_t>(std::numeric_limits<T>::lowest());
     std::size_t total_dispatches = 0;
-
     auto t0 = std::chrono::high_resolution_clock::now();
 
-    if (padded_n <= 1024) {
-        std::memcpy(src_bo.map<void*>(), padded_data.data(), chunk_bytes);
+    for (std::size_t offset = 0; offset < padded_n; offset += 1024) {
+        std::memcpy(src_bo.map<void*>(), padded_data.data() + offset, chunk_bytes);
         src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-        xrt::bo current_src = src_bo;
-        xrt::bo current_dst = dst_bo;
+        xrt::run run(kernel);
+        run.set_arg(0, 3);          
+        run.set_arg(1, instr_bo);   
+        run.set_arg(2, static_cast<uint32_t>(instr_v.size()));
+        run.set_arg(3, src_bo);     
+        run.set_arg(4, dst_bo);     
+        
+        xrt::runlist rl(hwctx);
+        rl.add(run);
+        rl.execute();
+        wait_for_runlist_or_throw(rl, read_wait_timeout_ms());
+        total_dispatches++;
 
-        for (const auto& layer : layers) {
-            int32_t* cfg_map = cfg_bo.map<int32_t*>();
-            cfg_map[0] = static_cast<int32_t>(layer.j);
-            cfg_map[1] = static_cast<int32_t>(layer.k);
-            cfg_map[2] = static_cast<int32_t>(layer.type == common::bitonic::LayerType::Normal ? 0 : 1);
-            cfg_map[3] = 0; 
-            cfg_map[4] = pad_val;
-            cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-            xrt::run run(kernel);
-            run.set_arg(0, 3);
-            run.set_arg(1, instr_bo);
-            run.set_arg(2, static_cast<uint32_t>(instr_v.size()));
-            run.set_arg(3, cfg_bo);
-            run.set_arg(4, current_dst);
-            run.set_arg(5, current_src);
-            
-            xrt::runlist rl(hwctx);
-            rl.add(run);
-            rl.execute();
-            wait_for_runlist_or_throw(rl, read_wait_timeout_ms());
-            total_dispatches++;
-
-            current_dst.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-            std::memcpy(current_src.map<void*>(), current_dst.map<void*>(), chunk_bytes);
-            current_src.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+        dst_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+        std::memcpy(padded_data.data() + offset, dst_bo.map<void*>(), chunk_bytes);
+        
+        if ((offset / 1024) % 2 != 0) {
+            std::reverse(padded_data.begin() + offset, padded_data.begin() + offset + 1024);
         }
-        current_src.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-        std::memcpy(padded_data.data(), current_src.map<void*>(), chunk_bytes);
-    } 
-    else {
-        const std::size_t chunk_size = 1024;
-        const std::size_t half_chunk = 512;
-        T type_pad_val = std::numeric_limits<T>::lowest();
+    }
 
-        for (const auto& layer : layers) {
-            bool is_trunc = (layer.type == common::bitonic::LayerType::Truncate);
-            std::vector<T> next_data;
-            if (is_trunc) {
-                next_data.assign(padded_n, type_pad_val);
-            }
-            
-            if (layer.j < chunk_size) {
-                for (std::size_t offset = 0; offset < padded_n; offset += chunk_size) {
-                    std::memcpy(src_bo.map<void*>(), padded_data.data() + offset, chunk_size * sizeof(T));
-                    src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-                    int32_t* cfg_map = cfg_bo.map<int32_t*>();
-                    cfg_map[0] = static_cast<int32_t>(layer.j);
-                    cfg_map[1] = static_cast<int32_t>(layer.k);
-                    cfg_map[2] = is_trunc ? 1 : 0;
-                    cfg_map[3] = static_cast<int32_t>(offset); 
-                    cfg_map[4] = pad_val;
-                    cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-                    xrt::run run(kernel);
-                    run.set_arg(0, 3); run.set_arg(1, instr_bo);
-                    run.set_arg(2, static_cast<uint32_t>(instr_v.size()));
-                    run.set_arg(3, cfg_bo); run.set_arg(4, dst_bo); run.set_arg(5, src_bo);
+    for (std::size_t k = 2048; k <= padded_n; k *= 2) {
+        for (std::size_t j = k / 2; j > 0; j /= 2) {
+            for (std::size_t i = 0; i < padded_n; i++) {
+                std::size_t ixj = i ^ j;
+                if (ixj > i) {
+                    bool ascending = ((i & k) == 0);
                     
-                    xrt::runlist rl(hwctx); rl.add(run); rl.execute();
-                    wait_for_runlist_or_throw(rl, read_wait_timeout_ms());
-                    total_dispatches++;
-
-                    dst_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-                    
-                    if (is_trunc) {
-                        std::memcpy(next_data.data() + (offset / 2), dst_bo.map<void*>(), half_chunk * sizeof(T));
+                    if (ascending) {
+                        if (padded_data[i] > padded_data[ixj]) {
+                            std::swap(padded_data[i], padded_data[ixj]);
+                        }
                     } else {
-                        std::memcpy(padded_data.data() + offset, dst_bo.map<void*>(), chunk_size * sizeof(T));
-                    }
-                }
-            } 
-            else {
-                for (std::size_t i = 0; i < padded_n; i += (2 * layer.j)) {
-                    for (std::size_t offset = 0; offset < layer.j; offset += half_chunk) {
-                        std::size_t left_idx = i + offset;
-                        std::size_t right_idx = i + layer.j + offset;
-
-                        T* src_ptr = src_bo.map<T*>();
-                        std::memcpy(src_ptr, padded_data.data() + left_idx, half_chunk * sizeof(T));
-                        std::memcpy(src_ptr + half_chunk, padded_data.data() + right_idx, half_chunk * sizeof(T));
-                        src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-                        int32_t* cfg_map = cfg_bo.map<int32_t*>();
-                        cfg_map[0] = static_cast<int32_t>(layer.j);
-                        cfg_map[1] = static_cast<int32_t>(layer.k);
-                        cfg_map[2] = is_trunc ? 3 : 2;
-                        cfg_map[3] = static_cast<int32_t>(left_idx); 
-                        cfg_map[4] = pad_val;
-                        cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-                        xrt::run run(kernel);
-                        run.set_arg(0, 3); run.set_arg(1, instr_bo);
-                        run.set_arg(2, static_cast<uint32_t>(instr_v.size()));
-                        run.set_arg(3, cfg_bo); run.set_arg(4, dst_bo); run.set_arg(5, src_bo);
-                        
-                        xrt::runlist rl(hwctx); rl.add(run); rl.execute();
-                        wait_for_runlist_or_throw(rl, read_wait_timeout_ms());
-                        total_dispatches++;
-
-                        dst_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-                        T* dst_ptr = dst_bo.map<T*>();
-                        
-                        if (is_trunc) {
-                            std::size_t out_base = (i / 2) + offset;
-                            std::memcpy(next_data.data() + out_base, dst_ptr, half_chunk * sizeof(T));
-                        } else {
-                            std::memcpy(padded_data.data() + left_idx, dst_ptr, half_chunk * sizeof(T));
-                            std::memcpy(padded_data.data() + right_idx, dst_ptr + half_chunk, half_chunk * sizeof(T));
+                        if (padded_data[i] < padded_data[ixj]) {
+                            std::swap(padded_data[i], padded_data[ixj]);
                         }
                     }
                 }
-            }
-            
-            if (is_trunc) {
-                padded_data = std::move(next_data);
             }
         }
     }
