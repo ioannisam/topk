@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <vector>
 #include <limits>
+#include <memory>
 
 #include <xrt/xrt_bo.h>
 #include <xrt/xrt_device.h>
@@ -104,12 +105,40 @@ std::vector<uint32_t> load_instruction_sequence(const std::string& xclbin_path) 
     return insts;
 }
 
+struct SharedXrtState {
+    xrt::device dev;
+    xrt::xclbin xclbin;
+    xrt::uuid uuid;
+    xrt::hw_context hwctx;
+    xrt::kernel kernel;
+    std::vector<uint32_t> instr_v;
+    xrt::bo instr_bo;
+
+    explicit SharedXrtState(const OffloadConfig& cfg) {
+        dev = open_device();
+        xclbin = xrt::xclbin(cfg.xclbin_path);
+        uuid = dev.register_xclbin(xclbin);
+        hwctx = xrt::hw_context(dev, uuid);
+        kernel = xrt::kernel(hwctx, cfg.kernel_name);
+
+        const std::size_t instr_group = safe_group_id(kernel, 1);
+        instr_v = load_instruction_sequence(cfg.xclbin_path);
+        instr_bo = xrt::bo(dev, instr_v.size() * sizeof(uint32_t), xrt::bo::flags::cacheable, instr_group);
+        std::memcpy(instr_bo.map<void*>(), instr_v.data(), instr_v.size() * sizeof(uint32_t));
+        instr_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    }
+};
+
+SharedXrtState& get_shared_xrt_state(const OffloadConfig& offload_cfg) {
+    static std::unique_ptr<SharedXrtState> instance = std::make_unique<SharedXrtState>(offload_cfg);
+    return *instance;
+}
+
 template <typename T>
 RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
                                  const OffloadConfig& offload_cfg) {
     const std::size_t n = data.size();
     
-    // The pipeline expects multiples of 1024
     std::size_t padded_n = n;
     if (n % 1024 != 0) {
         padded_n = ((n / 1024) + 1) * 1024;
@@ -118,22 +147,13 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
     std::vector<T> padded_data(padded_n, std::numeric_limits<T>::max());
     std::memcpy(padded_data.data(), data.data(), n * sizeof(T));
 
-    xrt::device dev = open_device();
-    xrt::xclbin xclbin(offload_cfg.xclbin_path);
-    xrt::uuid uuid = dev.register_xclbin(xclbin);
-    xrt::hw_context hwctx(dev, uuid);
-    xrt::kernel kernel(hwctx, offload_cfg.kernel_name);
+    // Fetch the hot XRT state instead of initializing from scratch
+    SharedXrtState& state = get_shared_xrt_state(offload_cfg);
 
     const std::size_t chunk_bytes = 1024 * sizeof(T);
-    const std::size_t instr_group = safe_group_id(kernel, 1);
     
-    xrt::bo src_bo(dev, padded_n * sizeof(T), xrt::bo::flags::host_only, safe_group_id(kernel, 3));
-    xrt::bo dst_bo(dev, padded_n * sizeof(T), xrt::bo::flags::host_only, safe_group_id(kernel, 4));
-
-    std::vector<uint32_t> instr_v = load_instruction_sequence(offload_cfg.xclbin_path);
-    xrt::bo instr_bo(dev, instr_v.size() * sizeof(uint32_t), xrt::bo::flags::cacheable, instr_group);
-    std::memcpy(instr_bo.map<void*>(), instr_v.data(), instr_v.size() * sizeof(uint32_t));
-    instr_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    xrt::bo src_bo(state.dev, padded_n * sizeof(T), xrt::bo::flags::host_only, safe_group_id(state.kernel, 3));
+    xrt::bo dst_bo(state.dev, padded_n * sizeof(T), xrt::bo::flags::host_only, safe_group_id(state.kernel, 4));
 
     std::size_t total_dispatches = 0;
     auto t0 = std::chrono::high_resolution_clock::now();
@@ -142,14 +162,14 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
         std::memcpy(src_bo.map<void*>(), padded_data.data() + offset, chunk_bytes);
         src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-        xrt::run run(kernel);
+        xrt::run run(state.kernel);
         run.set_arg(0, 3);          
-        run.set_arg(1, instr_bo);   
-        run.set_arg(2, static_cast<uint32_t>(instr_v.size()));
+        run.set_arg(1, state.instr_bo);   
+        run.set_arg(2, static_cast<uint32_t>(state.instr_v.size()));
         run.set_arg(3, src_bo);     
         run.set_arg(4, dst_bo);     
         
-        xrt::runlist rl(hwctx);
+        xrt::runlist rl(state.hwctx);
         rl.add(run);
         rl.execute();
         wait_for_runlist_or_throw(rl, read_wait_timeout_ms());
@@ -235,113 +255,129 @@ namespace npu::map_reduce {
 namespace {
 
 template <typename T>
-std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_t k, bool want_max, 
-                                          const npu::bitonic::OffloadConfig& offload_cfg, 
+void prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_ptr,
+                       std::size_t current_batch, std::size_t batch_size,
+                       std::size_t batch_chunks, T current_threshold,
+                       bool want_max, T pad_val) {
+    T* src_map = src_bo.map<T*>();
+    std::memcpy(src_map, data_ptr, current_batch * sizeof(T));
+    if (current_batch < batch_size) {
+        for (std::size_t p = current_batch; p < batch_size; ++p) src_map[p] = pad_val;
+    }
+    src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+    int32_t* cfg_map = cfg_bo.map<int32_t*>();
+    for (std::size_t c = 0; c < batch_chunks; ++c) {
+        cfg_map[c * 4 + 0] = static_cast<int32_t>(current_threshold);
+        cfg_map[c * 4 + 1] = want_max ? 1 : 0;
+        cfg_map[c * 4 + 2] = 0;
+        cfg_map[c * 4 + 3] = 0;
+    }
+    cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+}
+
+template <typename T, typename Compare>
+void process_npu_results(T* dst_map, std::size_t batch_chunks, std::size_t chunk_size,
+                         std::vector<T>& heap, Compare comp, bool want_max) {
+    for (std::size_t c = 0; c < batch_chunks; ++c) {
+        T* chunk_out = dst_map + (c * chunk_size);
+        int32_t valid_count = *reinterpret_cast<int32_t*>(&chunk_out[0]);
+        for (int i = 1; i <= valid_count; ++i) {
+            T candidate = chunk_out[i];
+            bool is_still_candidate = want_max ? (candidate > heap.front()) : (candidate < heap.front());
+            if (is_still_candidate) {
+                std::pop_heap(heap.begin(), heap.end(), comp);
+                heap.back() = candidate;
+                std::push_heap(heap.begin(), heap.end(), comp);
+            }
+        }
+    }
+}
+
+template <typename T>
+std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_t k, bool want_max,
+                                          const npu::bitonic::OffloadConfig& offload_cfg,
                                           npu::bitonic::RunStats* stats) {
     if (k == 0 || data.empty()) return {};
 
     const std::size_t n = data.size();
     k = std::min(k, n);
 
+    // Fetch the shared state (Initialized safely in runner's warmup block)
+    npu::bitonic::SharedXrtState& state = npu::bitonic::get_shared_xrt_state(offload_cfg);
+    
     auto t0 = std::chrono::high_resolution_clock::now();
 
     using HeapCompare = std::function<bool(const T&, const T&)>;
-    HeapCompare comp;
-    if (want_max) {
-        comp = std::greater<T>{};
-    } else {
-        comp = std::less<T>{};
-    }
+    HeapCompare comp = want_max ? HeapCompare(std::greater<T>{}) : HeapCompare(std::less<T>{});
 
     std::vector<T> heap;
     heap.reserve(k);
-
     std::size_t initial_elements = std::min(k, n);
     heap.assign(data.begin(), data.begin() + initial_elements);
     std::make_heap(heap.begin(), heap.end(), comp);
-
-    xrt::device dev = npu::bitonic::open_device();
-    xrt::xclbin xclbin(offload_cfg.xclbin_path);
-    xrt::uuid uuid = dev.register_xclbin(xclbin);
-    xrt::hw_context hwctx(dev, uuid);
-    xrt::kernel kernel(hwctx, offload_cfg.kernel_name);
-
-    const std::size_t instr_group = npu::bitonic::safe_group_id(kernel, 1);
-    std::vector<uint32_t> instr_v = npu::bitonic::load_instruction_sequence(offload_cfg.xclbin_path);
-    xrt::bo instr_bo(dev, instr_v.size() * sizeof(uint32_t), xrt::bo::flags::cacheable, instr_group);
-    std::memcpy(instr_bo.map<void*>(), instr_v.data(), instr_v.size() * sizeof(uint32_t));
-    instr_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
     const std::size_t BATCH_CHUNKS = 256;
     const std::size_t chunk_size = 1024;
     const std::size_t batch_size = BATCH_CHUNKS * chunk_size;
     const std::size_t batch_bytes = batch_size * sizeof(T);
     
-    const std::size_t cfg_group = npu::bitonic::safe_group_id(kernel, 3);
-    const std::size_t dst_group = npu::bitonic::safe_group_id(kernel, 4);
-    const std::size_t src_group = npu::bitonic::safe_group_id(kernel, 5);
+    xrt::bo cfg_bo[2], dst_bo[2], src_bo[2];
+    xrt::run run[2];
+    xrt::runlist rl[2] = { xrt::runlist(state.hwctx), xrt::runlist(state.hwctx) };
 
-    // Allocate batch-sized buffers
-    xrt::bo cfg_bo(dev, BATCH_CHUNKS * 4 * sizeof(int32_t), xrt::bo::flags::host_only, cfg_group); 
-    xrt::bo dst_bo(dev, batch_bytes, xrt::bo::flags::host_only, dst_group);
-    xrt::bo src_bo(dev, batch_bytes, xrt::bo::flags::host_only, src_group);
+    const std::size_t cfg_grp = npu::bitonic::safe_group_id(state.kernel, 3);
+    const std::size_t dst_grp = npu::bitonic::safe_group_id(state.kernel, 4);
+    const std::size_t src_grp = npu::bitonic::safe_group_id(state.kernel, 5);
+
+    for (int i = 0; i < 2; ++i) {
+        cfg_bo[i] = xrt::bo(state.dev, BATCH_CHUNKS * 4 * sizeof(int32_t), xrt::bo::flags::host_only, cfg_grp);
+        dst_bo[i] = xrt::bo(state.dev, batch_bytes, xrt::bo::flags::host_only, dst_grp);
+        src_bo[i] = xrt::bo(state.dev, batch_bytes, xrt::bo::flags::host_only, src_grp);
+
+        run[i] = xrt::run(state.kernel);
+        run[i].set_arg(0, 3);
+        run[i].set_arg(1, state.instr_bo);
+        run[i].set_arg(2, static_cast<uint32_t>(state.instr_v.size()));
+        run[i].set_arg(3, cfg_bo[i]);
+        run[i].set_arg(4, dst_bo[i]);
+        run[i].set_arg(5, src_bo[i]);
+        rl[i].add(run[i]);
+    }
 
     T pad_val = want_max ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
     std::size_t total_dispatches = 0;
 
+    int active_idx = 0;
+    int next_idx = 1;
+    bool run_pending = false;
+
     for (std::size_t offset = initial_elements; offset < n; offset += batch_size) {
         std::size_t current_batch = std::min(batch_size, n - offset);
-        
-        T* src_map = src_bo.map<T*>();
-        std::memcpy(src_map, data.data() + offset, current_batch * sizeof(T));
-        
-        // Pad the remainder of the batch if we hit the end of the array
-        if (current_batch < batch_size) {
-             for(std::size_t p = current_batch; p < batch_size; ++p) src_map[p] = pad_val;
-        }
-        src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
-        // Broadcast the current threshold to all 256 chunks
-        int32_t* cfg_map = cfg_bo.map<int32_t*>();
-        T current_threshold = heap.front();
-        for (std::size_t c = 0; c < BATCH_CHUNKS; ++c) {
-            cfg_map[c * 4 + 0] = static_cast<int32_t>(current_threshold); 
-            cfg_map[c * 4 + 1] = want_max ? 1 : 0;
-            cfg_map[c * 4 + 2] = 0; // Unused
-            cfg_map[c * 4 + 3] = 0; // Unused
-        }
-        cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+        // Prepare and dispatch
+        prepare_npu_batch<T>(src_bo[active_idx], cfg_bo[active_idx], data.data() + offset,
+                             current_batch, batch_size, BATCH_CHUNKS, heap.front(), want_max, pad_val);
 
-        xrt::run run(kernel);
-        run.set_arg(0, 3);
-        run.set_arg(1, instr_bo);
-        run.set_arg(2, static_cast<uint32_t>(instr_v.size()));
-        run.set_arg(3, cfg_bo);
-        run.set_arg(4, dst_bo);
-        run.set_arg(5, src_bo);
-        
-        xrt::runlist rl(hwctx);
-        rl.add(run);
-        rl.execute();
-        npu::bitonic::wait_for_runlist_or_throw(rl, npu::bitonic::read_wait_timeout_ms());
+        rl[active_idx].execute();
         total_dispatches++;
 
-        dst_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-        T* dst_map = dst_bo.map<T*>();
-        
-        for (std::size_t i = 0; i < current_batch; ++i) {
-            T candidate = dst_map[i];
-            if (candidate != pad_val) {
-                // Re-verify against current threshold (threshold might have risen during the loop)
-                bool is_still_candidate = want_max ? (candidate > heap.front()) : (candidate < heap.front());
-                
-                if (is_still_candidate) {
-                    std::pop_heap(heap.begin(), heap.end(), comp);
-                    heap.back() = candidate;
-                    std::push_heap(heap.begin(), heap.end(), comp);
-                }
-            }
+        if (run_pending) {
+            npu::bitonic::wait_for_runlist_or_throw(rl[next_idx], npu::bitonic::read_wait_timeout_ms());
+            dst_bo[next_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+            process_npu_results<T>(dst_bo[next_idx].map<T*>(), BATCH_CHUNKS, chunk_size, heap, comp, want_max);
         }
+
+        run_pending = true;
+        std::swap(active_idx, next_idx);
+    }
+
+    // Drain last pending run
+    if (run_pending) {
+        int pending_idx = active_idx ^ 1;
+        npu::bitonic::wait_for_runlist_or_throw(rl[pending_idx], npu::bitonic::read_wait_timeout_ms());
+        dst_bo[pending_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+        process_npu_results<T>(dst_bo[pending_idx].map<T*>(), BATCH_CHUNKS, chunk_size, heap, comp, want_max);
     }
 
     auto cmp_sort = [&want_max](const T& lhs, const T& rhs) {
@@ -364,7 +400,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 
 template <typename T>
 std::vector<T> run_topk_npu(const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers, npu::bitonic::RunStats* stats) {
-    (void)workers; // Multi-threading not currently applied to the NPU dispatch loop
+    (void)workers;
     
     npu::bitonic::OffloadConfig offload_cfg = npu::bitonic::load_offload_config();
     if (!offload_cfg.enabled) {
