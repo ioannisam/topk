@@ -287,10 +287,16 @@ void prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_ptr,
     src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
     int32_t* cfg_map = cfg_bo.map<int32_t*>();
+    
+    // Accurately capture bits for generic sentinel support
+    int32_t sentinel_bits;
+    T temp_pad = pad_val;
+    std::memcpy(&sentinel_bits, &temp_pad, std::min(sizeof(T), sizeof(int32_t)));
+
     for (std::size_t c = 0; c < batch_chunks; ++c) {
         cfg_map[c * 4 + 0] = static_cast<int32_t>(current_threshold);
         cfg_map[c * 4 + 1] = want_max ? 1 : 0;
-        cfg_map[c * 4 + 2] = 0;
+        cfg_map[c * 4 + 2] = sentinel_bits; // Pass down the dynamic sentinel!
         cfg_map[c * 4 + 3] = 0;
     }
     cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
@@ -298,21 +304,33 @@ void prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_ptr,
 
 template <typename T, typename Compare>
 void process_npu_results(T* dst_map, std::size_t batch_chunks, std::size_t chunk_size,
-                         std::vector<T>& heap, Compare comp, bool want_max) {
+                         std::vector<T>& heap, std::size_t k, Compare comp, bool want_max) {
     T current_thresh = heap.front();
-    for (std::size_t c = 0; c < batch_chunks; ++c) {
-        T* chunk_out = dst_map + (c * chunk_size);
-        int32_t valid_count = *reinterpret_cast<int32_t*>(&chunk_out[0]);
-        for (int i = 1; i <= valid_count; ++i) {
-            T candidate = chunk_out[i];
-            bool is_still_candidate = want_max ? (candidate > current_thresh) : (candidate < current_thresh);
-            if (is_still_candidate) {
-                std::pop_heap(heap.begin(), heap.end(), comp);
-                heap.back() = candidate;
-                std::push_heap(heap.begin(), heap.end(), comp);
-                current_thresh = heap.front();
-            }
+    
+    std::vector<T> local_candidates;
+    local_candidates.reserve(1024); // Optimize bulk allocation
+    
+    std::size_t total_elements = batch_chunks * chunk_size;
+    
+    for (std::size_t i = 0; i < total_elements; ++i) {
+        T candidate = dst_map[i];
+        
+        // This check natively skips both normal mismatches AND the sentinels from the NPU!
+        bool is_still_candidate = want_max ? (candidate > current_thresh) : (candidate < current_thresh);
+        if (is_still_candidate) {
+            local_candidates.push_back(candidate);
         }
+    }
+
+    if (!local_candidates.empty()) {
+        // Bulk Heap Update (O(N) instead of sequential O(C log K))
+        heap.insert(heap.end(), local_candidates.begin(), local_candidates.end());
+        auto nth_cmp = [want_max](const T& a, const T& b) {
+            return want_max ? (a > b) : (a < b);
+        };
+        std::nth_element(heap.begin(), heap.begin() + k - 1, heap.end(), nth_cmp);
+        heap.resize(k);
+        std::make_heap(heap.begin(), heap.end(), comp);
     }
 }
 
@@ -332,7 +350,6 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
     using HeapCompare = std::function<bool(const T&, const T&)>;
     HeapCompare comp = want_max ? HeapCompare(std::greater<T>{}) : HeapCompare(std::less<T>{});
 
-    // 1. STRONGER THRESHOLD INITIALIZATION: Sample a larger prefix
     std::size_t initial_elements = std::min(std::max(k * 16, std::size_t(8192)), n);
     std::vector<T> initial_sample(data.begin(), data.begin() + initial_elements);
 
@@ -387,7 +404,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
         if (run_pending) {
             npu::bitonic::wait_for_runlist_or_throw(rl[next_idx], npu::bitonic::read_wait_timeout_ms());
             state.mr_dst_bo[next_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-            process_npu_results<T>(state.mr_dst_bo[next_idx].map<T*>(), BATCH_CHUNKS, chunk_size, heap, comp, want_max);
+            process_npu_results<T>(state.mr_dst_bo[next_idx].map<T*>(), BATCH_CHUNKS, chunk_size, heap, k, comp, want_max);
         }
 
         run_pending = true;
@@ -398,7 +415,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
         int pending_idx = active_idx ^ 1;
         npu::bitonic::wait_for_runlist_or_throw(rl[pending_idx], npu::bitonic::read_wait_timeout_ms());
         state.mr_dst_bo[pending_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-        process_npu_results<T>(state.mr_dst_bo[pending_idx].map<T*>(), BATCH_CHUNKS, chunk_size, heap, comp, want_max);
+        process_npu_results<T>(state.mr_dst_bo[pending_idx].map<T*>(), BATCH_CHUNKS, chunk_size, heap, k, comp, want_max);
     }
 
     auto cmp_sort = [&want_max](const T& lhs, const T& rhs) {
