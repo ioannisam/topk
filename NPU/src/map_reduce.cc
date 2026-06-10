@@ -23,6 +23,7 @@ void map_reduce_step_kernel(int32_t* restrict in_buf, int32_t* restrict out_buf,
         int32_t tmp[vector_width];
         aie::store_v(tmp, v);
         
+        #pragma unroll
         for (int j = 0; j < vector_width; ++j) {
             if (cmp_mask.test(j)) {
                 out_buf[out_idx++] = tmp[j];
