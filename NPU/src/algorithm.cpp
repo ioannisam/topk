@@ -55,16 +55,15 @@ OffloadConfig load_offload_config() {
 }
 
 std::size_t safe_group_id(const xrt::kernel& kernel, int arg_index) {
-    try { 
-        std::size_t id = static_cast<std::size_t>(kernel.group_id(arg_index)); 
-        if (id == 65535 || id == static_cast<std::size_t>(-1)) {
-            return 0; 
-        }
-        return id;
-    } 
-    catch (...) { 
-        return 0; 
+    // MLIR_AIE kernel metadata correctly defines the first 3 microcode arguments.
+    // We MUST query the actual group_id for them (especially index 1, which maps to bank 65537).
+    if (arg_index < 3) {
+        return kernel.group_id(arg_index);
     }
+    
+    // Querying indices beyond that causes a fatal std::vector assertion inside XRT.
+    // For Ryzen AI NPU host-only data buffers, group_id is always safely 0.
+    return 0; 
 }
 
 unsigned int read_wait_timeout_ms() {
@@ -114,11 +113,6 @@ struct SharedXrtState {
     std::vector<uint32_t> instr_v;
     xrt::bo instr_bo;
 
-    std::vector<xrt::bo> mr_cfg_bo;
-    std::vector<xrt::bo> mr_dst_bo;
-    std::vector<xrt::bo> mr_src_bo;
-    std::size_t mr_batch_bytes = 0;
-
     explicit SharedXrtState(const OffloadConfig& cfg) {
         dev = open_device();
         xclbin = xrt::xclbin(cfg.xclbin_path);
@@ -133,18 +127,23 @@ struct SharedXrtState {
         instr_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
     }
 
+    std::vector<xrt::bo> mr_cfg_bo;
+    std::vector<xrt::bo> mr_dst_bo;
+    std::vector<xrt::bo> mr_src_bo;
+    std::size_t mr_batch_bytes = 0;
+
     void allocate_mr_buffers(std::size_t batch_bytes) {
         if (mr_batch_bytes >= batch_bytes) return;
-        mr_cfg_bo.clear(); mr_dst_bo.clear(); mr_src_bo.clear();
         
-        const std::size_t cfg_grp = safe_group_id(kernel, 3);
-        const std::size_t dst_grp = safe_group_id(kernel, 4);
-        const std::size_t src_grp = safe_group_id(kernel, 5);
+        mr_cfg_bo.clear();
+        mr_dst_bo.clear();
+        mr_src_bo.clear();
         
         for (int i = 0; i < 2; ++i) {
-            mr_cfg_bo.push_back(xrt::bo(dev, 256 * 4 * sizeof(int32_t), xrt::bo::flags::host_only, cfg_grp));
-            mr_dst_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, dst_grp));
-            mr_src_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, src_grp));
+            // Allocate 1 unified buffer per type. Args 3, 4, 5.
+            mr_cfg_bo.push_back(xrt::bo(dev, 256 * sizeof(int32_t), xrt::bo::flags::host_only, safe_group_id(kernel, 3)));
+            mr_dst_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, safe_group_id(kernel, 4)));
+            mr_src_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, safe_group_id(kernel, 5)));
         }
         mr_batch_bytes = batch_bytes;
     }
@@ -271,7 +270,6 @@ template RunStats run_network_npu<_Float16>(std::vector<_Float16>& data, const s
 } // namespace npu::bitonic
 
 namespace npu::map_reduce {
-
 namespace {
 
 template <typename T>
@@ -279,55 +277,65 @@ void prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_ptr,
                        std::size_t current_batch, std::size_t batch_size,
                        std::size_t batch_chunks, T current_threshold,
                        bool want_max, T pad_val) {
-    T* src_map = src_bo.map<T*>();
-    std::memcpy(src_map, data_ptr, current_batch * sizeof(T));
-    if (current_batch < batch_size) {
-        std::fill(src_map + current_batch, src_map + batch_size, pad_val);
-    }
-    src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-    int32_t* cfg_map = cfg_bo.map<int32_t*>();
     
-    // Accurately capture bits for generic sentinel support
+    std::size_t col_capacity = batch_size / 4; 
+    std::size_t chunks_per_col = batch_chunks / 4;
+
     int32_t sentinel_bits;
     T temp_pad = pad_val;
     std::memcpy(&sentinel_bits, &temp_pad, std::min(sizeof(T), sizeof(int32_t)));
 
-    for (std::size_t c = 0; c < batch_chunks; ++c) {
-        cfg_map[c * 4 + 0] = static_cast<int32_t>(current_threshold);
-        cfg_map[c * 4 + 1] = want_max ? 1 : 0;
-        cfg_map[c * 4 + 2] = sentinel_bits; // Pass down the dynamic sentinel!
-        cfg_map[c * 4 + 3] = 0;
+    T* src_map = src_bo.map<T*>();
+    int32_t* cfg_map = cfg_bo.map<int32_t*>();
+
+    for (int c = 0; c < 4; ++c) {
+        std::size_t offset = c * col_capacity;
+        std::size_t elements_to_copy = (current_batch > offset) ? std::min(col_capacity, current_batch - offset) : 0;
+
+        if (elements_to_copy > 0) {
+            std::memcpy(src_map + offset, data_ptr + offset, elements_to_copy * sizeof(T));
+        }
+        if (elements_to_copy < col_capacity) {
+            std::fill(src_map + offset + elements_to_copy, src_map + offset + col_capacity, pad_val);
+        }
+
+        std::size_t cfg_offset = c * chunks_per_col * 4;
+        for (std::size_t ch = 0; ch < chunks_per_col; ++ch) {
+            cfg_map[cfg_offset + ch * 4 + 0] = static_cast<int32_t>(current_threshold);
+            cfg_map[cfg_offset + ch * 4 + 1] = want_max ? 1 : 0;
+            cfg_map[cfg_offset + ch * 4 + 2] = sentinel_bits; 
+            cfg_map[cfg_offset + ch * 4 + 3] = 0;
+        }
     }
+    src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
     cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 }
 
 template <typename T, typename Compare>
-void process_npu_results(T* dst_map, std::size_t batch_chunks, std::size_t chunk_size,
+void process_npu_results(xrt::bo& dst_bo, std::size_t batch_chunks, std::size_t chunk_size,
                          std::vector<T>& heap, std::size_t k, Compare comp, bool want_max) {
     T current_thresh = heap.front();
     
     std::vector<T> local_candidates;
-    local_candidates.reserve(1024); // Optimize bulk allocation
+    local_candidates.reserve(1024 * 4);
     
-    std::size_t total_elements = batch_chunks * chunk_size;
+    std::size_t col_elements = (batch_chunks / 4) * chunk_size;
+    T* dst_map = dst_bo.map<T*>();
     
-    for (std::size_t i = 0; i < total_elements; ++i) {
-        T candidate = dst_map[i];
-        
-        // This check natively skips both normal mismatches AND the sentinels from the NPU!
-        bool is_still_candidate = want_max ? (candidate > current_thresh) : (candidate < current_thresh);
-        if (is_still_candidate) {
-            local_candidates.push_back(candidate);
+    for (int c = 0; c < 4; ++c) {
+        std::size_t offset = c * col_elements;
+        for (std::size_t i = 0; i < col_elements; ++i) {
+            T candidate = dst_map[offset + i];
+            bool is_still_candidate = want_max ? (candidate > current_thresh) : (candidate < current_thresh);
+            if (is_still_candidate) {
+                local_candidates.push_back(candidate);
+            }
         }
     }
 
     if (!local_candidates.empty()) {
-        // Bulk Heap Update (O(N) instead of sequential O(C log K))
         heap.insert(heap.end(), local_candidates.begin(), local_candidates.end());
-        auto nth_cmp = [want_max](const T& a, const T& b) {
-            return want_max ? (a > b) : (a < b);
-        };
+        auto nth_cmp = [want_max](const T& a, const T& b) { return want_max ? (a > b) : (a < b); };
         std::nth_element(heap.begin(), heap.begin() + k - 1, heap.end(), nth_cmp);
         heap.resize(k);
         std::make_heap(heap.begin(), heap.end(), comp);
@@ -350,18 +358,8 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
     using HeapCompare = std::function<bool(const T&, const T&)>;
     HeapCompare comp = want_max ? HeapCompare(std::greater<T>{}) : HeapCompare(std::less<T>{});
 
-    std::size_t initial_elements = std::min(std::max(k * 16, std::size_t(8192)), n);
-    std::vector<T> initial_sample(data.begin(), data.begin() + initial_elements);
-
-    if (initial_sample.size() > k) {
-        auto nth_cmp = [want_max](const T& a, const T& b) {
-            return want_max ? (a > b) : (a < b);
-        };
-        std::nth_element(initial_sample.begin(), initial_sample.begin() + k - 1, initial_sample.end(), nth_cmp);
-        initial_sample.resize(k);
-    }
-
-    std::vector<T> heap = std::move(initial_sample);
+    // Initialize heap strictly with the first k elements to enforce NPU evaluation
+    std::vector<T> heap(data.begin(), data.begin() + k);
     std::make_heap(heap.begin(), heap.end(), comp);
 
     const std::size_t BATCH_CHUNKS = 256;
@@ -382,6 +380,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
         run[i].set_arg(3, state.mr_cfg_bo[i]);
         run[i].set_arg(4, state.mr_dst_bo[i]);
         run[i].set_arg(5, state.mr_src_bo[i]);
+        
         rl[i].add(run[i]);
     }
 
@@ -392,7 +391,8 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
     int next_idx = 1;
     bool run_pending = false;
 
-    for (std::size_t offset = initial_elements; offset < n; offset += batch_size) {
+    // Stream elements from k to n directly to the NPU
+    for (std::size_t offset = k; offset < n; offset += batch_size) {
         std::size_t current_batch = std::min(batch_size, n - offset);
 
         prepare_npu_batch<T>(state.mr_src_bo[active_idx], state.mr_cfg_bo[active_idx], data.data() + offset,
@@ -403,8 +403,8 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 
         if (run_pending) {
             npu::bitonic::wait_for_runlist_or_throw(rl[next_idx], npu::bitonic::read_wait_timeout_ms());
-            state.mr_dst_bo[next_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-            process_npu_results<T>(state.mr_dst_bo[next_idx].map<T*>(), BATCH_CHUNKS, chunk_size, heap, k, comp, want_max);
+            state.mr_dst_bo[next_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE); 
+            process_npu_results<T>(state.mr_dst_bo[next_idx], BATCH_CHUNKS, chunk_size, heap, k, comp, want_max);
         }
 
         run_pending = true;
@@ -414,8 +414,8 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
     if (run_pending) {
         int pending_idx = active_idx ^ 1;
         npu::bitonic::wait_for_runlist_or_throw(rl[pending_idx], npu::bitonic::read_wait_timeout_ms());
-        state.mr_dst_bo[pending_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-        process_npu_results<T>(state.mr_dst_bo[pending_idx].map<T*>(), BATCH_CHUNKS, chunk_size, heap, k, comp, want_max);
+        state.mr_dst_bo[pending_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE); 
+        process_npu_results<T>(state.mr_dst_bo[pending_idx], BATCH_CHUNKS, chunk_size, heap, k, comp, want_max);
     }
 
     auto cmp_sort = [&want_max](const T& lhs, const T& rhs) {
