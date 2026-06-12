@@ -9,14 +9,15 @@ add_custom_target(npu_hardware ALL
 
 add_executable(npu_topk
     src/main.cpp
-    src/algorithm.cpp
+    src/bitonic.cpp
+    src/map_reduce.cpp
     src/reporting.cpp
     src/runner.cpp
 )
 
 set_target_properties(npu_topk PROPERTIES OUTPUT_NAME "topk")
 
-target_link_libraries(npu_topk PRIVATE common xrt_coreutil uuid)
 target_include_directories(npu_topk PRIVATE include)
+target_link_libraries(npu_topk PRIVATE common xrt_coreutil uuid)
 
 add_dependencies(npu_topk npu_hardware)

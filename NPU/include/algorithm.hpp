@@ -9,11 +9,11 @@
 namespace npu::bitonic {
 
 struct RunStats {
-	double elapsed_ms;
-	std::size_t layer_dispatches;
-	std::size_t active_comparators;
-	std::size_t workers;
-	bool used_offload;
+    double elapsed_ms;
+    std::size_t layer_dispatches;
+    std::size_t active_comparators;
+    std::size_t workers;
+    bool used_offload;
 };
 
 std::string query_device_name();
@@ -27,8 +27,14 @@ RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic
 
 namespace npu::map_reduce {
 
+struct RunStats {
+    double elapsed_ms;
+    std::size_t layer_dispatches;
+    bool used_offload;
+};
+
 template <typename T>
 std::vector<T> run_topk_npu(const std::vector<T>& data, std::size_t k, bool want_max, 
-                            std::size_t workers, npu::bitonic::RunStats* stats);
+                            std::size_t workers, npu::map_reduce::RunStats* stats);
 
 } // namespace npu::map_reduce

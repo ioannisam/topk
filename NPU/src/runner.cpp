@@ -132,15 +132,15 @@ class NpuMapReduceRunnerHooks final : public common::topk::MapReduceRunnerHooks<
                        common::topk::MapReduceRunStats* stats) override {
         // warmup
         common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
-            npu::bitonic::RunStats dummy_stats{0.0, 0, 0, 0, false};
+            npu::map_reduce::RunStats dummy_stats{0.0, 0, false};
             npu::map_reduce::run_topk_npu(input, cfg.k, cfg.want_max, context.ex_threads, &dummy_stats);
         });
 
         // measurement
         auto best = common::benchmark::measure_best(
             common::benchmark::kMeasureIters,
-            [&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, npu::bitonic::RunStats> {
-                npu::bitonic::RunStats run_stats{0.0, 0, 0, 0, false};
+            [&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, npu::map_reduce::RunStats> {
+                npu::map_reduce::RunStats run_stats{0.0, 0, false};
                 auto t0 = std::chrono::high_resolution_clock::now();
 
                 std::vector<T> output =
@@ -149,7 +149,7 @@ class NpuMapReduceRunnerHooks final : public common::topk::MapReduceRunnerHooks<
                 auto t1 = std::chrono::high_resolution_clock::now();
                 double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-                return common::benchmark::TimedValueWithStats<std::vector<T>, npu::bitonic::RunStats>{
+                return common::benchmark::TimedValueWithStats<std::vector<T>, npu::map_reduce::RunStats>{
                     elapsed_wall_ms,
                     std::move(output),
                     run_stats,
@@ -171,9 +171,7 @@ class NpuMapReduceRunnerHooks final : public common::topk::MapReduceRunnerHooks<
     }
 
     void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
-        if (!cfg.debug_output) {
-            return;
-        }
+        if (!cfg.debug_output) return;
 
         common::reporting::print_section_header("Debug Metrics");
         common::reporting::print_key_value("NPU device", context.device_name);
@@ -182,13 +180,11 @@ class NpuMapReduceRunnerHooks final : public common::topk::MapReduceRunnerHooks<
         common::reporting::print_key_value("Tiles used", stats.tiles_used);
         common::reporting::print_key_value("Aggregated candidates", stats.aggregated_candidates);
         common::reporting::print_key_value("NPU dispatches", last_run_stats.layer_dispatches);
-        common::reporting::print_key_value("Active comparators", last_run_stats.active_comparators);
-        common::reporting::print_key_value("Execution workers", last_run_stats.workers);
     }
 
   private:
     Context context;
-    npu::bitonic::RunStats last_run_stats{0.0, 0, 0, 0, false};
+    npu::map_reduce::RunStats last_run_stats{0.0, 0, false};
 };
 
 template <typename T> int topk_typed(const Config& cfg) {
