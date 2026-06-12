@@ -102,13 +102,10 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 		return stats;
 	}
 
-	void print_debug_metrics(const Config& cfg, std::size_t layer_count, std::size_t full_cmp, std::size_t trunc_cmp,
-							 const common::topk::BasicRunStats* full_stats,
-							 const common::topk::BasicRunStats* trunc_stats) override {
-		const npu::bitonic::RunStats* full_run = (full_stats != nullptr) ? &last_full_stats : nullptr;
-		const npu::bitonic::RunStats* trunc_run = (trunc_stats != nullptr) ? &last_trunc_stats : nullptr;
-		npu::reporting::print_debug_metrics(cfg, context.device_name, full_run, trunc_run, layer_count, full_cmp,
-											trunc_cmp);
+	void print_debug_metrics(const Config& cfg, const common::topk::BitonicRunStats& stats) override {
+		const npu::bitonic::RunStats* full_run = (stats.full_run_stats != nullptr) ? &last_full_stats : nullptr;
+		const npu::bitonic::RunStats* trunc_run = (stats.trunc_run_stats != nullptr) ? &last_trunc_stats : nullptr;
+		npu::reporting::print_bitonic_debug_metrics(cfg, context.device_name, stats, full_run, trunc_run);
 	}
 
   private:
@@ -171,15 +168,8 @@ class NpuMapReduceRunnerHooks final : public common::topk::MapReduceRunnerHooks<
     }
 
     void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
-        if (!cfg.debug_output) return;
-
-        common::reporting::print_section_header("Debug Metrics");
-        common::reporting::print_key_value("NPU device", context.device_name);
-        common::reporting::print_key_value("NPU BDF", context.device_bdf);
-        common::reporting::print_key_value("Offload configured", (context.offload_enabled ? "yes" : "no"));
-        common::reporting::print_key_value("Tiles used", stats.tiles_used);
-        common::reporting::print_key_value("Aggregated candidates", stats.aggregated_candidates);
-        common::reporting::print_key_value("NPU dispatches", last_run_stats.layer_dispatches);
+        npu::reporting::print_map_reduce_debug_metrics(cfg, context.device_name, context.device_bdf, 
+                                                       context.offload_enabled, stats, last_run_stats);
     }
 
   private:

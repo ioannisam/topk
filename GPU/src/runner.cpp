@@ -100,12 +100,10 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 		return stats;
 	}
 
-	void print_debug_metrics(const Config& cfg, std::size_t layer_count, std::size_t full_cmp, std::size_t trunc_cmp,
-							 const common::topk::BasicRunStats* full_stats,
-							 const common::topk::BasicRunStats* trunc_stats) override {
-		const gpu::bitonic::RunStats* full_run = (full_stats != nullptr) ? &last_full_stats : nullptr;
-		const gpu::bitonic::RunStats* trunc_run = (trunc_stats != nullptr) ? &last_trunc_stats : nullptr;
-		gpu::reporting::print_debug_metrics(cfg, device_name, full_run, trunc_run, layer_count, full_cmp, trunc_cmp);
+	void print_debug_metrics(const Config& cfg, const common::topk::BitonicRunStats& stats) override {
+		const gpu::bitonic::RunStats* full_run = (stats.full_run_stats != nullptr) ? &last_full_stats : nullptr;
+		const gpu::bitonic::RunStats* trunc_run = (stats.trunc_run_stats != nullptr) ? &last_trunc_stats : nullptr;
+		gpu::reporting::print_bitonic_debug_metrics(cfg, device_name, stats, full_run, trunc_run);
 	}
 
   private:
@@ -171,15 +169,7 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
-		if (!cfg.debug_output) {
-			return;
-		}
-
-		common::reporting::print_section_header("Debug Metrics");
-		common::reporting::print_key_value("CUDA device", device_name);
-		common::reporting::print_key_value("Tiles used", stats.tiles_used);
-		common::reporting::print_key_value("Aggregated candidates", stats.aggregated_candidates);
-		common::reporting::print_key_value("CUDA block size", last_stats.block_size);
+		gpu::reporting::print_map_reduce_debug_metrics(cfg, device_name, stats, last_stats);
 	}
 
   private:
@@ -234,12 +224,7 @@ class GpuMapReduceFp16Hooks final : public common::topk::MapReduceRunnerHooks<fl
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
-		if (!cfg.debug_output) return;
-		common::reporting::print_section_header("Debug Metrics");
-		common::reporting::print_key_value("CUDA device", device_name);
-		common::reporting::print_key_value("Tiles used", stats.tiles_used);
-		common::reporting::print_key_value("Aggregated candidates", stats.aggregated_candidates);
-		common::reporting::print_key_value("CUDA block size", last_stats.block_size);
+		gpu::reporting::print_map_reduce_debug_metrics(cfg, device_name, stats, last_stats);
 	}
 
   private:

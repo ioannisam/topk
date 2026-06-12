@@ -65,7 +65,7 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 				return common::benchmark::TimedValue<std::vector<T>>{elapsed, std::move(temp)};
 			});
 
-		data = std::move(best.value); // Keep the fastest sorted result for correctness
+		data = std::move(best.value); 
 		common::topk::BasicRunStats stats{};
 		stats.end_to_end_ms = best.elapsed_ms;
 		stats.algorithm_ms = best.elapsed_ms;
@@ -73,12 +73,8 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 		return stats;
 	}
 
-	void print_debug_metrics(const Config& cfg, std::size_t layer_count, std::size_t full_cmp, std::size_t trunc_cmp,
-							 const common::topk::BasicRunStats* full_stats,
-							 const common::topk::BasicRunStats* trunc_stats) override {
-		cpu::reporting::print_debug_metrics(cfg, context.hw_threads, context.ex_threads, layer_count, full_cmp,
-											trunc_cmp, full_stats != nullptr ? full_stats->algorithm_ms : 0.0,
-											trunc_stats != nullptr ? trunc_stats->algorithm_ms : 0.0);
+	void print_debug_metrics(const Config& cfg, const common::topk::BitonicRunStats& stats) override {
+		cpu::reporting::print_bitonic_debug_metrics(cfg, context.hw_threads, context.ex_threads, stats);
 	}
 
   private:
@@ -131,15 +127,7 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
-		if (!cfg.debug_output) {
-			return;
-		}
-
-		common::reporting::print_section_header("Debug Metrics");
-		common::reporting::print_key_value("Hardware threads available", context.hw_threads);
-		common::reporting::print_key_value("Execution threads used", context.ex_threads);
-		common::reporting::print_key_value("Tiles used", stats.tiles_used);
-		common::reporting::print_key_value("Aggregated candidates", stats.aggregated_candidates);
+		cpu::reporting::print_map_reduce_debug_metrics(cfg, context.hw_threads, context.ex_threads, stats);
 	}
 
   private:

@@ -22,6 +22,14 @@ struct BasicRunStats {
 	double algorithm_ms = 0.0;
 };
 
+struct BitonicRunStats {
+	std::size_t layer_count = 0;
+	std::size_t full_comparators = 0;
+	std::size_t trunc_comparators = 0;
+	const BasicRunStats* full_run_stats = nullptr;
+	const BasicRunStats* trunc_run_stats = nullptr;
+};
+
 struct MapReduceRunStats {
 	double end_to_end_ms = 0.0;
 	double algorithm_ms = 0.0;
@@ -36,9 +44,7 @@ template <typename T> class BitonicRunnerHooks {
 	virtual void print_configuration(const common::config::Config& cfg, std::size_t n) = 0;
 	virtual BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) = 0;
 
-	virtual void print_debug_metrics(const common::config::Config& cfg, std::size_t layer_count, std::size_t full_cmp,
-									 std::size_t trunc_cmp, const BasicRunStats* full_stats,
-									 const BasicRunStats* trunc_stats) = 0;
+	virtual void print_debug_metrics(const common::config::Config& cfg, const BitonicRunStats& stats) = 0;
 };
 
 template <typename T> class MapReduceRunnerHooks {
@@ -190,8 +196,14 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 											   common::reporting::format_fixed(skipped_pct, 2, "%") + ")");
 	}
 
-	hooks.print_debug_metrics(cfg, trunc_layers.size(), full_cmp, trunc_cmp, run_full ? &full_stats : nullptr,
-							  run_trunc ? &trunc_stats : nullptr);
+	BitonicRunStats debug_stats{};
+	debug_stats.layer_count = trunc_layers.size();
+	debug_stats.full_comparators = full_cmp;
+	debug_stats.trunc_comparators = trunc_cmp;
+	debug_stats.full_run_stats = run_full ? &full_stats : nullptr;
+	debug_stats.trunc_run_stats = run_trunc ? &trunc_stats : nullptr;
+
+	hooks.print_debug_metrics(cfg, debug_stats);
 
 	if (run_both) {
 		common::reporting::print_check_result("Top-k correctness vs full network", true, both_ok);
