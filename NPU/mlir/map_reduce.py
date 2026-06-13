@@ -13,8 +13,8 @@ def build_design():
                 memref_1024 = T.memref(1024, T.i32())
                 memref_4 = T.memref(4, T.i32())
                 
-                memref_batch = T.memref(262144, T.i32())   # 65536 * 4 columns
-                memref_cfg_batch = T.memref(1024, T.i32()) # 256 * 4 columns
+                memref_batch = T.memref(1048576, T.i32())
+                memref_cfg_batch = T.memref(4096, T.i32())
 
                 map_reduce_func = external_func(
                     "map_reduce_step_kernel",
@@ -22,7 +22,7 @@ def build_design():
                     link_with="map_reduce.o"
                 )
 
-                NUM_COLS = 4
+                NUM_COLS = 4 # hardware exposes only 4 columns
                 
                 tiles = {}
                 for col in range(NUM_COLS):
@@ -59,28 +59,20 @@ def build_design():
 
                 @runtime_sequence(memref_cfg_batch, memref_batch, memref_batch)
                 def seq(cfg, out, inp):
-                    # Column 0
-                    npu_dma_memcpy_nd(metadata="cfg_fifo_0", bd_id=0, mem=cfg, offsets=[0, 0, 0, 0], sizes=[1, 1, 64, 4], strides=[1, 1, 4, 1])
-                    npu_dma_memcpy_nd(metadata="out_candidates_0", bd_id=1, mem=out, offsets=[0, 0, 0, 0], sizes=[1, 1, 1024, 64], strides=[1, 1, 64, 1])
-                    npu_dma_memcpy_nd(metadata="in_fifo_0", bd_id=2, mem=inp, offsets=[0, 0, 0, 0], sizes=[1, 1, 1024, 64], strides=[1, 1, 64, 1])
-
-                    # Column 1 (Offset by 1/4 of total elements)
-                    npu_dma_memcpy_nd(metadata="cfg_fifo_1", bd_id=3, mem=cfg, offsets=[0, 0, 0, 256], sizes=[1, 1, 64, 4], strides=[1, 1, 4, 1])
-                    npu_dma_memcpy_nd(metadata="out_candidates_1", bd_id=4, mem=out, offsets=[0, 0, 0, 65536], sizes=[1, 1, 1024, 64], strides=[1, 1, 64, 1])
-                    npu_dma_memcpy_nd(metadata="in_fifo_1", bd_id=5, mem=inp, offsets=[0, 0, 0, 65536], sizes=[1, 1, 1024, 64], strides=[1, 1, 64, 1])
-
-                    # Column 2 (Offset by 2/4 of total elements)
-                    npu_dma_memcpy_nd(metadata="cfg_fifo_2", bd_id=6, mem=cfg, offsets=[0, 0, 0, 512], sizes=[1, 1, 64, 4], strides=[1, 1, 4, 1])
-                    npu_dma_memcpy_nd(metadata="out_candidates_2", bd_id=7, mem=out, offsets=[0, 0, 0, 131072], sizes=[1, 1, 1024, 64], strides=[1, 1, 64, 1])
-                    npu_dma_memcpy_nd(metadata="in_fifo_2", bd_id=8, mem=inp, offsets=[0, 0, 0, 131072], sizes=[1, 1, 1024, 64], strides=[1, 1, 64, 1])
-
-                    # Column 3 (Offset by 3/4 of total elements)
-                    npu_dma_memcpy_nd(metadata="cfg_fifo_3", bd_id=9, mem=cfg, offsets=[0, 0, 0, 768], sizes=[1, 1, 64, 4], strides=[1, 1, 4, 1])
-                    npu_dma_memcpy_nd(metadata="out_candidates_3", bd_id=10, mem=out, offsets=[0, 0, 0, 196608], sizes=[1, 1, 1024, 64], strides=[1, 1, 64, 1])
-                    npu_dma_memcpy_nd(metadata="in_fifo_3", bd_id=11, mem=inp, offsets=[0, 0, 0, 196608], sizes=[1, 1, 1024, 64], strides=[1, 1, 64, 1])
+                    # 1,048,576 total elements / 4 columns = 262,144 elements per column.
+                    # 262,144 elements / 64 vector size = 4,096 DMA chunk cycles per column.
+                    
+                    for col in range(NUM_COLS):
+                        elem_offset = col * 262144
+                        cfg_offset = col * 1024  # 256 chunks per col * 4 ints
+                        bd_base = col * 3
+                        
+                        npu_dma_memcpy_nd(metadata=f"cfg_fifo_{col}", bd_id=bd_base+0, mem=cfg, offsets=[0, 0, 0, cfg_offset], sizes=[1, 1, 256, 4], strides=[1, 1, 4, 1])
+                        npu_dma_memcpy_nd(metadata=f"out_candidates_{col}", bd_id=bd_base+1, mem=out, offsets=[0, 0, 0, elem_offset], sizes=[1, 1, 4096, 64], strides=[1, 1, 64, 1])
+                        npu_dma_memcpy_nd(metadata=f"in_fifo_{col}", bd_id=bd_base+2, mem=inp, offsets=[0, 0, 0, elem_offset], sizes=[1, 1, 4096, 64], strides=[1, 1, 64, 1])
 
                     # Wait for all 4 channels to finish
-                    npu_sync(column=0, row=0, direction=0, channel=0, column_num=4, row_num=1)
+                    npu_sync(column=0, row=0, direction=0, channel=0, column_num=NUM_COLS, row_num=1)
 
         return module
 
