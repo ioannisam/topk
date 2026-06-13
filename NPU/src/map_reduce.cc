@@ -19,15 +19,19 @@ void map_reduce_step_kernel(int32_t* restrict in_buf, int32_t* restrict out_buf,
         aie::vector<int32_t, vector_width> v = aie::load_v<vector_width>(in_buf + i);
         aie::mask<vector_width> cmp_mask = want_max ? aie::gt(v, t_vec) : aie::lt(v, t_vec);
         
-        for (int lane = 0; lane < vector_width; ++lane) {
-            if (cmp_mask.test(lane)) {
-                *out_data_ptr++ = v[lane];
-                valid_count++;
+        uint32_t mask_bits = cmp_mask.to_uint32();
+        
+        if (mask_bits != 0) {
+            #pragma unroll(16)
+            for (int lane = 0; lane < vector_width; ++lane) {
+                if ((mask_bits >> lane) & 1) {
+                    *out_data_ptr++ = v[lane];
+                    valid_count++;
+                }
             }
         }
     }
     
-    // Write the total number of vald elements at the very beginning of the chunk
     out_buf[0] = valid_count;
 }
 
