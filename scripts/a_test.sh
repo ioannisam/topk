@@ -5,9 +5,9 @@ set -uo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 usage() {
-    echo "Usage: $(basename "$0") [cpu|gpu|npu] [bitonic|map_reduce|both]"
+    echo "Usage: $(basename "$0") [cpu|gpu|npu] [bitonic|map_reduce|gt|all]"
     echo "  Reports the performance of the current codebase for the specified backend and algorithm."
-    echo "  Defaults: backend=cpu, algorithm=both."
+    echo "  Defaults: backend=cpu, algorithm=all."
 }
 
 BACKEND_INPUT="${1:-cpu}"
@@ -28,10 +28,10 @@ if [[ "${BACKEND_LC}" == "npu" && -z "${XILINX_XRT:-}" ]]; then
     fi
 fi
 
-ALGO_INPUT="${2:-both}"
+ALGO_INPUT="${2:-all}"
 ALGO_LC="$(echo "${ALGO_INPUT}" | tr '[:upper:]' '[:lower:]')"
 case "${ALGO_LC}" in
-    bitonic|map_reduce|both) TARGET_ALGO="${ALGO_LC}" ;;
+    bitonic|map_reduce|gt|all) TARGET_ALGO="${ALGO_LC}" ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Error: Unknown algorithm '${ALGO_INPUT}'." >&2; usage; exit 2 ;;
 esac
@@ -59,6 +59,15 @@ cases=(
     "Large  23 1024 map_reduce float"
     "Large  23 1024 map_reduce fp16"
     "Large  23 1024 map_reduce double"
+    "Small  10 16   gt float"
+    "Small  10 16   gt fp16"
+    "Small  10 16   gt double"
+    "Medium 20 256  gt float"
+    "Medium 20 256  gt fp16"
+    "Medium 20 256  gt double"
+    "Large  23 1024 gt float"
+    "Large  23 1024 gt fp16"
+    "Large  23 1024 gt double"
 )
 
 # Checks
@@ -104,9 +113,9 @@ run_suite() {
     for case_info in "${cases[@]}"; do
         read -r size_name q k algo dtype <<< "${case_info}"
 
-        [[ "${TARGET_ALGO}" != "both" && "${algo}" != "${TARGET_ALGO}" ]] && continue
+        [[ "${TARGET_ALGO}" != "all" && "${algo}" != "${TARGET_ALGO}" ]] && continue
 
-        if [[ "${BACKEND_LC}" == "npu" ]]; then
+        if [[ "${BACKEND_LC}" == "npu" && "${algo}" != "gt" ]]; then
             local xclbin_path="${ROOT_BUILD_DIR}/${BACKEND_DIR}/${algo}.xclbin"
             if [[ ! -f "${xclbin_path}" ]]; then
                 echo "   [!] Skipping: Missing xclbin for ${algo} at ${xclbin_path}"
@@ -144,8 +153,8 @@ run_suite() {
             fi
 
             local duration_e2e duration_algo
-            duration_e2e=$(echo "${RAW_OUTPUT}" | grep -E "(Trunc bitonic|Map-reduce top-k) end-to-end time \(ms\)" | awk -F':' '{print $2}' | tr -d ' ')
-            duration_algo=$(echo "${RAW_OUTPUT}" | grep -E "(Trunc bitonic|Map-reduce top-k) algorithmic time \(ms\)" | awk -F':' '{print $2}' | tr -d ' ')
+            duration_e2e=$(echo "${RAW_OUTPUT}" | grep -iE "end-to-end time \(ms\)" | awk -F':' '{print $2}' | tr -d ' ' | tail -n 1)
+            duration_algo=$(echo "${RAW_OUTPUT}" | grep -iE "algorithmic time \(ms\)" | awk -F':' '{print $2}' | tr -d ' ' | tail -n 1)
 
             if [[ -n "${duration_e2e}" && "${duration_e2e}" != "skipped" ]]; then
                 if [[ ${found_e2e} -eq 0 ]]; then
