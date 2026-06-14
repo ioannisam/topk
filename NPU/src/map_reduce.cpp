@@ -19,35 +19,40 @@ void prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_ptr,
                        std::size_t batch_chunks, T current_threshold,
                        bool want_max, T pad_val) {
     
-    std::size_t col_capacity = batch_size / 4;
-    std::size_t chunks_per_col = batch_chunks / 4;
+    T* src_map = src_bo.map<T*>();
+    int32_t* cfg_map = cfg_bo.map<int32_t*>();
+
+    // 1. Single contiguous data copy (eliminates the 4-column scatter loop)
+    if (current_batch > 0) {
+        std::memcpy(src_map, data_ptr, current_batch * sizeof(T));
+    }
+    // Vectorized fill for the remainder of the batch
+    if (current_batch < batch_size) {
+        std::fill(src_map + current_batch, src_map + batch_size, pad_val);
+    }
+
+    // 2. Fast block-fill for the config buffer
+    struct alignas(16) CfgWord {
+        int32_t threshold;
+        int32_t want_max;
+        int32_t sentinel;
+        int32_t padding;
+    };
 
     int32_t sentinel_bits;
     T temp_pad = pad_val;
     std::memcpy(&sentinel_bits, &temp_pad, std::min(sizeof(T), sizeof(int32_t)));
 
-    T* src_map = src_bo.map<T*>();
-    int32_t* cfg_map = cfg_bo.map<int32_t*>();
+    CfgWord current_cfg = {
+        static_cast<int32_t>(current_threshold),
+        want_max ? 1 : 0,
+        sentinel_bits,
+        0
+    };
 
-    for (int c = 0; c < 4; ++c) {
-        std::size_t offset = c * col_capacity;
-        std::size_t elements_to_copy = (current_batch > offset) ? std::min(col_capacity, current_batch - offset) : 0;
+    CfgWord* cfg_words = reinterpret_cast<CfgWord*>(cfg_map);
+    std::fill(cfg_words, cfg_words + batch_chunks, current_cfg);
 
-        if (elements_to_copy > 0) {
-            std::memcpy(src_map + offset, data_ptr + offset, elements_to_copy * sizeof(T));
-        }
-        if (elements_to_copy < col_capacity) {
-            std::fill(src_map + offset + elements_to_copy, src_map + offset + col_capacity, pad_val);
-        }
-
-        std::size_t cfg_offset = c * chunks_per_col * 4;
-        for (std::size_t ch = 0; ch < chunks_per_col; ++ch) {
-            cfg_map[cfg_offset + ch * 4 + 0] = static_cast<int32_t>(current_threshold);
-            cfg_map[cfg_offset + ch * 4 + 1] = want_max ? 1 : 0;
-            cfg_map[cfg_offset + ch * 4 + 2] = sentinel_bits;
-            cfg_map[cfg_offset + ch * 4 + 3] = 0;
-        }
-    }
     src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
     cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 }
@@ -56,30 +61,24 @@ template <typename T, typename Compare>
 void process_npu_results(xrt::bo& dst_bo, std::vector<T>& heap, std::size_t k, Compare comp, 
                          std::size_t batch_chunks, T pad_val) {
     T* dst_map = dst_bo.map<T*>();
-    
-    std::vector<T> local_candidates;
-    local_candidates.reserve(8192); 
-    
     const std::size_t chunk_size = 1024;
     
     for (std::size_t c = 0; c < batch_chunks; ++c) {
         T* chunk_ptr = dst_map + (c * chunk_size);
-        
         int32_t count = static_cast<int32_t>(chunk_ptr[0]);
+        
         if (count > 0 && count <= 1008) {
             for (int32_t i = 1; i <= count; ++i) {
-                if (chunk_ptr[i] != pad_val) {
-                    local_candidates.push_back(chunk_ptr[i]);
+                T val = chunk_ptr[i];
+                if (val != pad_val) {
+                    if (comp(val, heap.front())) {
+                        std::pop_heap(heap.begin(), heap.end(), comp);
+                        heap.back() = val;
+                        std::push_heap(heap.begin(), heap.end(), comp);
+                    }
                 }
             }
         }
-    }
-
-    if (!local_candidates.empty()) {
-        heap.insert(heap.end(), local_candidates.begin(), local_candidates.end());
-        std::nth_element(heap.begin(), heap.begin() + k - 1, heap.end(), comp);
-        heap.resize(k);
-        std::make_heap(heap.begin(), heap.end(), comp);
     }
 }
 
@@ -100,7 +99,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
     HeapCompare comp = want_max ? HeapCompare(std::greater<T>{}) : HeapCompare(std::less<T>{});
 
     // Pre-sample a larger subset to get a strong initial threshold
-    std::size_t sample_size = std::min(n, std::max(k, std::size_t(8192)));
+    std::size_t sample_size = std::min(n, std::max(k * 16, std::size_t(65536)));
     std::vector<T> sample(data.begin(), data.begin() + sample_size);
     std::nth_element(sample.begin(), sample.begin() + k - 1, sample.end(), comp);
 

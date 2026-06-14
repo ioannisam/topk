@@ -23,7 +23,7 @@ void map_reduce_step_kernel(int32_t* restrict in_buf, int32_t* restrict out_buf,
         uint32_t mask_bits = cmp_mask.to_uint32();
         
         // cap at 1008 to ensure we don't overflow the 1024-element out_buf
-        if (mask_bits != 0 && valid_count < 1008) {
+        if (__builtin_expect(mask_bits != 0, 0) && valid_count < 1008) {
             aie::vector<int32_t, vector_width> out_v = aie::select(sentinel_vec, v, cmp_mask);
             aie::store_v(out_data_ptr, out_v);
             out_data_ptr += vector_width;
