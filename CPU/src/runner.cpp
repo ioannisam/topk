@@ -37,6 +37,10 @@ Context build_context(const Config& cfg) {
 	return Context{hw_threads, ex_threads};
 }
 
+// ==========================================
+// Bitonic Hooks
+// ==========================================
+
 template <typename T> class CpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
   public:
 	explicit CpuBitonicRunnerHooks(const Context& ctx) : context(ctx) {}
@@ -59,7 +63,9 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 			common::benchmark::kMeasureIters, [&]() -> common::benchmark::TimedValue<std::vector<T>> {
 				std::vector<T> temp = data_backup;
 				auto t0 = std::chrono::high_resolution_clock::now();
+				
 				cpu::bitonic::run_topk(temp, layers, context.ex_threads);
+				
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
 				return common::benchmark::TimedValue<std::vector<T>>{elapsed, std::move(temp)};
@@ -70,6 +76,7 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 		stats.end_to_end_ms = best.elapsed_ms;
 		stats.algorithm_ms = best.elapsed_ms;
 		std::cout << "[PROFILE_TIME_MS] " << stats.end_to_end_ms << "\n";
+		
 		return stats;
 	}
 
@@ -80,6 +87,10 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
   private:
 	Context context;
 };
+
+// ==========================================
+// MapReduce Hooks
+// ==========================================
 
 template <typename T> class CpuMapReduceHooks final : public common::topk::MapReduceRunnerHooks<T> {
   public:
@@ -102,14 +113,15 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 			[&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, cpu::map_reduce::RunStats> {
 				cpu::map_reduce::RunStats run_stats{};
 				auto t0 = std::chrono::high_resolution_clock::now();
+				
 				std::vector<T> output =
 					cpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, context.ex_threads, &run_stats);
+					
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
+				
 				return common::benchmark::TimedValueWithStats<std::vector<T>, cpu::map_reduce::RunStats>{
-					elapsed,
-					std::move(output),
-					run_stats,
+					elapsed, std::move(output), run_stats
 				};
 			});
 
@@ -134,71 +146,87 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 	Context context;
 };
 
-template <typename T> int topk_typed_gt(const Config& cfg) {
-	const Context ctx = build_context(cfg);
-	const std::size_t n = std::size_t{1} << cfg.q;
-	const std::size_t k = std::min(cfg.k, n);
+// ==========================================
+// Ground Truth Hooks
+// ==========================================
 
-	cpu::reporting::print_configuration(cfg, ctx.ex_threads, n);
+template <typename T> class CpuGroundTruthHooks final : public common::topk::GroundTruthRunnerHooks<T> {
+  public:
+	explicit CpuGroundTruthHooks(const Context& ctx) : context(ctx) {}
 
-	std::vector<T> data = common::utils::generate_random_input<T>(n, cfg.seed, cfg.rand_min, cfg.rand_max);
+	void print_configuration(const Config& cfg, std::size_t n) override {
+		cpu::reporting::print_configuration(cfg, context.ex_threads, n);
+	}
 
-	// Warmup
-	common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
-		std::vector<T> temp = data;
-		cpu::ground_truth::run_topk(temp, k, cfg.want_max);
-	});
+	std::vector<T> run(const std::vector<T>& input, const Config& cfg,
+					   common::topk::GroundTruthRunStats* stats) override {
+		const std::size_t k = std::min(cfg.k, input.size());
 
-	// Measurement
-	auto best = common::benchmark::measure_best(
-		common::benchmark::kMeasureIters, [&]() -> common::benchmark::TimedValue<std::vector<T>> {
-			std::vector<T> temp = data;
-			auto t0 = std::chrono::high_resolution_clock::now();
-			
+		// warmup
+		common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
+			std::vector<T> temp = input;
 			cpu::ground_truth::run_topk(temp, k, cfg.want_max);
-			
-			auto t1 = std::chrono::high_resolution_clock::now();
-			double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
-
-			if (k > 0 && k < temp.size()) temp.resize(k);
-			else if (k == 0) temp.clear();
-
-			return common::benchmark::TimedValue<std::vector<T>>{elapsed, std::move(temp)};
 		});
 
-	std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
-	common::reporting::print_timing_lines({{"Ground truth algorithmic time (ms)", best.elapsed_ms}});
+		// measurement
+		auto best = common::benchmark::measure_best(
+			common::benchmark::kMeasureIters,
+			[&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, double> {
+				std::vector<T> temp = input;
+				auto t0 = std::chrono::high_resolution_clock::now();
+				
+				cpu::ground_truth::run_topk(temp, k, cfg.want_max);
+				
+				auto t1 = std::chrono::high_resolution_clock::now();
+				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-	if (cfg.verify_output) {
-		// GT is inherently the reference, so it's always true
-		common::reporting::print_check_result("Top-k correctness vs CPU sorted reference", true, true);
+				if (k > 0 && k < temp.size()) temp.resize(k);
+				else if (k == 0) temp.clear();
+
+				return common::benchmark::TimedValueWithStats<std::vector<T>, double>{
+					elapsed_wall_ms, std::move(temp), elapsed_wall_ms
+				};
+			});
+
+		const double end_to_end_ms = best.elapsed_ms;
+		const double algorithm_ms = best.stats;
+
+		if (stats != nullptr) {
+			stats->end_to_end_ms = end_to_end_ms;
+			stats->algorithm_ms = algorithm_ms;
+			std::cout << "[PROFILE_TIME_MS] " << stats->end_to_end_ms << "\n";
+		} else {
+			std::cout << "[PROFILE_TIME_MS] " << end_to_end_ms << "\n";
+		}
+
+		return std::move(best.value);
 	}
 
-	std::vector<std::string> formatted = common::utils::format_output(best.value);
-	common::reporting::print_output(cfg, formatted);
+	void print_debug_metrics(const Config& cfg, const common::topk::GroundTruthRunStats& stats) override {
+		// no specific GT metrics to output
+	}
 
-	return 0;
-}
+  private:
+	Context context;
+};
 
-template <typename T> int topk_typed_bitonic(const Config& cfg) {
-	const Context ctx = build_context(cfg);
-	CpuBitonicRunnerHooks<T> hooks(ctx);
-	return common::topk::execute_bitonic<T>(cfg, hooks);
-}
-
-template <typename T> int topk_typed_map_reduce(const Config& cfg) {
-	const Context ctx = build_context(cfg);
-	CpuMapReduceHooks<T> hooks(ctx);
-	return common::topk::execute_map_reduce<T>(cfg, hooks);
-}
+// ==========================================
+// Dispatch
+// ==========================================
 
 template <typename T> int topk_typed(const Config& cfg) {
+	const Context ctx = build_context(cfg);
+	
 	if (cfg.algorithm == Algorithm::MapReduce) {
-		return topk_typed_map_reduce<T>(cfg);
+		CpuMapReduceHooks<T> hooks(ctx);
+		return common::topk::execute_map_reduce<T>(cfg, hooks);
 	} else if (cfg.algorithm == Algorithm::GroundTruth) {
-		return topk_typed_gt<T>(cfg);
+		CpuGroundTruthHooks<T> hooks(ctx);
+		return common::topk::execute_ground_truth<T>(cfg, hooks);
 	}
-	return topk_typed_bitonic<T>(cfg);
+	
+	CpuBitonicRunnerHooks<T> hooks(ctx);
+	return common::topk::execute_bitonic<T>(cfg, hooks);
 }
 
 } // namespace

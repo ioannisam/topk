@@ -45,7 +45,12 @@ std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k,
 
 namespace gpu::ground_truth {
 
+struct RunStats {
+    double end_to_end_ms;
+    double algorithm_ms;
+};
+
 template <typename T>
-void run_topk(std::vector<T>& data, std::size_t k, bool want_max);
+double run_topk(std::vector<T>& data, std::size_t k, bool want_max);
 
 } // namespace gpu::ground_truth

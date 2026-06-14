@@ -37,6 +37,11 @@ struct MapReduceRunStats {
 	std::size_t aggregated_candidates = 0;
 };
 
+struct GroundTruthRunStats {
+	double end_to_end_ms = 0.0;
+	double algorithm_ms = 0.0;
+};
+
 template <typename T> class BitonicRunnerHooks {
   public:
 	virtual ~BitonicRunnerHooks() = default;
@@ -55,6 +60,16 @@ template <typename T> class MapReduceRunnerHooks {
 	virtual std::vector<T> run(const std::vector<T>& input, const common::config::Config& cfg,
 							   MapReduceRunStats* stats) = 0;
 	virtual void print_debug_metrics(const common::config::Config& cfg, const MapReduceRunStats& stats) = 0;
+};
+
+template <typename T> class GroundTruthRunnerHooks {
+  public:
+	virtual ~GroundTruthRunnerHooks() = default;
+
+	virtual void print_configuration(const common::config::Config& cfg, std::size_t n) = 0;
+	virtual std::vector<T> run(const std::vector<T>& input, const common::config::Config& cfg,
+							   GroundTruthRunStats* stats) = 0;
+	virtual void print_debug_metrics(const common::config::Config& cfg, const GroundTruthRunStats& stats) = 0;
 };
 
 template <typename T> T transform_for_max(T value) {
@@ -242,6 +257,38 @@ template <typename T> int execute_map_reduce(const common::config::Config& cfg, 
 	});
 
 	const bool check_vs_reference = cfg.verify_output || cfg.run_mode == common::config::RunMode::Both;
+	bool reference_ok = true;
+	if (check_vs_reference) {
+		const std::vector<T> ref = build_reference_topk(input, cfg.k, cfg.want_max);
+		reference_ok = equal_output(output, ref);
+	}
+	common::reporting::print_check_result("Top-k correctness vs CPU sorted reference", check_vs_reference,
+										  reference_ok);
+	if (!reference_ok) {
+		return 2;
+	}
+
+	hooks.print_debug_metrics(cfg, run_stats);
+
+	common::reporting::print_output(cfg, common::utils::format_output(output));
+	return 0;
+}
+
+template <typename T> int execute_ground_truth(const common::config::Config& cfg, GroundTruthRunnerHooks<T>& hooks) {
+	const std::size_t n = std::size_t{1} << cfg.q;
+	hooks.print_configuration(cfg, n);
+
+	std::vector<T> input = common::utils::generate_random_input<T>(n, cfg.seed, cfg.rand_min, cfg.rand_max);
+
+	GroundTruthRunStats run_stats{};
+	std::vector<T> output = hooks.run(input, cfg, &run_stats);
+
+	common::reporting::print_timing_lines({
+		{"Ground truth end-to-end time (ms)", std::optional<double>(run_stats.end_to_end_ms)},
+		{"Ground truth algorithmic time (ms)", std::optional<double>(run_stats.algorithm_ms)},
+	});
+
+	const bool check_vs_reference = cfg.verify_output;
 	bool reference_ok = true;
 	if (check_vs_reference) {
 		const std::vector<T> ref = build_reference_topk(input, cfg.k, cfg.want_max);
