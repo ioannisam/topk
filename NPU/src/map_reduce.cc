@@ -11,6 +11,7 @@ void map_reduce_step_kernel(int32_t* restrict in_buf, int32_t* restrict out_buf,
     constexpr int total_elements = 1024;
     
     aie::vector<int32_t, vector_width> t_vec = aie::broadcast<int32_t, vector_width>(threshold);
+    aie::vector<int32_t, vector_width> sentinel_vec = aie::broadcast<int32_t, vector_width>(cfg_buf[2]);
 
     int32_t valid_count = 0;
     int32_t* out_data_ptr = out_buf + 1; 
@@ -21,14 +22,12 @@ void map_reduce_step_kernel(int32_t* restrict in_buf, int32_t* restrict out_buf,
         
         uint32_t mask_bits = cmp_mask.to_uint32();
         
-        if (mask_bits != 0) {
-            #pragma unroll(16)
-            for (int lane = 0; lane < vector_width; ++lane) {
-                if ((mask_bits >> lane) & 1) {
-                    *out_data_ptr++ = v[lane];
-                    valid_count++;
-                }
-            }
+        // cap at 1008 to ensure we don't overflow the 1024-element out_buf
+        if (mask_bits != 0 && valid_count < 1008) {
+            aie::vector<int32_t, vector_width> out_v = aie::select(sentinel_vec, v, cmp_mask);
+            aie::store_v(out_data_ptr, out_v);
+            out_data_ptr += vector_width;
+            valid_count += vector_width;
         }
     }
     
