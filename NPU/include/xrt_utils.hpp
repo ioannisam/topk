@@ -109,7 +109,7 @@ struct SharedXrtState {
     std::vector<xrt::bo> mr_src_bo;
     std::size_t mr_batch_bytes = 0;
 
-    explicit SharedXrtState(const OffloadConfig& cfg) {
+    SharedXrtState(const OffloadConfig& cfg) {
         dev = open_device();
         xclbin = xrt::xclbin(cfg.xclbin_path);
         uuid = dev.register_xclbin(xclbin);
@@ -131,7 +131,7 @@ struct SharedXrtState {
         mr_src_bo.clear();
         
         for (int i = 0; i < 2; ++i) {
-            mr_cfg_bo.push_back(xrt::bo(dev, 256 * sizeof(int32_t), xrt::bo::flags::host_only, safe_group_id(kernel, 3)));
+            mr_cfg_bo.push_back(xrt::bo(dev, 4096 * sizeof(int32_t), xrt::bo::flags::host_only, safe_group_id(kernel, 3)));
             mr_dst_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, safe_group_id(kernel, 4)));
             mr_src_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, safe_group_id(kernel, 5)));
         }
