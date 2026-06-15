@@ -22,16 +22,10 @@ void prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_ptr,
     T* src_map = src_bo.map<T*>();
     int32_t* cfg_map = cfg_bo.map<int32_t*>();
 
-    // 1. Single contiguous data copy (eliminates the 4-column scatter loop)
     if (current_batch > 0) {
         std::memcpy(src_map, data_ptr, current_batch * sizeof(T));
     }
-    // Vectorized fill for the remainder of the batch
-    if (current_batch < batch_size) {
-        std::fill(src_map + current_batch, src_map + batch_size, pad_val);
-    }
 
-    // 2. Fast block-fill for the config buffer
     struct alignas(16) CfgWord {
         int32_t threshold;
         int32_t want_max;
@@ -51,7 +45,25 @@ void prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_ptr,
     };
 
     CfgWord* cfg_words = reinterpret_cast<CfgWord*>(cfg_map);
-    std::fill(cfg_words, cfg_words + batch_chunks, current_cfg);
+    
+    const std::size_t chunk_size = 1024;
+    std::size_t full_chunks = current_batch / chunk_size;
+    std::size_t remainder = current_batch % chunk_size;
+
+    std::fill(cfg_words, cfg_words + full_chunks, current_cfg);
+
+    if (remainder > 0) {
+        std::fill(src_map + (full_chunks * chunk_size) + remainder, 
+                  src_map + ((full_chunks + 1) * chunk_size), pad_val);
+        cfg_words[full_chunks] = current_cfg;
+        full_chunks++;
+    }
+
+    if (full_chunks < batch_chunks) {
+        CfgWord dummy_cfg = current_cfg;
+        dummy_cfg.threshold = want_max ? std::numeric_limits<int32_t>::max() : std::numeric_limits<int32_t>::lowest();
+        std::fill(cfg_words + full_chunks, cfg_words + batch_chunks, dummy_cfg);
+    }
 
     src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
     cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
@@ -98,8 +110,10 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
     using HeapCompare = std::function<bool(const T&, const T&)>;
     HeapCompare comp = want_max ? HeapCompare(std::greater<T>{}) : HeapCompare(std::less<T>{});
 
-    // Pre-sample a larger subset to get a strong initial threshold
-    std::size_t sample_size = std::min(n, std::max(k * 16, std::size_t(65536)));
+    constexpr double SAMPLE_FRACTION = 0.02; 
+    std::size_t sample_size = std::max(k, static_cast<std::size_t>(n * SAMPLE_FRACTION));
+    sample_size = std::min(sample_size, n);
+
     std::vector<T> sample(data.begin(), data.begin() + sample_size);
     std::nth_element(sample.begin(), sample.begin() + k - 1, sample.end(), comp);
 
@@ -129,36 +143,45 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
     }
 
     T pad_val = want_max ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
-    std::size_t total_dispatches = 0;
 
     int active_idx = 0;
     int next_idx = 1;
-    bool run_pending = false;
 
-    for (std::size_t offset = k; offset < n; offset += batch_size) {
+    // start after sample size to prevent redundant NPU work
+    std::size_t offset = sample_size; 
+    std::size_t total_dispatches = 0;
+
+    if (offset < n) {
         std::size_t current_batch = std::min(batch_size, n - offset);
-
         prepare_npu_batch<T>(state.mr_src_bo[active_idx], state.mr_cfg_bo[active_idx], data.data() + offset,
                              current_batch, batch_size, BATCH_CHUNKS, heap.front(), want_max, pad_val);
-
         rl[active_idx].execute();
         total_dispatches++;
-
-        if (run_pending) {
-            npu::utils::wait_for_runlist_or_throw(rl[next_idx], npu::utils::read_wait_timeout_ms());
-            state.mr_dst_bo[next_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE); 
-            process_npu_results<T>(state.mr_dst_bo[next_idx], heap, k, comp, BATCH_CHUNKS, pad_val);
-        }
-
-        run_pending = true;
-        std::swap(active_idx, next_idx);
+        offset += batch_size;
     }
 
-    if (run_pending) {
-        int pending_idx = active_idx ^ 1;
-        npu::utils::wait_for_runlist_or_throw(rl[pending_idx], npu::utils::read_wait_timeout_ms());
-        state.mr_dst_bo[pending_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE); 
-        process_npu_results<T>(state.mr_dst_bo[pending_idx], heap, k, comp, BATCH_CHUNKS, pad_val);
+    while (offset < n) {
+        std::size_t current_batch = std::min(batch_size, n - offset);
+
+        prepare_npu_batch<T>(state.mr_src_bo[next_idx], state.mr_cfg_bo[next_idx], data.data() + offset,
+                             current_batch, batch_size, BATCH_CHUNKS, heap.front(), want_max, pad_val);
+
+        npu::utils::wait_for_runlist_or_throw(rl[active_idx], npu::utils::read_wait_timeout_ms());
+        
+        rl[next_idx].execute();
+        total_dispatches++;
+
+        state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE); 
+        process_npu_results<T>(state.mr_dst_bo[active_idx], heap, k, comp, BATCH_CHUNKS, pad_val);
+
+        std::swap(active_idx, next_idx);
+        offset += batch_size;
+    }
+
+    if (total_dispatches > 0) {
+        npu::utils::wait_for_runlist_or_throw(rl[active_idx], npu::utils::read_wait_timeout_ms());
+        state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE); 
+        process_npu_results<T>(state.mr_dst_bo[active_idx], heap, k, comp, BATCH_CHUNKS, pad_val);
     }
 
     auto cmp_sort = [&want_max](const T& lhs, const T& rhs) {
