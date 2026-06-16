@@ -21,8 +21,9 @@ static void sift_down(std::vector<T>& heap, std::size_t i) {
         std::size_t best = i;
         std::size_t left = 2 * i + 1;
         std::size_t right = 2 * i + 2;
-        if (left  < n && Cmp{}(heap[left],  heap[best])) best = left;
-        if (right < n && Cmp{}(heap[right], heap[best])) best = right;
+
+        if (left  < n && Cmp{}(heap[best], heap[left]))  best = left;
+        if (right < n && Cmp{}(heap[best], heap[right])) best = right;
         if (best == i) break;
         std::swap(heap[i], heap[best]);
         i = best;
