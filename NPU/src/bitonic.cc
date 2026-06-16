@@ -11,13 +11,6 @@ inline aie::mask<16> partner_select_mask() {
     return aie::neq(aie::bit_and(offs, aie::broadcast<int32_t, 16>(J)), aie::broadcast<int32_t, 16>(0));
 }
 
-template <int J>
-inline aie::vector<int32_t, 16> butterfly_partner(const aie::vector<int32_t, 16>& v) {
-    aie::vector<int32_t, 16> down = aie::shuffle_down(v, J);
-    aie::vector<int32_t, 16> up = aie::shuffle_up(v, J);
-    return aie::select(down, up, partner_select_mask<J>());
-}
-
 template <int J, int K>
 inline aie::mask<16> get_blend_mask() {
     aie::vector<int32_t, 16> idx = aie::bit_and(aie::load_v<16>(v_offsets), aie::broadcast<int32_t, 16>(BLOCK - 1));
@@ -31,24 +24,28 @@ inline aie::mask<16> get_blend_mask() {
 }
 
 template <int J, int K>
-inline void bitonic_step(const int32_t* src, int32_t* dst) {
-    aie::mask<16> blend = get_blend_mask<J, K>();
-    for (int i = 0; i < 1024; i += 16) {
-        aie::vector<int32_t, 16> v = aie::load_v<16>(src + i);
-        aie::vector<int32_t, 16> swapped = butterfly_partner<J>(v);
-        aie::vector<int32_t, 16> lo = aie::min(v, swapped);
-        aie::vector<int32_t, 16> hi = aie::max(v, swapped);
-        aie::store_v(dst + i, aie::select(lo, hi, blend));
-    }
+inline aie::vector<int32_t, 16> compare_exchange(const aie::vector<int32_t, 16>& v) {
+    aie::vector<int32_t, 16> partner = aie::select(aie::shuffle_down(v, J), aie::shuffle_up(v, J), partner_select_mask<J>());
+    aie::vector<int32_t, 16> lo = aie::min(v, partner);
+    aie::vector<int32_t, 16> hi = aie::max(v, partner);
+    return aie::select(lo, hi, get_blend_mask<J, K>());
+}
+
+inline aie::vector<int32_t, 16> sort_block(aie::vector<int32_t, 16> v) {
+    v = compare_exchange<1, 2>(v);
+    v = compare_exchange<2, 4>(v); v = compare_exchange<1, 4>(v);
+    v = compare_exchange<4, 8>(v); v = compare_exchange<2, 8>(v); v = compare_exchange<1, 8>(v);
+    v = compare_exchange<8, 16>(v); v = compare_exchange<4, 16>(v); v = compare_exchange<2, 16>(v); v = compare_exchange<1, 16>(v);
+    return v;
 }
 
 extern "C" {
 
 void bitonic_sort_runs(int32_t* __restrict in, int32_t* __restrict out) {
-    bitonic_step<1, 2>(in, out);
-    bitonic_step<2, 4>(out, out); bitonic_step<1, 4>(out, out);
-    bitonic_step<4, 8>(out, out); bitonic_step<2, 8>(out, out); bitonic_step<1, 8>(out, out);
-    bitonic_step<8, 16>(out, out); bitonic_step<4, 16>(out, out); bitonic_step<2, 16>(out, out); bitonic_step<1, 16>(out, out);
+    #pragma unroll(4)
+    for (int i = 0; i < 1024; i += 16) {
+        aie::store_v(out + i, sort_block(aie::load_v<16>(in + i)));
+    }
 }
 
 }
