@@ -5,7 +5,6 @@ from aie.dialects.scf import *
 from aie.ir import *
 
 NUM_COLS = 4
-NUM_STAGES = 4
 TILE = 1024
 CHUNKS_PER_COL = 256
 BATCH_CHUNKS = NUM_COLS * CHUNKS_PER_COL
@@ -21,41 +20,30 @@ def build_design():
                 memref_tile = T.memref(TILE, T.i32())
                 memref_batch = T.memref(BATCH_ELEMS, T.i32())
 
-                stage_funcs = [
-                    external_func(f"pipeline_core_{s + 1}", inputs=[memref_tile, memref_tile], link_with="bitonic.o")
-                    for s in range(NUM_STAGES)
-                ]
+                sort_func = external_func("bitonic_sort_runs", inputs=[memref_tile, memref_tile], link_with="bitonic.o")
 
-                cols = {}
+                tiles = {}
+                fifos = {}
                 for col in range(NUM_COLS):
-                    shim = tile(col, 0)
-                    compute = [tile(col, 2 + s) for s in range(NUM_STAGES)]
+                    tiles[col] = {"shim": tile(col, 0), "compute": tile(col, 2)}
+                    fifos[col] = {
+                        "in": object_fifo(f"in_{col}", tiles[col]["shim"], tiles[col]["compute"], 2, memref_tile),
+                        "out": object_fifo(f"out_{col}", tiles[col]["compute"], tiles[col]["shim"], 2, memref_tile),
+                    }
 
-                    in_fifo = object_fifo(f"in_{col}", shim, compute[0], 2, memref_tile)
-                    out_fifo = object_fifo(f"out_{col}", compute[NUM_STAGES - 1], shim, 2, memref_tile)
-                    links = [
-                        object_fifo(f"link_{col}_{s}", compute[s], compute[s + 1], 2, memref_tile)
-                        for s in range(NUM_STAGES - 1)
-                    ]
-                    cols[col] = {"compute": compute, "in": in_fifo, "out": out_fifo, "links": links}
-
-                def build_stage(compute_tile, func, in_f, out_f):
+                def build_core(compute_tile, in_f, out_f):
                     @core(compute_tile)
                     def core_body():
                         for _ in for_(sys.maxsize):
                             elem_in = in_f.acquire(ObjectFifoPort.Consume, 1)
                             elem_out = out_f.acquire(ObjectFifoPort.Produce, 1)
-                            call(func, [elem_in, elem_out])
+                            call(sort_func, [elem_in, elem_out])
                             in_f.release(ObjectFifoPort.Consume, 1)
                             out_f.release(ObjectFifoPort.Produce, 1)
                             yield_([])
 
                 for col in range(NUM_COLS):
-                    c = cols[col]
-                    for s in range(NUM_STAGES):
-                        in_f = c["in"] if s == 0 else c["links"][s - 1]
-                        out_f = c["out"] if s == NUM_STAGES - 1 else c["links"][s]
-                        build_stage(c["compute"][s], stage_funcs[s], in_f, out_f)
+                    build_core(tiles[col]["compute"], fifos[col]["in"], fifos[col]["out"])
 
                 @runtime_sequence(memref_batch, memref_batch)
                 def seq(out, inp):

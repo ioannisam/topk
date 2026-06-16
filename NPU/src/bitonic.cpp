@@ -15,6 +15,7 @@ namespace npu::bitonic {
 namespace {
 
 constexpr std::size_t kTile = 1024;
+constexpr std::size_t kRunLen = 16;
 constexpr std::size_t kBatchChunks = 1024;
 constexpr std::size_t kBatchElems = kBatchChunks * kTile;
 
@@ -98,11 +99,12 @@ std::size_t prepare_batch(xrt::bo& src_bo, const T* data_ptr, std::size_t batch_
 void reduce_batch(xrt::bo& dst_bo, std::vector<std::int32_t>& heap, std::size_t valid_tiles, std::size_t k,
                   std::int32_t pad_key) {
     const std::int32_t* dst_map = dst_bo.map<const std::int32_t*>();
+    const std::size_t total = valid_tiles * kTile;
 
-    for (std::size_t c = 0; c < valid_tiles; ++c) {
-        const std::int32_t* tile = dst_map + c * kTile;
-        for (std::size_t i = 0; i < kTile; ++i) {
-            const std::int32_t key = tile[i];
+    for (std::size_t base = 0; base < total; base += kRunLen) {
+        const std::int32_t* run = dst_map + base;
+        for (std::size_t i = 0; i < kRunLen; ++i) {
+            const std::int32_t key = run[i];
             if (key == pad_key)
                 break;
 

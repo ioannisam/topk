@@ -63,7 +63,7 @@ Behavior:
 
 - If `NPU_OFFLOAD_XCLBIN` is missing, execution fails with an error.
 - If kernel launch fails, execution fails with an error.
-- The bitonic offload follows the Truncated Bitonic Sort streaming model: the NPU sorts the input in 1024-element tiles (4 columns x a 4-core pipeline each, so 4 tiles sort in parallel), and the host merges the sorted tiles into a running top-k via a small max-heap ("merge-and-purge"). Tiles are dispatched in double-buffered batches so host packing/merging overlaps NPU compute. There is no host-side global bitonic merge.
+- The bitonic offload follows the Truncated Bitonic Sort streaming model. Each of the 4 NPU columns runs one core that sorts its 1024-element tiles into ascending runs of length 16 (truncation: only short sorted runs are built, not a full sort), using hardware lane-shuffle compare-exchanges. The host then merges the sorted runs into a running top-k via a small max-heap with per-run early-out ("merge-and-purge"). Tiles are dispatched in double-buffered batches so host packing/merging overlaps NPU compute. There is no host-side global bitonic merge.
 - Each value is mapped to a monotonic `int32` key before the device sort (the AIE core compares with signed `int32` min/max), so `int`, `uint`, and `float` — including negative floats — all sort correctly; the reduction runs in key space and only the surviving keys are mapped back.
 
 Example:
