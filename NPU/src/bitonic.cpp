@@ -7,83 +7,190 @@
 #include <cstring>
 #include <limits>
 #include <stdexcept>
+#include <type_traits>
 #include <vector>
 
 namespace npu::bitonic {
 
 namespace {
 
+constexpr std::size_t kTile = 1024;
+constexpr std::size_t kBatchChunks = 1024;
+constexpr std::size_t kBatchElems = kBatchChunks * kTile;
+
+template <typename T> inline std::int32_t to_key(T v) {
+    if constexpr (std::is_same_v<T, std::int32_t>) {
+        return v;
+    } else if constexpr (std::is_same_v<T, std::uint32_t>) {
+        return static_cast<std::int32_t>(v ^ 0x80000000u);
+    } else if constexpr (std::is_floating_point_v<T> && sizeof(T) == 4) {
+        std::uint32_t u;
+        std::memcpy(&u, &v, 4);
+        const std::uint32_t key = (u & 0x80000000u) ? (u ^ 0x7FFFFFFFu) : u;
+        return static_cast<std::int32_t>(key);
+    } else {
+        return static_cast<std::int32_t>(v);
+    }
+}
+
+template <typename T> inline T from_key(std::int32_t key) {
+    if constexpr (std::is_same_v<T, std::int32_t>) {
+        return key;
+    } else if constexpr (std::is_same_v<T, std::uint32_t>) {
+        return static_cast<std::uint32_t>(key) ^ 0x80000000u;
+    } else if constexpr (std::is_floating_point_v<T> && sizeof(T) == 4) {
+        const std::uint32_t key_u = static_cast<std::uint32_t>(key);
+        const std::uint32_t u = (key_u & 0x80000000u) ? (key_u ^ 0x7FFFFFFFu) : key_u;
+        T v;
+        std::memcpy(&v, &u, 4);
+        return v;
+    } else {
+        return static_cast<T>(key);
+    }
+}
+
+inline void sift_down_max(std::vector<std::int32_t>& heap, std::size_t i) {
+    const std::size_t n = heap.size();
+    while (true) {
+        std::size_t best = i;
+        const std::size_t left = 2 * i + 1;
+        const std::size_t right = 2 * i + 2;
+        if (left < n && heap[left] > heap[best])
+            best = left;
+        if (right < n && heap[right] > heap[best])
+            best = right;
+        if (best == i)
+            break;
+        std::swap(heap[i], heap[best]);
+        i = best;
+    }
+}
+
+std::size_t derive_kept_prefix(const std::vector<common::bitonic::Layer>& layers, std::size_t n) {
+    for (const auto& layer : layers) {
+        if (layer.type == common::bitonic::LayerType::Truncate) {
+            return std::min(layer.j, n);
+        }
+    }
+    return n;
+}
+
+template <typename T>
+std::size_t prepare_batch(xrt::bo& src_bo, const T* data_ptr, std::size_t batch_elems, std::int32_t pad_key) {
+    std::int32_t* src_map = src_bo.map<std::int32_t*>();
+    for (std::size_t i = 0; i < batch_elems; ++i) {
+        src_map[i] = to_key<T>(data_ptr[i]);
+    }
+
+    const std::size_t full_tiles = batch_elems / kTile;
+    const std::size_t remainder = batch_elems % kTile;
+    std::size_t valid_tiles = full_tiles;
+
+    if (remainder > 0) {
+        std::fill(src_map + batch_elems, src_map + (full_tiles + 1) * kTile, pad_key);
+        valid_tiles = full_tiles + 1;
+    }
+
+    src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE, valid_tiles * kTile * sizeof(std::int32_t), 0);
+    return valid_tiles;
+}
+
+void reduce_batch(xrt::bo& dst_bo, std::vector<std::int32_t>& heap, std::size_t valid_tiles, std::size_t k,
+                  std::int32_t pad_key) {
+    const std::int32_t* dst_map = dst_bo.map<const std::int32_t*>();
+
+    for (std::size_t c = 0; c < valid_tiles; ++c) {
+        const std::int32_t* tile = dst_map + c * kTile;
+        for (std::size_t i = 0; i < kTile; ++i) {
+            const std::int32_t key = tile[i];
+            if (key == pad_key)
+                break;
+
+            if (heap.size() < k) {
+                heap.push_back(key);
+                if (heap.size() == k)
+                    std::make_heap(heap.begin(), heap.end());
+            } else if (key < heap.front()) {
+                heap.front() = key;
+                sift_down_max(heap, 0);
+            } else {
+                break;
+            }
+        }
+    }
+}
+
 template <typename T>
 RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
                                  const npu::utils::OffloadConfig& offload_cfg) {
     const std::size_t n = data.size();
-    
-    std::size_t padded_n = n;
-    if (n % 1024 != 0) {
-        padded_n = ((n / 1024) + 1) * 1024;
-    }
-
-    std::vector<T> padded_data(padded_n, std::numeric_limits<T>::max());
-    std::memcpy(padded_data.data(), data.data(), n * sizeof(T));
+    const std::size_t kept = derive_kept_prefix(layers, n);
 
     npu::utils::SharedXrtState& state = npu::utils::get_shared_xrt_state(offload_cfg);
 
-    const std::size_t chunk_bytes = 1024 * sizeof(T);
-    
-    xrt::bo src_bo(state.dev, padded_n * sizeof(T), xrt::bo::flags::host_only, npu::utils::safe_group_id(state.kernel, 3));
-    xrt::bo dst_bo(state.dev, padded_n * sizeof(T), xrt::bo::flags::host_only, npu::utils::safe_group_id(state.kernel, 4));
+    const std::size_t batch_bytes = kBatchElems * sizeof(std::int32_t);
+    state.allocate_bit_buffers(batch_bytes);
 
-    std::size_t total_dispatches = 0;
-    auto t0 = std::chrono::high_resolution_clock::now();
+    const std::int32_t pad_key = to_key<T>(std::numeric_limits<T>::max());
 
-    for (std::size_t offset = 0; offset < padded_n; offset += 1024) {
-        std::memcpy(src_bo.map<void*>(), padded_data.data() + offset, chunk_bytes);
-        src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
-        xrt::run run(state.kernel);
-        run.set_arg(0, 3);          
-        run.set_arg(1, state.instr_bo);   
-        run.set_arg(2, static_cast<uint32_t>(state.instr_v.size()));
-        run.set_arg(3, src_bo);     
-        run.set_arg(4, dst_bo);     
-        
-        xrt::runlist rl(state.hwctx);
-        rl.add(run);
-        rl.execute();
-        npu::utils::wait_for_runlist_or_throw(rl, npu::utils::read_wait_timeout_ms());
-        total_dispatches++;
-
-        dst_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
-        std::memcpy(padded_data.data() + offset, dst_bo.map<void*>(), chunk_bytes);
-        
-        if ((offset / 1024) % 2 != 0) {
-            std::reverse(padded_data.begin() + offset, padded_data.begin() + offset + 1024);
-        }
+    xrt::run run[2];
+    xrt::runlist rl[2] = {xrt::runlist(state.hwctx), xrt::runlist(state.hwctx)};
+    for (int i = 0; i < 2; ++i) {
+        run[i] = xrt::run(state.kernel);
+        run[i].set_arg(0, 3);
+        run[i].set_arg(1, state.instr_bo);
+        run[i].set_arg(2, static_cast<uint32_t>(state.instr_v.size()));
+        run[i].set_arg(3, state.bit_dst_bo[i]);
+        run[i].set_arg(4, state.bit_src_bo[i]);
+        rl[i].add(run[i]);
     }
 
-    for (std::size_t k = 2048; k <= padded_n; k *= 2) {
-        for (std::size_t j = k / 2; j > 0; j /= 2) {
-            for (std::size_t i = 0; i < padded_n; i++) {
-                std::size_t ixj = i ^ j;
-                if (ixj > i) {
-                    bool ascending = ((i & k) == 0);
-                    
-                    if (ascending) {
-                        if (padded_data[i] > padded_data[ixj]) {
-                            std::swap(padded_data[i], padded_data[ixj]);
-                        }
-                    } else {
-                        if (padded_data[i] < padded_data[ixj]) {
-                            std::swap(padded_data[i], padded_data[ixj]);
-                        }
-                    }
-                }
-            }
-        }
+    std::vector<std::int32_t> heap;
+    heap.reserve(kept);
+
+    int active = 0;
+    int next = 1;
+    std::size_t offset = 0;
+    std::size_t total_dispatches = 0;
+    std::size_t valid_tiles[2] = {0, 0};
+
+    auto t0 = std::chrono::high_resolution_clock::now();
+
+    if (offset < n) {
+        const std::size_t batch = std::min(kBatchElems, n - offset);
+        valid_tiles[active] = prepare_batch<T>(state.bit_src_bo[active], data.data() + offset, batch, pad_key);
+        rl[active].execute();
+        total_dispatches++;
+        offset += batch;
+    }
+
+    while (offset < n) {
+        const std::size_t batch = std::min(kBatchElems, n - offset);
+        valid_tiles[next] = prepare_batch<T>(state.bit_src_bo[next], data.data() + offset, batch, pad_key);
+
+        npu::utils::wait_for_runlist_or_throw(rl[active], npu::utils::read_wait_timeout_ms());
+        rl[next].execute();
+        total_dispatches++;
+
+        state.bit_dst_bo[active].sync(XCL_BO_SYNC_BO_FROM_DEVICE, valid_tiles[active] * kTile * sizeof(std::int32_t), 0);
+        reduce_batch(state.bit_dst_bo[active], heap, valid_tiles[active], kept, pad_key);
+
+        std::swap(active, next);
+        offset += batch;
+    }
+
+    if (total_dispatches > 0) {
+        npu::utils::wait_for_runlist_or_throw(rl[active], npu::utils::read_wait_timeout_ms());
+        state.bit_dst_bo[active].sync(XCL_BO_SYNC_BO_FROM_DEVICE, valid_tiles[active] * kTile * sizeof(std::int32_t), 0);
+        reduce_batch(state.bit_dst_bo[active], heap, valid_tiles[active], kept, pad_key);
+    }
+
+    std::sort(heap.begin(), heap.end());
+    for (std::size_t i = 0; i < heap.size(); ++i) {
+        data[i] = from_key<T>(heap[i]);
     }
 
     auto t1 = std::chrono::high_resolution_clock::now();
-    std::memcpy(data.data(), padded_data.data(), n * sizeof(T));
 
     return RunStats{std::chrono::duration<double, std::milli>(t1 - t0).count(), total_dispatches, 0, 1, true};
 }
@@ -107,7 +214,8 @@ bool is_offload_configured() {
 template <typename T>
 RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers) {
     (void)workers;
-    if (data.empty()) return RunStats{0.0, 0, 0, 1, true};
+    if (data.empty())
+        return RunStats{0.0, 0, 0, 1, true};
 
     (void)npu::utils::open_device();
     const npu::utils::OffloadConfig offload_cfg = npu::utils::load_offload_config();

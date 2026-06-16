@@ -109,6 +109,10 @@ struct SharedXrtState {
     std::vector<xrt::bo> mr_src_bo;
     std::size_t mr_batch_bytes = 0;
 
+    std::vector<xrt::bo> bit_dst_bo;
+    std::vector<xrt::bo> bit_src_bo;
+    std::size_t bit_batch_bytes = 0;
+
     SharedXrtState(const OffloadConfig& cfg) {
         dev = open_device();
         xclbin = xrt::xclbin(cfg.xclbin_path);
@@ -136,6 +140,19 @@ struct SharedXrtState {
             mr_src_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, safe_group_id(kernel, 5)));
         }
         mr_batch_bytes = batch_bytes;
+    }
+
+    void allocate_bit_buffers(std::size_t batch_bytes) {
+        if (bit_batch_bytes >= batch_bytes) return;
+
+        bit_dst_bo.clear();
+        bit_src_bo.clear();
+
+        for (int i = 0; i < 2; ++i) {
+            bit_dst_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, safe_group_id(kernel, 3)));
+            bit_src_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, safe_group_id(kernel, 4)));
+        }
+        bit_batch_bytes = batch_bytes;
     }
 };
 

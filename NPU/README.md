@@ -63,7 +63,8 @@ Behavior:
 
 - If `NPU_OFFLOAD_XCLBIN` is missing, execution fails with an error.
 - If kernel launch fails, execution fails with an error.
-- Global strides ($j \ge 1024$) are handled via host-side packing into 512-element disjoint streams fed directly to the NPU core.
+- The bitonic offload follows the Truncated Bitonic Sort streaming model: the NPU sorts the input in 1024-element tiles (4 columns x a 4-core pipeline each, so 4 tiles sort in parallel), and the host merges the sorted tiles into a running top-k via a small max-heap ("merge-and-purge"). Tiles are dispatched in double-buffered batches so host packing/merging overlaps NPU compute. There is no host-side global bitonic merge.
+- Each value is mapped to a monotonic `int32` key before the device sort (the AIE core compares with signed `int32` min/max), so `int`, `uint`, and `float` — including negative floats — all sort correctly; the reduction runs in key space and only the surviving keys are mapped back.
 
 Example:
 
@@ -75,19 +76,18 @@ NPU_OFFLOAD_XCLBIN=./build/NPU/bitonic.xclbin \
 
 ## Kernel ABI Contract (Host <-> NPU)
 
-The AIE kernel logic is built via MLIR (`aiecc`) and expects the XRT run arguments mapped exactly as follows:
+The AIE kernel logic is built via MLIR (`aiecc`). The bitonic sort kernel takes no
+per-tile configuration (the sort network is fixed), so its `runtime_sequence(out, inp)`
+maps the XRT run arguments as follows:
 
 1. **Arg 0**: Opcode (`uint32_t`: `3` for execute)
 2. **Arg 1**: Instruction Buffer (`xrt::bo` cacheable memory containing `.bin` payload)
 3. **Arg 2**: Instruction Word Count (`uint32_t`)
-4. **Arg 3**: Configuration Buffer (`xrt::bo` array of 8 `int32_t`). Contains:
-	- `cfg[0]`: step/stride (`j`)
-	- `cfg[1]`: stage (`k`)
-	- `cfg[2]`: execution type (`0`=Normal, `1`=Truncate, `2`=Disjoint Normal, `3`=Disjoint Truncate)
-	- `cfg[3]`: global base offset chunk index
-	- `cfg[4]`: padding value
-5. **Arg 4**: Output Data Buffer (`xrt::bo` `dst_bo`)
-6. **Arg 5**: Input Data Buffer (`xrt::bo` `src_bo`)
+4. **Arg 3**: Output Data Buffer (`xrt::bo` `dst_bo`, sorted `int32` key tiles)
+5. **Arg 4**: Input Data Buffer (`xrt::bo` `src_bo`, `int32` key tiles)
+
+The `map_reduce` kernel keeps a separate ABI with an extra config buffer (threshold,
+mode, sentinel) at **Arg 3**, shifting `dst_bo`/`src_bo` to **Arg 4**/**Arg 5**.
 
 Current host offload dtype support:
 

@@ -1,8 +1,6 @@
 #include <aie_api/aie.hpp>
 #include <cstdint>
 
-// Notice: <aie_api/aie_adf.hpp> is REMOVED.
-
 alignas(32) static const int32_t v_offsets[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 
 template <int J>
@@ -62,7 +60,7 @@ extern "C" {
 
 void pipeline_core_1(int32_t* __restrict in, int32_t* __restrict out) {
     for (int i = 0; i < 1024; i += 16) aie::store_v(out + i, aie::load_v<16>(in + i));
-    
+
     bitonic_step_intra<1, 2>(out);
     bitonic_step_intra<2, 4>(out); bitonic_step_intra<1, 4>(out);
     bitonic_step_intra<4, 8>(out); bitonic_step_intra<2, 8>(out); bitonic_step_intra<1, 8>(out);
@@ -72,21 +70,21 @@ void pipeline_core_1(int32_t* __restrict in, int32_t* __restrict out) {
 
 void pipeline_core_2(int32_t* __restrict in, int32_t* __restrict out) {
     for (int i = 0; i < 1024; i += 16) aie::store_v(out + i, aie::load_v<16>(in + i));
-    
+
     bitonic_step_inter<32, 64>(out); bitonic_step_inter<16, 64>(out); bitonic_step_intra<8, 64>(out); bitonic_step_intra<4, 64>(out); bitonic_step_intra<2, 64>(out); bitonic_step_intra<1, 64>(out);
     bitonic_step_inter<64, 128>(out); bitonic_step_inter<32, 128>(out); bitonic_step_inter<16, 128>(out); bitonic_step_intra<8, 128>(out); bitonic_step_intra<4, 128>(out); bitonic_step_intra<2, 128>(out); bitonic_step_intra<1, 128>(out);
 }
 
 void pipeline_core_3(int32_t* __restrict in, int32_t* __restrict out) {
     for (int i = 0; i < 1024; i += 16) aie::store_v(out + i, aie::load_v<16>(in + i));
-    
+
     bitonic_step_inter<128, 256>(out); bitonic_step_inter<64, 256>(out); bitonic_step_inter<32, 256>(out); bitonic_step_inter<16, 256>(out); bitonic_step_intra<8, 256>(out); bitonic_step_intra<4, 256>(out); bitonic_step_intra<2, 256>(out); bitonic_step_intra<1, 256>(out);
     bitonic_step_inter<256, 512>(out); bitonic_step_inter<128, 512>(out); bitonic_step_inter<64, 512>(out); bitonic_step_inter<32, 512>(out); bitonic_step_inter<16, 512>(out); bitonic_step_intra<8, 512>(out); bitonic_step_intra<4, 512>(out); bitonic_step_intra<2, 512>(out); bitonic_step_intra<1, 512>(out);
 }
 
 void pipeline_core_4(int32_t* __restrict in, int32_t* __restrict out) {
     for (int i = 0; i < 1024; i += 16) aie::store_v(out + i, aie::load_v<16>(in + i));
-    
+
     bitonic_step_inter<512, 1024>(out); bitonic_step_inter<256, 1024>(out); bitonic_step_inter<128, 1024>(out); bitonic_step_inter<64, 1024>(out); bitonic_step_inter<32, 1024>(out); bitonic_step_inter<16, 1024>(out); bitonic_step_intra<8, 1024>(out); bitonic_step_intra<4, 1024>(out); bitonic_step_intra<2, 1024>(out); bitonic_step_intra<1, 1024>(out);
 }
 
