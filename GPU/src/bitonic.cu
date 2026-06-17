@@ -19,6 +19,7 @@ constexpr std::size_t BITONIC_TILE_LARGE = 8192; // working set > L2 (DRAM bound
 constexpr std::size_t BITONIC_TILE_SMALL = 4096; // working set <= L2 (occupancy bound)
 constexpr std::size_t BITONIC_MAX_TILE_BYTES = 48 * 1024; // stay within default smem budget (no opt-in)
 constexpr int FUSED_LAYER_CAP = 128;
+constexpr int MULTISTEP_MAX_BITS = 5;
 
 #define CUDA_CHECK(expr)                                                                                               \
 	do {                                                                                                               \
@@ -162,26 +163,50 @@ __global__ __launch_bounds__(TPB) void bitonic_fused_wide(T* __restrict__ data, 
 	}
 }
 
-template <typename T>
-__global__ void bitonic_layer_global_coalesced(T* data, std::size_t total_pairs, std::size_t stage, std::size_t step) {
-	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-	if (tid >= total_pairs) {
+template <typename T, int GROUP_BITS>
+__global__ void bitonic_multistep(T* __restrict__ data, std::size_t num_groups, std::size_t stage,
+								   std::size_t j_top) {
+	constexpr int G = 1 << GROUP_BITS;
+	const std::size_t tid = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+	if (tid >= num_groups) {
 		return;
 	}
 
-	const std::size_t low = tid & (step - 1);
-	const std::size_t i = ((tid - low) << 1) + low;
-	const std::size_t ixj = i + step;
-	const bool ascending = (i & stage) == 0;
+	const std::size_t j_bot = j_top >> (GROUP_BITS - 1);
+	const std::size_t low = tid & (j_bot - 1);
+	const std::size_t base = ((tid - low) << GROUP_BITS) + low;
 
-	const T a = data[i];
-	const T b = data[ixj];
+	T reg[G];
+#pragma unroll
+	for (int p = 0; p < G; ++p) {
+		reg[p] = data[base + static_cast<std::size_t>(p) * j_bot];
+	}
 
-	const T min_val = gpu::traits::DeviceTraits<T>::min(a, b); 
-	const T max_val = gpu::traits::DeviceTraits<T>::max(a, b); 
+#pragma unroll
+	for (int m = 0; m < GROUP_BITS; ++m) {
+		const int local_stride = 1 << (GROUP_BITS - 1 - m);
+#pragma unroll
+		for (int p = 0; p < G; ++p) {
+			if ((p & local_stride) == 0) {
+				const int q = p + local_stride;
+				const std::size_t gi = base + static_cast<std::size_t>(p) * j_bot;
+				const bool ascending = (gi & stage) == 0;
 
-	data[i]   = ascending ? min_val : max_val;
-	data[ixj] = ascending ? max_val : min_val;
+				const T a = reg[p];
+				const T b = reg[q];
+				const T min_val = gpu::traits::DeviceTraits<T>::min(a, b);
+				const T max_val = gpu::traits::DeviceTraits<T>::max(a, b);
+
+				reg[p] = ascending ? min_val : max_val;
+				reg[q] = ascending ? max_val : min_val;
+			}
+		}
+	}
+
+#pragma unroll
+	for (int p = 0; p < G; ++p) {
+		data[base + static_cast<std::size_t>(p) * j_bot] = reg[p];
+	}
 }
 
 __global__ void bitonic_layer_global_coalesced_half2(__half2* data, std::size_t total_vec_pairs, std::size_t stage_vec, std::size_t step_vec) {
@@ -260,6 +285,55 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 		buffer.count = 0;
 	};
 
+	std::vector<std::size_t> large_steps;
+	std::size_t large_stage = 0;
+	std::size_t large_active = 0;
+	auto flush_large = [&]() {
+		if (large_steps.empty()) {
+			return;
+		}
+		if constexpr (std::is_same_v<T, __half>) {
+			const std::size_t vec_pairs = large_active / 4;
+			const dim3 grid(static_cast<unsigned int>((vec_pairs + block_size - 1) / block_size));
+			for (std::size_t s : large_steps) {
+				bitonic_layer_global_coalesced_half2<<<grid, block_size, 0, stream>>>(
+					reinterpret_cast<__half2*>(current_src), vec_pairs, large_stage / 2, s / 2);
+				out_launches++;
+			}
+		} else {
+			std::size_t idx = 0;
+			while (idx < large_steps.size()) {
+				int t = static_cast<int>(large_steps.size() - idx);
+				if (t > MULTISTEP_MAX_BITS) {
+					t = MULTISTEP_MAX_BITS;
+				}
+				const std::size_t j_top = large_steps[idx];
+				const std::size_t num_groups = large_active >> t;
+				const unsigned int grid = static_cast<unsigned int>((num_groups + block_size - 1) / block_size);
+				switch (t) {
+				case 1:
+					bitonic_multistep<T, 1><<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
+					break;
+				case 2:
+					bitonic_multistep<T, 2><<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
+					break;
+				case 3:
+					bitonic_multistep<T, 3><<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
+					break;
+				case 4:
+					bitonic_multistep<T, 4><<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
+					break;
+				default:
+					bitonic_multistep<T, 5><<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
+					break;
+				}
+				out_launches++;
+				idx += static_cast<std::size_t>(t);
+			}
+		}
+		large_steps.clear();
+	};
+
 	for (std::size_t layer_idx = 0; layer_idx < layers.size(); ++layer_idx) {
 		const auto& layer = layers[layer_idx];
 		const std::size_t stage = layer.k;
@@ -270,6 +344,7 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 		if (layer.type == common::bitonic::LayerType::Truncate) {
 			out_final_n = pairs;
 
+			flush_large();
 			flush(layer.active_n);
 
 			const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
@@ -284,9 +359,14 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 
 		out_final_n = layer.active_n;
 		if (fuses(layer.active_n, step)) {
+			flush_large();
 			buffer.stages[buffer.count] = static_cast<std::uint32_t>(stage);
 			buffer.steps[buffer.count] = static_cast<std::uint32_t>(step);
 			buffer.count++;
+		} else {
+			large_steps.push_back(step);
+			large_stage = stage;
+			large_active = layer.active_n;
 		}
 
 		const bool is_last = (layer_idx == layers.size() - 1);
@@ -298,25 +378,8 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 		if (buffer.count > 0 && (is_last || next_is_large || next_is_trunc || is_full)) {
 			flush(layer.active_n);
 		}
-
-		if (!fuses(layer.active_n, step)) {
-			if constexpr (std::is_same_v<T, __half>) {
-				const std::size_t vec_pairs = pairs / 2;
-				const dim3 grid(static_cast<unsigned int>((vec_pairs + block_size - 1) / block_size));
-				
-				bitonic_layer_global_coalesced_half2<<<grid, block_size, 0, stream>>>(
-					reinterpret_cast<__half2*>(current_src), 
-					vec_pairs, 
-					stage / 2, 
-					step / 2
-				);
-			} else {
-				const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
-				bitonic_layer_global_coalesced<<<grid, block_size, 0, stream>>>(current_src, pairs, stage, step);
-			}
-			out_launches++;
-		}
 	}
+	flush_large();
 
 	cudaGraph_t graph;
 	CUDA_CHECK(cudaStreamEndCapture(stream, &graph));
