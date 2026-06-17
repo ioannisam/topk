@@ -23,6 +23,24 @@ namespace {
 		}                                                                                                              \
 	} while (false)
 
+constexpr int MAP_BLOCK_SIZE = 256;
+constexpr std::size_t MAP_STRATEGY_A_MAX_K = 256;
+constexpr int MAP_BLOCK_BUDGET = 128;
+constexpr int MAP_MIN_BLOCKS_PER_SM = 2;
+
+inline int map_blocks_per_sm(int occupancy_blocks, int sm_count, std::size_t n, std::size_t k) {
+	const std::size_t full_threads = static_cast<std::size_t>(sm_count) * occupancy_blocks * MAP_BLOCK_SIZE;
+	const bool heaps_fill = full_threads > 0 && (n / full_threads) >= k;
+	if (k > MAP_STRATEGY_A_MAX_K || !heaps_fill) {
+		return occupancy_blocks;
+	}
+	int budget = static_cast<int>(MAP_BLOCK_BUDGET / k);
+	if (budget < MAP_MIN_BLOCKS_PER_SM) {
+		budget = MAP_MIN_BLOCKS_PER_SM;
+	}
+	return occupancy_blocks < budget ? occupancy_blocks : budget;
+}
+
 template <typename T>
 struct DeviceBuffer {
 	T* ptr = nullptr;
@@ -113,6 +131,7 @@ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k, bool wan
 
 	T* local_heap = thread_workspaces + (tid * k);
 	int current_size = 0;
+	T thresh = sentinel;
 
 	for (std::size_t i = tid; i < n; i += stride) {
 		T val = input[i];
@@ -124,10 +143,12 @@ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k, bool wan
 				for (int j = k / 2 - 1; j >= 0; --j) {
 					sift_down(local_heap, k, j, want_max);
 				}
+				thresh = local_heap[0];
 			}
-		} else if (beats_threshold(val, local_heap[0], want_max)) {
+		} else if (beats_threshold(val, thresh, want_max)) {
 			local_heap[0] = val;
 			sift_down(local_heap, k, 0, want_max);
+			thresh = local_heap[0];
 		}
 	}
 
@@ -147,23 +168,28 @@ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k, bool wan
 				T* my_heap = thread_workspaces + (my_global_tid * k);
 				T* other_heap = thread_workspaces + (other_global_tid * k);
 
-				int c_other = thread_counts[other_global_tid];
+				int c_my = thread_counts[my_global_tid];
+				const int c_other = thread_counts[other_global_tid];
+				T my_thresh = (c_my == k) ? my_heap[0] : sentinel;
+
 				for (int j = 0; j < c_other; ++j) {
-					T val = other_heap[j];
-					int c_my = thread_counts[my_global_tid];
+					const T val = other_heap[j];
 
 					if (c_my < k) {
 						my_heap[c_my] = val;
-						thread_counts[my_global_tid]++;
-						if (thread_counts[my_global_tid] == k) {
+						c_my++;
+						if (c_my == k) {
 							for (int h = k / 2 - 1; h >= 0; --h)
 								sift_down(my_heap, k, h, want_max);
+							my_thresh = my_heap[0];
 						}
-					} else if (beats_threshold(val, my_heap[0], want_max)) {
+					} else if (beats_threshold(val, my_thresh, want_max)) {
 						my_heap[0] = val;
 						sift_down(my_heap, k, 0, want_max);
+						my_thresh = my_heap[0];
 					}
 				}
+				thread_counts[my_global_tid] = c_my;
 			}
 			__syncthreads();
 		}
@@ -188,14 +214,15 @@ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k, bool wan
 			
 			T* block_heap = thread_workspaces + (block_start_tid * k);
 			int block_heap_size = thread_counts[block_start_tid];
+			T block_thresh = (block_heap_size == k) ? block_heap[0] : sentinel;
 
 			for (int t = 1; t < blockDim.x; ++t) {
 				const std::size_t t_global_tid = block_start_tid + t;
 				T* t_heap = thread_workspaces + (t_global_tid * k);
-				int c_t = thread_counts[t_global_tid];
+				const int c_t = thread_counts[t_global_tid];
 
 				for (int j = 0; j < c_t; ++j) {
-					T val = t_heap[j];
+					const T val = t_heap[j];
 
 					if (block_heap_size < k) {
 						block_heap[block_heap_size] = val;
@@ -203,10 +230,12 @@ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k, bool wan
 						if (block_heap_size == k) {
 							for (int h = k / 2 - 1; h >= 0; --h)
 								sift_down(block_heap, k, h, want_max);
+							block_thresh = block_heap[0];
 						}
-					} else if (beats_threshold(val, block_heap[0], want_max)) {
+					} else if (beats_threshold(val, block_thresh, want_max)) {
 						block_heap[0] = val;
 						sift_down(block_heap, k, 0, want_max);
+						block_thresh = block_heap[0];
 					}
 				}
 			}
@@ -253,6 +282,7 @@ std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_ma
 
 	int num_blocks;
 	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, topk_map_kernel<T>, block_size, shared_mem_size));
+	num_blocks = map_blocks_per_sm(num_blocks, prop.multiProcessorCount, n, k);
 	int grid_size = prop.multiProcessorCount * num_blocks;
 
 	const size_t max_workspace_bytes = 1024ULL * 1024ULL * 512ULL;
@@ -343,6 +373,7 @@ std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k,
 
 	int num_blocks;
 	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, topk_map_kernel<__half>, block_size, shared_mem_size));
+	num_blocks = map_blocks_per_sm(num_blocks, prop.multiProcessorCount, n, k);
 	int grid_size = prop.multiProcessorCount * num_blocks;
 
 	const size_t max_workspace_bytes = 1024ULL * 1024ULL * 512ULL;
