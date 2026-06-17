@@ -13,9 +13,42 @@
 namespace npu::map_reduce {
 namespace {
 
-template <bool WantMax, typename T>
-static void sift_down(std::vector<T>& heap, std::size_t i) {
-    using Cmp = std::conditional_t<WantMax, std::greater<T>, std::less<T>>;
+template <typename T>
+inline std::int32_t to_key(T v) {
+    if constexpr (std::is_same_v<T, std::int32_t>) {
+        return v;
+    } else if constexpr (std::is_same_v<T, std::uint32_t>) {
+        return static_cast<std::int32_t>(v ^ 0x80000000u);
+    } else if constexpr (std::is_floating_point_v<T> && sizeof(T) == 4) {
+        std::uint32_t u;
+        std::memcpy(&u, &v, 4);
+        const std::uint32_t key = (u & 0x80000000u) ? (u ^ 0x7FFFFFFFu) : u;
+        return static_cast<std::int32_t>(key);
+    } else {
+        return static_cast<std::int32_t>(v);
+    }
+}
+
+template <typename T>
+inline T from_key(std::int32_t key) {
+    if constexpr (std::is_same_v<T, std::int32_t>) {
+        return key;
+    } else if constexpr (std::is_same_v<T, std::uint32_t>) {
+        return static_cast<std::uint32_t>(key) ^ 0x80000000u;
+    } else if constexpr (std::is_floating_point_v<T> && sizeof(T) == 4) {
+        const std::uint32_t key_u = static_cast<std::uint32_t>(key);
+        const std::uint32_t u = (key_u & 0x80000000u) ? (key_u ^ 0x7FFFFFFFu) : key_u;
+        T v;
+        std::memcpy(&v, &u, 4);
+        return v;
+    } else {
+        return static_cast<T>(key);
+    }
+}
+
+template <bool WantMax>
+static void sift_down(std::vector<std::int32_t>& heap, std::size_t i) {
+    using Cmp = std::conditional_t<WantMax, std::greater<std::int32_t>, std::less<std::int32_t>>;
     const std::size_t n = heap.size();
     while (true) {
         std::size_t best = i;
@@ -33,15 +66,16 @@ static void sift_down(std::vector<T>& heap, std::size_t i) {
 template <bool WantMax, typename T>
 std::size_t prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_ptr,
                               std::size_t current_batch, std::size_t batch_size,
-                              std::size_t batch_chunks, T current_threshold,
-                              T pad_val) {
+                              std::size_t batch_chunks, std::int32_t threshold_key,
+                              std::int32_t sentinel_key) {
     
-    T* src_map = src_bo.map<T*>();
+    std::int32_t* src_map = src_bo.map<std::int32_t*>();
     int32_t* cfg_map = cfg_bo.map<int32_t*>();
 
-    // Fast contiguous memory copy 
-    if (current_batch > 0) {
-        std::memcpy(src_map, data_ptr, current_batch * sizeof(T));
+    if constexpr (std::is_same_v<T, std::int32_t>) {
+        if (current_batch > 0) std::memcpy(src_map, data_ptr, current_batch * sizeof(std::int32_t));
+    } else {
+        for (std::size_t i = 0; i < current_batch; ++i) src_map[i] = to_key<T>(data_ptr[i]);
     }
 
     struct alignas(16) CfgWord {
@@ -51,12 +85,8 @@ std::size_t prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_pt
         int32_t padding;
     };
 
-    int32_t sentinel_bits;
-    T temp_pad = pad_val;
-    std::memcpy(&sentinel_bits, &temp_pad, std::min(sizeof(T), sizeof(int32_t)));
-
     CfgWord current_cfg = {
-        static_cast<int32_t>(current_threshold), WantMax ? 1 : 0, sentinel_bits, 0
+        threshold_key, WantMax ? 1 : 0, sentinel_key, 0
     };
 
     CfgWord* cfg_words = reinterpret_cast<CfgWord*>(cfg_map);
@@ -67,8 +97,8 @@ std::size_t prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_pt
     std::fill(cfg_words, cfg_words + full_chunks, current_cfg);
 
     if (remainder > 0) {
-        std::fill(src_map + (full_chunks * chunk_size) + remainder, 
-                  src_map + ((full_chunks + 1) * chunk_size), pad_val);
+        std::fill(src_map + (full_chunks * chunk_size) + remainder,
+                  src_map + ((full_chunks + 1) * chunk_size), sentinel_key);
         cfg_words[full_chunks] = current_cfg;
         full_chunks++;
     }
@@ -84,26 +114,20 @@ std::size_t prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_pt
     return full_chunks; 
 }
 
-template <bool WantMax, typename T>
-void process_npu_results(xrt::bo& dst_bo, std::vector<T>& heap,
-                         std::size_t batch_chunks, T pad_val) {
-    using Cmp = std::conditional_t<WantMax, std::greater<T>, std::less<T>>;
-    T* dst_map = dst_bo.map<T*>();
+template <bool WantMax>
+void process_npu_results(xrt::bo& dst_bo, std::vector<std::int32_t>& heap,
+                         std::size_t batch_chunks, std::int32_t sentinel_key) {
+    using Cmp = std::conditional_t<WantMax, std::greater<std::int32_t>, std::less<std::int32_t>>;
+    std::int32_t* dst_map = dst_bo.map<std::int32_t*>();
     const std::size_t chunk_size = 1024;
 
     for (std::size_t c = 0; c < batch_chunks; ++c) {
-        T* chunk_ptr = dst_map + (c * chunk_size);
-        int32_t count = static_cast<int32_t>(chunk_ptr[0]);
-
-        if (count > 0 && count <= 1008) {
-            for (int32_t i = 1; i <= count; ++i) {
-                T val = chunk_ptr[i];
-                if (val != pad_val) {
-                    if (Cmp{}(val, heap.front())) {
-                        heap[0] = val;
-                        sift_down<WantMax>(heap, 0);
-                    }
-                }
+        std::int32_t* chunk_ptr = dst_map + (c * chunk_size);
+        for (std::size_t i = 0; i < chunk_size; ++i) {
+            std::int32_t key = chunk_ptr[i];
+            if (key != sentinel_key && Cmp{}(key, heap.front())) {
+                heap[0] = key;
+                sift_down<WantMax>(heap, 0);
             }
         }
     }
@@ -113,7 +137,7 @@ template <bool WantMax, typename T>
 std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_t k,
                                           const npu::utils::OffloadConfig& offload_cfg,
                                           npu::map_reduce::RunStats* stats) {
-    using Cmp = std::conditional_t<WantMax, std::greater<T>, std::less<T>>;
+    using Cmp = std::conditional_t<WantMax, std::greater<std::int32_t>, std::less<std::int32_t>>;
 
     if (k == 0 || data.empty()) return {};
 
@@ -127,10 +151,10 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
     std::size_t sample_size = std::max(k, static_cast<std::size_t>(n * SAMPLE_FRACTION));
     sample_size = std::min(sample_size, n);
 
-    std::vector<T> sample(data.begin(), data.begin() + sample_size);
-    std::nth_element(sample.begin(), sample.begin() + k - 1, sample.end(), Cmp{});
-
-    std::vector<T> heap(sample.begin(), sample.begin() + k);
+    std::vector<std::int32_t> heap(sample_size);
+    for (std::size_t i = 0; i < sample_size; ++i) heap[i] = to_key<T>(data[i]);
+    std::nth_element(heap.begin(), heap.begin() + k - 1, heap.end(), Cmp{});
+    heap.resize(k);
     std::make_heap(heap.begin(), heap.end(), Cmp{});
 
     const std::size_t BATCH_CHUNKS = 1024; 
@@ -155,7 +179,8 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
         rl[i].add(run[i]);
     }
 
-    T pad_val = WantMax ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
+    const T pad_val = WantMax ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
+    const std::int32_t sentinel_key = to_key<T>(pad_val);
 
     int active_idx = 0;
     int next_idx = 1;
@@ -168,7 +193,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
         std::size_t current_batch = std::min(batch_size, n - offset);
         valid_chunks[active_idx] = prepare_npu_batch<WantMax, T>(state.mr_src_bo[active_idx], state.mr_cfg_bo[active_idx],
                                                         data.data() + offset, current_batch, batch_size,
-                                                        BATCH_CHUNKS, heap.front(), pad_val);
+                                                        BATCH_CHUNKS, heap.front(), sentinel_key);
         rl[active_idx].execute();
         total_dispatches++;
         offset += batch_size;
@@ -179,7 +204,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 
         valid_chunks[next_idx] = prepare_npu_batch<WantMax, T>(state.mr_src_bo[next_idx], state.mr_cfg_bo[next_idx],
                                                       data.data() + offset, current_batch, batch_size,
-                                                      BATCH_CHUNKS, heap.front(), pad_val);
+                                                      BATCH_CHUNKS, heap.front(), sentinel_key);
 
         npu::utils::wait_for_runlist_or_throw(rl[active_idx], npu::utils::read_wait_timeout_ms());
         
@@ -187,7 +212,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
         total_dispatches++;
 
         state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE, valid_chunks[active_idx] * chunk_size * sizeof(T), 0);
-        process_npu_results<WantMax, T>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx], pad_val);
+        process_npu_results<WantMax>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx], sentinel_key);
 
         std::swap(active_idx, next_idx);
         offset += batch_size;
@@ -196,13 +221,12 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
     if (total_dispatches > 0) {
         npu::utils::wait_for_runlist_or_throw(rl[active_idx], npu::utils::read_wait_timeout_ms());
         state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE, valid_chunks[active_idx] * chunk_size * sizeof(T), 0);
-        process_npu_results<WantMax, T>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx], pad_val);
+        process_npu_results<WantMax>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx], sentinel_key);
     }
 
-    auto cmp_sort = [](const T& lhs, const T& rhs) {
-        return WantMax ? (lhs > rhs) : (lhs < rhs);
-    };
-    std::sort(heap.begin(), heap.end(), cmp_sort);
+    std::vector<T> result(heap.size());
+    for (std::size_t i = 0; i < heap.size(); ++i) result[i] = from_key<T>(heap[i]);
+    std::sort(result.begin(), result.end(), [](const T& lhs, const T& rhs) { return WantMax ? (lhs > rhs) : (lhs < rhs); });
 
     auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -212,7 +236,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
         stats->used_offload = true;
     }
 
-    return heap;
+    return result;
 }
 
 } // namespace
