@@ -15,6 +15,10 @@ namespace gpu::bitonic {
 namespace {
 
 constexpr std::size_t BITONIC_BLOCK_SIZE = 256;
+constexpr std::size_t BITONIC_TILE_LARGE = 8192; // working set > L2 (DRAM bound)
+constexpr std::size_t BITONIC_TILE_SMALL = 4096; // working set <= L2 (occupancy bound)
+constexpr std::size_t BITONIC_MAX_TILE_BYTES = 48 * 1024; // stay within default smem budget (no opt-in)
+constexpr int FUSED_LAYER_CAP = 128;
 
 #define CUDA_CHECK(expr)                                                                                               \
 	do {                                                                                                               \
@@ -23,6 +27,26 @@ constexpr std::size_t BITONIC_BLOCK_SIZE = 256;
 			throw std::runtime_error(std::string("CUDA error: ") + cudaGetErrorString(_err));                          \
 		}                                                                                                              \
 	} while (false)
+
+std::size_t l2_cache_bytes() {
+	static const std::size_t bytes = []() {
+		int v = 0;
+		CUDA_CHECK(cudaDeviceGetAttribute(&v, cudaDevAttrL2CacheSize, 0));
+		return static_cast<std::size_t>(v);
+	}();
+	return bytes;
+}
+
+template <typename T> std::size_t tile_target_elems(std::size_t n) {
+	const std::size_t target = (n * sizeof(T) > l2_cache_bytes()) ? BITONIC_TILE_LARGE : BITONIC_TILE_SMALL;
+	const std::size_t cap = BITONIC_MAX_TILE_BYTES / sizeof(T);
+	const std::size_t limit = cap < target ? cap : target;
+	std::size_t w = 1;
+	while ((w << 1) <= limit) {
+		w <<= 1;
+	}
+	return w;
+}
 
 template <typename T>
 struct DeviceBuffer {
@@ -67,8 +91,8 @@ struct DeviceBuffer {
 };
 
 struct FusedLayers {
-	std::uint32_t stages[16];
-	std::uint32_t steps[16];
+	std::uint32_t stages[FUSED_LAYER_CAP];
+	std::uint32_t steps[FUSED_LAYER_CAP];
 	int count;
 };
 
@@ -98,53 +122,44 @@ __global__ void cast_half_to_float_scalar_tail(const __half* __restrict__ src, f
 	}
 }
 
-template <typename T> 
-__global__ __launch_bounds__(256, 4) 
-void bitonic_fused_shared(T* data, std::size_t total_pairs, FusedLayers layers) {
+template <typename T, int TPB>
+__global__ __launch_bounds__(TPB) void bitonic_fused_wide(T* __restrict__ data, std::size_t tile_elems,
+														  FusedLayers layers) {
 	extern __shared__ char smem[];
 	T* s_data = reinterpret_cast<T*>(smem);
 
-	const std::size_t tid = threadIdx.x;
-	const std::size_t block_size = blockDim.x;
-	const std::size_t block_offset = blockIdx.x * (block_size * 2);
+	const std::size_t block_offset = static_cast<std::size_t>(blockIdx.x) * tile_elems;
+	const std::size_t comparisons = tile_elems >> 1;
 
-	const std::size_t idx1 = block_offset + tid;
-	const std::size_t idx2 = block_offset + tid + block_size;
-	const std::size_t n = total_pairs * 2;
-
-	s_data[tid] = (idx1 < n) ? data[idx1] : data[0];
-	s_data[tid + block_size] = (idx2 < n) ? data[idx2] : data[0];
+	for (std::size_t k = threadIdx.x; k < tile_elems; k += TPB) {
+		s_data[k] = data[block_offset + k];
+	}
 	__syncthreads();
 
-	const std::size_t global_tid = blockIdx.x * blockDim.x + threadIdx.x;
-
 	for (int l = 0; l < layers.count; ++l) {
-		if (global_tid < total_pairs) {
-			const std::size_t stage = layers.stages[l];
-			const std::size_t step = layers.steps[l];
+		const std::size_t stage = layers.stages[l];
+		const std::size_t step = layers.steps[l];
 
-			const std::size_t low = tid & (step - 1);
-			const std::size_t local_i = ((tid - low) << 1) + low;
+		for (std::size_t c = threadIdx.x; c < comparisons; c += TPB) {
+			const std::size_t low = c & (step - 1);
+			const std::size_t local_i = ((c - low) << 1) + low;
 			const std::size_t local_ixj = local_i + step;
-
-			const std::size_t global_i = block_offset + local_i;
-			const bool ascending = (global_i & stage) == 0;
+			const bool ascending = ((block_offset + local_i) & stage) == 0;
 
 			const T a = s_data[local_i];
 			const T b = s_data[local_ixj];
-			if ((ascending && gpu::traits::DeviceTraits<T>::gt(a, b)) || 
-                (!ascending && gpu::traits::DeviceTraits<T>::lt(a, b))) {
-				s_data[local_i] = b;
-				s_data[local_ixj] = a;
-			}
+			const T min_val = gpu::traits::DeviceTraits<T>::min(a, b);
+			const T max_val = gpu::traits::DeviceTraits<T>::max(a, b);
+
+			s_data[local_i] = ascending ? min_val : max_val;
+			s_data[local_ixj] = ascending ? max_val : min_val;
 		}
 		__syncthreads();
 	}
 
-	if (idx1 < n)
-		data[idx1] = s_data[tid];
-	if (idx2 < n)
-		data[idx2] = s_data[tid + block_size];
+	for (std::size_t k = threadIdx.x; k < tile_elems; k += TPB) {
+		data[block_offset + k] = s_data[k];
+	}
 }
 
 template <typename T>
@@ -228,6 +243,23 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 	buffer.count = 0;
 	out_final_n = n;
 
+	const std::size_t tile_cap = tile_target_elems<T>(n);
+	auto tile_for = [&](std::size_t active_n) { return active_n < tile_cap ? active_n : tile_cap; };
+	auto fuses = [&](std::size_t active_n, std::size_t step) { return 2 * step <= tile_for(active_n); };
+	auto flush = [&](std::size_t active_n) {
+		if (buffer.count == 0) {
+			return;
+		}
+		const std::size_t tile_elems = tile_for(active_n);
+		const unsigned int grid = static_cast<unsigned int>(active_n / tile_elems);
+		const std::size_t smem_size = tile_elems * sizeof(T);
+
+		bitonic_fused_wide<T, BITONIC_BLOCK_SIZE>
+			<<<grid, BITONIC_BLOCK_SIZE, smem_size, stream>>>(current_src, tile_elems, buffer);
+		out_launches++;
+		buffer.count = 0;
+	};
+
 	for (std::size_t layer_idx = 0; layer_idx < layers.size(); ++layer_idx) {
 		const auto& layer = layers[layer_idx];
 		const std::size_t stage = layer.k;
@@ -238,14 +270,7 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 		if (layer.type == common::bitonic::LayerType::Truncate) {
 			out_final_n = pairs;
 
-			if (buffer.count > 0) {
-				const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
-				const std::size_t smem_size = block_size * 2 * sizeof(T);
-
-				bitonic_fused_shared<<<grid, block_size, smem_size, stream>>>(current_src, pairs, buffer);
-				out_launches++;
-				buffer.count = 0;
-			}
+			flush(layer.active_n);
 
 			const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
 			bitonic_layer_truncate_kernel<<<grid, block_size, 0, stream>>>(current_src, current_dst, pairs, step);
@@ -258,27 +283,23 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 		}
 
 		out_final_n = layer.active_n;
-		if (step <= block_size) {
+		if (fuses(layer.active_n, step)) {
 			buffer.stages[buffer.count] = static_cast<std::uint32_t>(stage);
 			buffer.steps[buffer.count] = static_cast<std::uint32_t>(step);
 			buffer.count++;
 		}
 
 		const bool is_last = (layer_idx == layers.size() - 1);
-		const bool next_is_large = (!is_last && layers[layer_idx + 1].j > block_size);
 		const bool next_is_trunc = (!is_last && layers[layer_idx + 1].type == common::bitonic::LayerType::Truncate);
-		const bool is_full = (buffer.count == 16);
+		const bool next_is_large =
+			(!is_last && !next_is_trunc && !fuses(layers[layer_idx + 1].active_n, layers[layer_idx + 1].j));
+		const bool is_full = (buffer.count == FUSED_LAYER_CAP);
 
 		if (buffer.count > 0 && (is_last || next_is_large || next_is_trunc || is_full)) {
-			const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
-			const std::size_t smem_size = block_size * 2 * sizeof(T);
-
-			bitonic_fused_shared<<<grid, block_size, smem_size, stream>>>(current_src, pairs, buffer);
-			out_launches++;
-			buffer.count = 0;
+			flush(layer.active_n);
 		}
 
-		if (step > block_size) {
+		if (!fuses(layer.active_n, step)) {
 			if constexpr (std::is_same_v<T, __half>) {
 				const std::size_t vec_pairs = pairs / 2;
 				const dim3 grid(static_cast<unsigned int>((vec_pairs + block_size - 1) / block_size));
