@@ -11,6 +11,7 @@ add_executable(npu_topk
     src/main.cpp
     src/bitonic.cpp
     src/map_reduce.cpp
+    src/ground_truth.cpp
     src/reporting.cpp
     src/runner.cpp
 )

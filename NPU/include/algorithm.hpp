@@ -38,3 +38,10 @@ std::vector<T> run_topk_npu(const std::vector<T>& data, std::size_t k, bool want
                             std::size_t workers, npu::map_reduce::RunStats* stats);
 
 } // namespace npu::map_reduce
+
+namespace npu::ground_truth {
+
+template <typename T>
+void run_topk(std::vector<T>& data, std::size_t k, bool want_max);
+
+} // namespace npu::ground_truth
