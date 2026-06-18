@@ -12,6 +12,11 @@
 namespace common::config {
 namespace {
 
+constexpr const char* kUsage =
+	"Usage: ./topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] "
+	"[algo=bitonic|map_reduce|gt] [run=full|trunc|both] [debug=true|false] "
+	"[threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>]";
+
 DataType parse_dtype(const std::string& token);
 Algorithm parse_algorithm(const std::string& token);
 RunMode parse_run_mode(const std::string& token);
@@ -130,10 +135,7 @@ std::vector<std::string> split_ws(const std::string& text) {
 Config parse_tokens(const std::vector<std::string>& tokens) {
 
 	if (tokens.empty() || tokens.size() > 15) {
-		throw std::invalid_argument("Usage: ./topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] "
-									"[algo=bitonic|map_reduce] [run=full|trunc|both] [debug=true|false] "
-									"[threads=<num>] [seed=<seed>] "
-									"[verify=true|false] [min=<int>] [max=<int>] (key=value only)");
+		throw std::invalid_argument(kUsage);
 	}
 
 	int q = -1;
@@ -295,7 +297,7 @@ Algorithm parse_algorithm(const std::string& token) {
     if (value == "gt") {
 		return Algorithm::GroundTruth;
 	}
-	throw std::invalid_argument("Unsupported algorithm. Use one of: bitonic, map_reduce");
+	throw std::invalid_argument("Unsupported algorithm. Use one of: bitonic, map_reduce, gt");
 }
 
 RunMode parse_run_mode(const std::string& token) {
@@ -314,18 +316,8 @@ RunMode parse_run_mode(const std::string& token) {
 } // namespace
 
 Config parse_args(int argc, char** argv) {
-	if (argc < 2) {
-		throw std::invalid_argument("Usage: ./topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] "
-									"[algo=bitonic|map_reduce] [run=full|trunc|both] [debug=true|false] "
-									"[threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>]");
-	}
-
-	if (argc > 16) {
-		throw std::invalid_argument("Too many arguments. Expected at most 15 CLI tokens after program name.");
-	}
-
 	std::vector<std::string> cli_tokens;
-	cli_tokens.reserve(static_cast<std::size_t>(argc - 1));
+	cli_tokens.reserve(argc > 1 ? static_cast<std::size_t>(argc - 1) : 0);
 	for (int i = 1; i < argc; ++i) {
 		cli_tokens.push_back(argv[i]);
 	}

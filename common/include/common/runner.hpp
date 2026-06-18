@@ -56,10 +56,7 @@ template <typename T> T transform_for_max(T value) {
 }
 
 template <typename T> T restore_from_max(T value) {
-	if constexpr (std::is_unsigned_v<T>) {
-		return static_cast<T>(std::numeric_limits<T>::max() - value);
-	}
-	return static_cast<T>(-value);
+	return transform_for_max(value);
 }
 
 template <typename T> void apply_mode_transform(std::vector<T>& data, bool want_max) {

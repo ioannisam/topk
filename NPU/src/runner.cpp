@@ -13,7 +13,6 @@
 #include "../include/algorithm.hpp"
 #include "../include/reporting.hpp"
 #include "common/benchmark.hpp"
-#include "common/random.hpp"
 #include "common/runner.hpp"
 
 namespace npu::topk {

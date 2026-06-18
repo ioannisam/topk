@@ -418,12 +418,6 @@ std::string query_device_name() {
 	return std::string(prop.name);
 }
 
-int query_device_sm_count() {
-	cudaDeviceProp prop{};
-	CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
-	return prop.multiProcessorCount;
-}
-
 template <typename T>
 RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) {
 	if (data.empty()) {

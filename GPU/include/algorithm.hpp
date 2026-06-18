@@ -16,7 +16,6 @@ struct RunStats {
 };
 
 std::string query_device_name();
-int query_device_sm_count();
 
 template <typename T>
 RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers);
@@ -44,11 +43,6 @@ std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k,
 } // namespace gpu::map_reduce
 
 namespace gpu::ground_truth {
-
-struct RunStats {
-    double end_to_end_ms;
-    double algorithm_ms;
-};
 
 template <typename T>
 double run_topk(std::vector<T>& data, std::size_t k, bool want_max);

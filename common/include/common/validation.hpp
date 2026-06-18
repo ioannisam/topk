@@ -34,17 +34,6 @@ template <typename T> std::vector<std::string> format_output(const std::vector<T
 	return out;
 }
 
-template <typename T> T parse_expected_value(const std::string& token) {
-	if constexpr (std::is_integral_v<T>) {
-		if constexpr (std::is_unsigned_v<T>) {
-			return static_cast<T>(std::stoull(token));
-		}
-		return static_cast<T>(std::stoll(token));
-	}
-
-	return static_cast<T>(std::stod(token));
-}
-
 template <typename T> bool value_equal(T lhs, T rhs) {
 	if constexpr (std::is_floating_point_v<T>) {
 		const double a = static_cast<double>(lhs);
