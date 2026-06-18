@@ -53,15 +53,7 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) override {
 		std::vector<T> data_backup = data;
 
-		// warmup
-		common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
-			std::vector<T> temp = data_backup;
-			npu::bitonic::run_network_npu(temp, layers, context.ex_threads);
-		});
-
-		// measurement
-		auto best = common::benchmark::measure_best(
-			common::benchmark::kMeasureIters,
+		auto best = common::benchmark::run_benchmark(
 			[&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, npu::bitonic::RunStats> {
 				std::vector<T> temp = data_backup;
 
@@ -98,7 +90,6 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 		common::topk::BasicRunStats stats{};
 		stats.end_to_end_ms = best.elapsed_ms;
 		stats.algorithm_ms = best_stats.elapsed_ms;
-		std::cout << "[PROFILE_TIME_MS] " << stats.end_to_end_ms << "\n";
 		return stats;
 	}
 
@@ -127,15 +118,7 @@ class NpuMapReduceRunnerHooks final : public common::topk::MapReduceRunnerHooks<
 
     std::vector<T> run(const std::vector<T>& input, const Config& cfg,
                        common::topk::MapReduceRunStats* stats) override {
-        // warmup
-        common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
-            npu::map_reduce::RunStats dummy_stats{0.0, 0, false};
-            npu::map_reduce::run_topk_npu(input, cfg.k, cfg.want_max, context.ex_threads, &dummy_stats);
-        });
-
-        // measurement
-        auto best = common::benchmark::measure_best(
-            common::benchmark::kMeasureIters,
+        auto best = common::benchmark::run_benchmark(
             [&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, npu::map_reduce::RunStats> {
                 npu::map_reduce::RunStats run_stats{0.0, 0, false};
                 auto t0 = std::chrono::high_resolution_clock::now();
@@ -159,9 +142,6 @@ class NpuMapReduceRunnerHooks final : public common::topk::MapReduceRunnerHooks<
             stats->algorithm_ms = best.stats.elapsed_ms;
             stats->tiles_used = 0;
             stats->aggregated_candidates = 0;
-            std::cout << "[PROFILE_TIME_MS] " << stats->end_to_end_ms << "\n";
-        } else {
-            std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
         }
 
         return std::move(best.value);
@@ -191,35 +171,24 @@ template <typename T> class NpuGroundTruthHooks final : public common::topk::Gro
                        common::topk::GroundTruthRunStats* stats) override {
         const std::size_t k = std::min(cfg.k, input.size());
 
-        // warmup
-        common::benchmark::warmup(common::benchmark::kWarmupIters, [&]() {
+        auto best = common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValue<std::vector<T>> {
             std::vector<T> temp = input;
+            auto t0 = std::chrono::high_resolution_clock::now();
+
             npu::ground_truth::run_topk(temp, k, cfg.want_max);
+
+            auto t1 = std::chrono::high_resolution_clock::now();
+            double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+            if (k > 0 && k < temp.size()) temp.resize(k);
+            else if (k == 0) temp.clear();
+
+            return common::benchmark::TimedValue<std::vector<T>>{elapsed_wall_ms, std::move(temp)};
         });
-
-        // measurement
-        auto best = common::benchmark::measure_best(
-            common::benchmark::kMeasureIters, [&]() -> common::benchmark::TimedValue<std::vector<T>> {
-                std::vector<T> temp = input;
-                auto t0 = std::chrono::high_resolution_clock::now();
-
-                npu::ground_truth::run_topk(temp, k, cfg.want_max);
-
-                auto t1 = std::chrono::high_resolution_clock::now();
-                double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-
-                if (k > 0 && k < temp.size()) temp.resize(k);
-                else if (k == 0) temp.clear();
-
-                return common::benchmark::TimedValue<std::vector<T>>{elapsed_wall_ms, std::move(temp)};
-            });
 
         if (stats != nullptr) {
             stats->end_to_end_ms = best.elapsed_ms;
             stats->algorithm_ms = best.elapsed_ms;
-            std::cout << "[PROFILE_TIME_MS] " << stats->end_to_end_ms << "\n";
-        } else {
-            std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
         }
 
         return std::move(best.value);

@@ -119,6 +119,29 @@ void print_timing_lines(const std::vector<std::pair<std::string, std::optional<d
 	}
 }
 
+void print_bitonic_common_metrics(const common::config::Config& cfg, const common::topk::BitonicRunStats& stats) {
+	const std::size_t full_cmp = stats.full_comparators;
+	const std::size_t trunc_cmp = stats.trunc_comparators;
+	const double full_algo_ms = stats.full_run_stats != nullptr ? stats.full_run_stats->algorithm_ms : 0.0;
+	const double trunc_algo_ms = stats.trunc_run_stats != nullptr ? stats.trunc_run_stats->algorithm_ms : 0.0;
+
+	const std::size_t skipped = full_cmp >= trunc_cmp ? (full_cmp - trunc_cmp) : 0;
+	const double skipped_pct =
+		full_cmp == 0 ? 0.0 : (100.0 * static_cast<double>(skipped) / static_cast<double>(full_cmp));
+	const bool ran_both = cfg.run_mode == common::config::RunMode::Both;
+	const double speedup = (ran_both && trunc_algo_ms > 0.0) ? (full_algo_ms / trunc_algo_ms) : 0.0;
+
+	print_section_header("Debug Metrics");
+	print_key_value("Bitonic layers", stats.layer_count);
+	print_key_value("Full comparators", full_cmp);
+	print_key_value("Trunc comparators", trunc_cmp);
+	print_key_value("Comparator skip ratio", format_fixed(skipped_pct, 2, "%"));
+	if (ran_both) {
+		print_key_value("Full/Trunc speedup", format_fixed(speedup, 3, "x"));
+		print_key_value("Speedup interpretation", (speedup >= 1.0 ? "trunc faster" : "trunc slower"));
+	}
+}
+
 void print_check_result(const char* label, bool enabled, bool ok) {
 	if (!enabled) {
 		return;

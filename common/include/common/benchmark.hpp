@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <utility>
 
 namespace common::benchmark {
@@ -33,6 +34,13 @@ template <typename Fn> auto measure_best(int iterations, Fn&& fn) {
 			best = std::move(current);
 		}
 	}
+	return best;
+}
+
+template <typename Fn> auto run_benchmark(Fn&& timed_run_once) {
+	warmup(kWarmupIters, [&]() { timed_run_once(); });
+	auto best = measure_best(kMeasureIters, timed_run_once);
+	std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
 	return best;
 }
 
