@@ -15,8 +15,8 @@ namespace gpu::bitonic {
 namespace {
 
 constexpr std::size_t BITONIC_BLOCK_SIZE = 256;
-constexpr std::size_t BITONIC_TILE_LARGE = 8192; // working set > L2 (DRAM bound)
-constexpr std::size_t BITONIC_TILE_SMALL = 4096; // working set <= L2 (occupancy bound)
+constexpr std::size_t BITONIC_TILE_LARGE = 8192;		  // working set > L2 (DRAM bound)
+constexpr std::size_t BITONIC_TILE_SMALL = 4096;		  // working set <= L2 (occupancy bound)
 constexpr std::size_t BITONIC_MAX_TILE_BYTES = 48 * 1024; // stay within default smem budget (no opt-in)
 constexpr int FUSED_LAYER_CAP = 128;
 constexpr int MULTISTEP_MAX_BITS = 5;
@@ -49,8 +49,7 @@ template <typename T> std::size_t tile_target_elems(std::size_t n) {
 	return w;
 }
 
-template <typename T>
-struct DeviceBuffer {
+template <typename T> struct DeviceBuffer {
 	T* ptr = nullptr;
 	std::size_t size = 0;
 
@@ -86,9 +85,15 @@ struct DeviceBuffer {
 		return *this;
 	}
 
-	T* get() const { return ptr; }
-	T* operator->() const { return ptr; }
-	T& operator[](std::size_t idx) const { return ptr[idx]; }
+	T* get() const {
+		return ptr;
+	}
+	T* operator->() const {
+		return ptr;
+	}
+	T& operator[](std::size_t idx) const {
+		return ptr[idx];
+	}
 };
 
 struct FusedLayers {
@@ -97,7 +102,8 @@ struct FusedLayers {
 	int count;
 };
 
-__global__ void cast_float_to_half_vec2(const float2* __restrict__ src, __half2* __restrict__ dst, std::size_t num_vecs) {
+__global__ void cast_float_to_half_vec2(const float2* __restrict__ src, __half2* __restrict__ dst,
+										std::size_t num_vecs) {
 	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 	if (tid < num_vecs) {
 		dst[tid] = __float22half2_rn(src[tid]);
@@ -110,7 +116,8 @@ __global__ void cast_float_to_half_scalar_tail(const float* __restrict__ src, __
 	}
 }
 
-__global__ void cast_half_to_float_vec2(const __half2* __restrict__ src, float2* __restrict__ dst, std::size_t num_vecs) {
+__global__ void cast_half_to_float_vec2(const __half2* __restrict__ src, float2* __restrict__ dst,
+										std::size_t num_vecs) {
 	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 	if (tid < num_vecs) {
 		dst[tid] = __half22float2(src[tid]);
@@ -164,8 +171,7 @@ __global__ __launch_bounds__(TPB) void bitonic_fused_wide(T* __restrict__ data, 
 }
 
 template <typename T, int GROUP_BITS>
-__global__ void bitonic_multistep(T* __restrict__ data, std::size_t num_groups, std::size_t stage,
-								   std::size_t j_top) {
+__global__ void bitonic_multistep(T* __restrict__ data, std::size_t num_groups, std::size_t stage, std::size_t j_top) {
 	constexpr int G = 1 << GROUP_BITS;
 	const std::size_t tid = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
 	if (tid >= num_groups) {
@@ -209,7 +215,8 @@ __global__ void bitonic_multistep(T* __restrict__ data, std::size_t num_groups, 
 	}
 }
 
-__global__ void bitonic_layer_global_coalesced_half2(__half2* data, std::size_t total_vec_pairs, std::size_t stage_vec, std::size_t step_vec) {
+__global__ void bitonic_layer_global_coalesced_half2(__half2* data, std::size_t total_vec_pairs, std::size_t stage_vec,
+													 std::size_t step_vec) {
 	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 	if (tid >= total_vec_pairs) {
 		return;
@@ -226,7 +233,7 @@ __global__ void bitonic_layer_global_coalesced_half2(__half2* data, std::size_t 
 	const __half2 min_val = __hmin2(a, b);
 	const __half2 max_val = __hmax2(a, b);
 
-	data[i]   = ascending ? min_val : max_val;
+	data[i] = ascending ? min_val : max_val;
 	data[ixj] = ascending ? max_val : min_val;
 }
 
@@ -261,7 +268,7 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 	cudaEvent_t stop{};
 	CUDA_CHECK(cudaEventCreate(&start));
 	CUDA_CHECK(cudaEventCreate(&stop));
-    
+
 	CUDA_CHECK(cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal));
 
 	FusedLayers buffer;
@@ -312,19 +319,24 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 				const unsigned int grid = static_cast<unsigned int>((num_groups + block_size - 1) / block_size);
 				switch (t) {
 				case 1:
-					bitonic_multistep<T, 1><<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
+					bitonic_multistep<T, 1>
+						<<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
 					break;
 				case 2:
-					bitonic_multistep<T, 2><<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
+					bitonic_multistep<T, 2>
+						<<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
 					break;
 				case 3:
-					bitonic_multistep<T, 3><<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
+					bitonic_multistep<T, 3>
+						<<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
 					break;
 				case 4:
-					bitonic_multistep<T, 4><<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
+					bitonic_multistep<T, 4>
+						<<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
 					break;
 				default:
-					bitonic_multistep<T, 5><<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
+					bitonic_multistep<T, 5>
+						<<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
 					break;
 				}
 				out_launches++;
@@ -437,8 +449,8 @@ RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitoni
 	std::size_t comparators = 0;
 	std::size_t final_n = n;
 
-	T* final_src =
-		execute_network_kernels(d_data.get(), d_data_alt.get(), n, layers, block_size, elapsed_ms, launches, comparators, final_n);
+	T* final_src = execute_network_kernels(d_data.get(), d_data_alt.get(), n, layers, block_size, elapsed_ms, launches,
+										   comparators, final_n);
 
 	CUDA_CHECK(cudaMemcpy(data.data(), final_src, final_n * sizeof(T), cudaMemcpyDeviceToHost));
 
@@ -463,11 +475,8 @@ RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<commo
 
 	const std::size_t n_vec = n / 2;
 	const dim3 grid_vec((n_vec + block_size - 1) / block_size);
-	cast_float_to_half_vec2<<<grid_vec, block_size>>>(
-		reinterpret_cast<const float2*>(d_float_data.get()), 
-		reinterpret_cast<__half2*>(d_half_data.get()), 
-		n_vec
-	);
+	cast_float_to_half_vec2<<<grid_vec, block_size>>>(reinterpret_cast<const float2*>(d_float_data.get()),
+													  reinterpret_cast<__half2*>(d_half_data.get()), n_vec);
 	CUDA_CHECK(cudaGetLastError());
 
 	// Handle odd-sized input
@@ -481,16 +490,13 @@ RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<commo
 	std::size_t comparators = 0;
 	std::size_t final_n = n;
 
-	__half* final_src = execute_network_kernels(d_half_data.get(), d_half_alt.get(), n, layers, block_size, elapsed_ms, launches,
-												comparators, final_n);
+	__half* final_src = execute_network_kernels(d_half_data.get(), d_half_alt.get(), n, layers, block_size, elapsed_ms,
+												launches, comparators, final_n);
 
 	const std::size_t final_n_vec = final_n / 2;
 	const dim3 final_grid_vec((final_n_vec + block_size - 1) / block_size);
-	cast_half_to_float_vec2<<<final_grid_vec, block_size>>>(
-		reinterpret_cast<const __half2*>(final_src), 
-		reinterpret_cast<float2*>(d_float_data.get()), 
-		final_n_vec
-	);
+	cast_half_to_float_vec2<<<final_grid_vec, block_size>>>(reinterpret_cast<const __half2*>(final_src),
+															reinterpret_cast<float2*>(d_float_data.get()), final_n_vec);
 	CUDA_CHECK(cudaGetLastError());
 
 	// Handle odd-sized output

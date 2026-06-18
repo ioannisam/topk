@@ -104,138 +104,139 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 	npu::bitonic::RunStats last_trunc_stats{0.0, 0, 0, 0, false};
 };
 
-template <typename T>
-class NpuMapReduceRunnerHooks final : public common::topk::MapReduceRunnerHooks<T> {
+template <typename T> class NpuMapReduceRunnerHooks final : public common::topk::MapReduceRunnerHooks<T> {
   public:
-    explicit NpuMapReduceRunnerHooks(const Context& ctx) : context(ctx) {
-    }
+	explicit NpuMapReduceRunnerHooks(const Context& ctx) : context(ctx) {
+	}
 
-    void print_configuration(const Config& cfg, std::size_t n) override {
-        npu::reporting::print_configuration(cfg, n, context.ex_threads, context.device_name, context.device_bdf,
-                                            context.offload_enabled);
-    }
+	void print_configuration(const Config& cfg, std::size_t n) override {
+		npu::reporting::print_configuration(cfg, n, context.ex_threads, context.device_name, context.device_bdf,
+											context.offload_enabled);
+	}
 
-    std::vector<T> run(const std::vector<T>& input, const Config& cfg,
-                       common::topk::MapReduceRunStats* stats) override {
-        auto best = common::benchmark::run_benchmark(
-            [&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, npu::map_reduce::RunStats> {
-                npu::map_reduce::RunStats run_stats{0.0, 0, false};
-                auto t0 = std::chrono::high_resolution_clock::now();
+	std::vector<T> run(const std::vector<T>& input, const Config& cfg,
+					   common::topk::MapReduceRunStats* stats) override {
+		auto best = common::benchmark::run_benchmark(
+			[&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, npu::map_reduce::RunStats> {
+				npu::map_reduce::RunStats run_stats{0.0, 0, false};
+				auto t0 = std::chrono::high_resolution_clock::now();
 
-                std::vector<T> output =
-                    npu::map_reduce::run_topk_npu(input, cfg.k, cfg.want_max, context.ex_threads, &run_stats);
+				std::vector<T> output =
+					npu::map_reduce::run_topk_npu(input, cfg.k, cfg.want_max, context.ex_threads, &run_stats);
 
-                auto t1 = std::chrono::high_resolution_clock::now();
-                double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+				auto t1 = std::chrono::high_resolution_clock::now();
+				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-                return common::benchmark::TimedValueWithStats<std::vector<T>, npu::map_reduce::RunStats>{
-                    elapsed_wall_ms,
-                    std::move(output),
-                    run_stats,
-                };
-            });
+				return common::benchmark::TimedValueWithStats<std::vector<T>, npu::map_reduce::RunStats>{
+					elapsed_wall_ms,
+					std::move(output),
+					run_stats,
+				};
+			});
 
-        last_run_stats = best.stats;
-        if (stats != nullptr) {
-            stats->end_to_end_ms = best.elapsed_ms;
-            stats->algorithm_ms = best.stats.elapsed_ms;
-            stats->tiles_used = 0;
-            stats->aggregated_candidates = 0;
-        }
+		last_run_stats = best.stats;
+		if (stats != nullptr) {
+			stats->end_to_end_ms = best.elapsed_ms;
+			stats->algorithm_ms = best.stats.elapsed_ms;
+			stats->tiles_used = 0;
+			stats->aggregated_candidates = 0;
+		}
 
-        return std::move(best.value);
-    }
+		return std::move(best.value);
+	}
 
-    void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
-        npu::reporting::print_map_reduce_debug_metrics(cfg, context.device_name, context.device_bdf, 
-                                                       context.offload_enabled, stats, last_run_stats);
-    }
+	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
+		npu::reporting::print_map_reduce_debug_metrics(cfg, context.device_name, context.device_bdf,
+													   context.offload_enabled, stats, last_run_stats);
+	}
 
   private:
-    Context context;
-    npu::map_reduce::RunStats last_run_stats{0.0, 0, false};
+	Context context;
+	npu::map_reduce::RunStats last_run_stats{0.0, 0, false};
 };
 
 template <typename T> class NpuGroundTruthHooks final : public common::topk::GroundTruthRunnerHooks<T> {
   public:
-    explicit NpuGroundTruthHooks(const Context& ctx) : context(ctx) {
-    }
+	explicit NpuGroundTruthHooks(const Context& ctx) : context(ctx) {
+	}
 
-    void print_configuration(const Config& cfg, std::size_t n) override {
-        npu::reporting::print_configuration(cfg, n, context.ex_threads, context.device_name, context.device_bdf,
-                                            context.offload_enabled);
-    }
+	void print_configuration(const Config& cfg, std::size_t n) override {
+		npu::reporting::print_configuration(cfg, n, context.ex_threads, context.device_name, context.device_bdf,
+											context.offload_enabled);
+	}
 
-    std::vector<T> run(const std::vector<T>& input, const Config& cfg,
-                       common::topk::GroundTruthRunStats* stats) override {
-        const std::size_t k = std::min(cfg.k, input.size());
+	std::vector<T> run(const std::vector<T>& input, const Config& cfg,
+					   common::topk::GroundTruthRunStats* stats) override {
+		const std::size_t k = std::min(cfg.k, input.size());
 
-        auto best = common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValue<std::vector<T>> {
-            std::vector<T> temp = input;
-            auto t0 = std::chrono::high_resolution_clock::now();
+		auto best = common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValue<std::vector<T>> {
+			std::vector<T> temp = input;
+			auto t0 = std::chrono::high_resolution_clock::now();
 
-            npu::ground_truth::run_topk(temp, k, cfg.want_max);
+			npu::ground_truth::run_topk(temp, k, cfg.want_max);
 
-            auto t1 = std::chrono::high_resolution_clock::now();
-            double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+			auto t1 = std::chrono::high_resolution_clock::now();
+			double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-            if (k > 0 && k < temp.size()) temp.resize(k);
-            else if (k == 0) temp.clear();
+			if (k > 0 && k < temp.size())
+				temp.resize(k);
+			else if (k == 0)
+				temp.clear();
 
-            return common::benchmark::TimedValue<std::vector<T>>{elapsed_wall_ms, std::move(temp)};
-        });
+			return common::benchmark::TimedValue<std::vector<T>>{elapsed_wall_ms, std::move(temp)};
+		});
 
-        if (stats != nullptr) {
-            stats->end_to_end_ms = best.elapsed_ms;
-            stats->algorithm_ms = best.elapsed_ms;
-        }
+		if (stats != nullptr) {
+			stats->end_to_end_ms = best.elapsed_ms;
+			stats->algorithm_ms = best.elapsed_ms;
+		}
 
-        return std::move(best.value);
-    }
+		return std::move(best.value);
+	}
 
-    void print_debug_metrics(const Config& cfg, const common::topk::GroundTruthRunStats& stats) override {
-    }
+	void print_debug_metrics(const Config& cfg, const common::topk::GroundTruthRunStats& stats) override {
+	}
 
   private:
-    Context context;
+	Context context;
 };
 
 template <typename T> int topk_typed(const Config& cfg) {
-    const Context ctx = build_context(cfg);
+	const Context ctx = build_context(cfg);
 
-    if (cfg.algorithm == Algorithm::Bitonic) {
-        NpuBitonicRunnerHooks<T> hooks(ctx);
-        return common::topk::execute_bitonic<T>(cfg, hooks);
-    }
-    if (cfg.algorithm == Algorithm::GroundTruth) {
-        NpuGroundTruthHooks<T> hooks(ctx);
-        return common::topk::execute_ground_truth<T>(cfg, hooks);
-    }
-    NpuMapReduceRunnerHooks<T> hooks(ctx);
-    return common::topk::execute_map_reduce<T>(cfg, hooks);
+	if (cfg.algorithm == Algorithm::Bitonic) {
+		NpuBitonicRunnerHooks<T> hooks(ctx);
+		return common::topk::execute_bitonic<T>(cfg, hooks);
+	}
+	if (cfg.algorithm == Algorithm::GroundTruth) {
+		NpuGroundTruthHooks<T> hooks(ctx);
+		return common::topk::execute_ground_truth<T>(cfg, hooks);
+	}
+	NpuMapReduceRunnerHooks<T> hooks(ctx);
+	return common::topk::execute_map_reduce<T>(cfg, hooks);
 }
 
 } // namespace
 
 int execute(const common::config::Config& cfg) {
-    switch (cfg.dtype) {
-    case DataType::Int:
-        return topk_typed<std::int32_t>(cfg);
-    case DataType::UInt:
-        return topk_typed<std::uint32_t>(cfg);
-    case DataType::Float:
-        return topk_typed<float>(cfg);
-    case DataType::Double:
-        return topk_typed<double>(cfg);
-    case DataType::Fp16:
+	switch (cfg.dtype) {
+	case DataType::Int:
+		return topk_typed<std::int32_t>(cfg);
+	case DataType::UInt:
+		return topk_typed<std::uint32_t>(cfg);
+	case DataType::Float:
+		return topk_typed<float>(cfg);
+	case DataType::Double:
+		return topk_typed<double>(cfg);
+	case DataType::Fp16:
 #if defined(__FLT16_MANT_DIG__)
-        return topk_typed<_Float16>(cfg);
+		return topk_typed<_Float16>(cfg);
 #else
-        throw std::invalid_argument("dtype=fp16 is not supported by this compiler target");
+		throw std::invalid_argument("dtype=fp16 is not supported by this compiler target");
 #endif
-    }
+	}
 
-    throw std::invalid_argument("Unsupported dtype");
+	throw std::invalid_argument("Unsupported dtype");
 }
 
 } // namespace npu::topk

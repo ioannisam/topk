@@ -134,7 +134,7 @@ def main():
 
             algorithms = ["bitonic", "map_reduce", "gt"]
             if backend == "npu":
-                algorithms = ["bitonic", "gt"] # NPU might not have map_reduce
+                algorithms = ["bitonic", "gt"]  # NPU might not have map_reduce
 
             for algo in algorithms:
                 for q in range(args.q_min, args.q_max + 1):

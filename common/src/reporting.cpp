@@ -42,9 +42,9 @@ const char* algorithm_name(common::config::Algorithm algorithm) {
 		return "bitonic";
 	case common::config::Algorithm::MapReduce:
 		return "map_reduce";
-    case common::config::Algorithm::GroundTruth:
-        return "gt";
-    }
+	case common::config::Algorithm::GroundTruth:
+		return "gt";
+	}
 	return "unknown";
 }
 

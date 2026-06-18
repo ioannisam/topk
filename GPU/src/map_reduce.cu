@@ -41,8 +41,7 @@ inline int map_blocks_per_sm(int occupancy_blocks, int sm_count, std::size_t n, 
 	return occupancy_blocks < budget ? occupancy_blocks : budget;
 }
 
-template <typename T>
-struct DeviceBuffer {
+template <typename T> struct DeviceBuffer {
 	T* ptr = nullptr;
 	std::size_t size = 0;
 
@@ -54,7 +53,7 @@ struct DeviceBuffer {
 
 	~DeviceBuffer() {
 		if (ptr) {
-			cudaFree(ptr); 
+			cudaFree(ptr);
 			ptr = nullptr;
 		}
 	}
@@ -69,7 +68,8 @@ struct DeviceBuffer {
 
 	DeviceBuffer& operator=(DeviceBuffer&& other) noexcept {
 		if (this != &other) {
-			if (ptr) cudaFree(ptr);
+			if (ptr)
+				cudaFree(ptr);
 			ptr = other.ptr;
 			size = other.size;
 			other.ptr = nullptr;
@@ -78,14 +78,20 @@ struct DeviceBuffer {
 		return *this;
 	}
 
-	T* get() const { return ptr; }
-	T* operator->() const { return ptr; }
-	T& operator[](std::size_t idx) const { return ptr[idx]; }
+	T* get() const {
+		return ptr;
+	}
+	T* operator->() const {
+		return ptr;
+	}
+	T& operator[](std::size_t idx) const {
+		return ptr[idx];
+	}
 };
 
 template <typename T> __device__ __forceinline__ bool beats_threshold(T candidate, T threshold, bool want_max) {
 	return want_max ? gpu::traits::DeviceTraits<T>::gt(candidate, threshold)
-                    : gpu::traits::DeviceTraits<T>::lt(candidate, threshold);
+					: gpu::traits::DeviceTraits<T>::lt(candidate, threshold);
 }
 
 template <typename T> __device__ void sift_down(T* heap, int size, int root, bool want_max) {
@@ -114,11 +120,10 @@ template <typename T> __device__ void sift_down(T* heap, int size, int root, boo
 }
 
 template <typename T>
-__global__ 
-__launch_bounds__(256, 4) 
-void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k, bool want_max,
-								T* __restrict__ thread_workspaces, int* __restrict__ thread_counts,
-								T* __restrict__ block_outputs) {
+__global__ __launch_bounds__(256, 4) void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k,
+														  bool want_max, T* __restrict__ thread_workspaces,
+														  int* __restrict__ thread_counts,
+														  T* __restrict__ block_outputs) {
 	if (k <= 0) {
 		return;
 	}
@@ -211,7 +216,7 @@ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k, bool wan
 		// STRATEGY B: Sequential Merge in Global Memory
 		if (threadIdx.x == 0) {
 			const std::size_t block_start_tid = blockIdx.x * blockDim.x;
-			
+
 			T* block_heap = thread_workspaces + (block_start_tid * k);
 			int block_heap_size = thread_counts[block_start_tid];
 			T block_thresh = (block_heap_size == k) ? block_heap[0] : sentinel;
@@ -250,7 +255,8 @@ void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k, bool wan
 	}
 }
 
-__global__ void cast_float_to_half_vec2(const float2* __restrict__ src, __half2* __restrict__ dst, std::size_t num_vecs) {
+__global__ void cast_float_to_half_vec2(const float2* __restrict__ src, __half2* __restrict__ dst,
+										std::size_t num_vecs) {
 	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 	if (tid < num_vecs) {
 		dst[tid] = __float22half2_rn(src[tid]);
@@ -281,7 +287,8 @@ std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_ma
 	const size_t shared_mem_size = 0;
 
 	int num_blocks;
-	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, topk_map_kernel<T>, block_size, shared_mem_size));
+	CUDA_CHECK(
+		cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, topk_map_kernel<T>, block_size, shared_mem_size));
 	num_blocks = map_blocks_per_sm(num_blocks, prop.multiProcessorCount, n, k);
 	int grid_size = prop.multiProcessorCount * num_blocks;
 
@@ -290,8 +297,7 @@ std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_ma
 
 	if (bytes_per_thread > max_workspace_bytes / block_size) {
 		throw std::invalid_argument(
-			"k is too large for thread-local heap MapReduce. Reduce k or use a different algorithm."
-		);
+			"k is too large for thread-local heap MapReduce. Reduce k or use a different algorithm.");
 	}
 
 	const int max_allowed_threads = std::max<int>(block_size, static_cast<int>(max_workspace_bytes / bytes_per_thread));
@@ -315,8 +321,9 @@ std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_ma
 	CUDA_CHECK(cudaEventCreate(&stop));
 	CUDA_CHECK(cudaEventRecord(start));
 
-	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(
-		d_input.get(), n, static_cast<int>(k), want_max, d_thread_workspaces.get(), d_thread_counts.get(), d_block_outputs.get());
+	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(d_input.get(), n, static_cast<int>(k), want_max,
+																d_thread_workspaces.get(), d_thread_counts.get(),
+																d_block_outputs.get());
 
 	CUDA_CHECK(cudaEventRecord(stop));
 	CUDA_CHECK(cudaEventSynchronize(stop));
@@ -325,7 +332,8 @@ std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_ma
 	CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms, start, stop));
 
 	std::vector<T> block_results(static_cast<std::size_t>(grid_size) * k);
-	CUDA_CHECK(cudaMemcpy(block_results.data(), d_block_outputs.get(), static_cast<std::size_t>(grid_size) * k * sizeof(T), cudaMemcpyDeviceToHost));
+	CUDA_CHECK(cudaMemcpy(block_results.data(), d_block_outputs.get(),
+						  static_cast<std::size_t>(grid_size) * k * sizeof(T), cudaMemcpyDeviceToHost));
 
 	CUDA_CHECK(cudaEventDestroy(start));
 	CUDA_CHECK(cudaEventDestroy(stop));
@@ -360,7 +368,7 @@ std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_ma
 }
 
 std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k, bool want_max, std::size_t ex_threads,
-                                 RunStats* stats) {
+								 RunStats* stats) {
 	const std::size_t n = input.size();
 	if (k == 0 || input.empty()) {
 		return {};
@@ -372,7 +380,8 @@ std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k,
 	const size_t shared_mem_size = 0;
 
 	int num_blocks;
-	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, topk_map_kernel<__half>, block_size, shared_mem_size));
+	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, topk_map_kernel<__half>, block_size,
+															 shared_mem_size));
 	num_blocks = map_blocks_per_sm(num_blocks, prop.multiProcessorCount, n, k);
 	int grid_size = prop.multiProcessorCount * num_blocks;
 
@@ -381,14 +390,14 @@ std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k,
 
 	if (bytes_per_thread > max_workspace_bytes / block_size) {
 		throw std::invalid_argument(
-			"k is too large for thread-local heap MapReduce. Reduce k or use a different algorithm."
-		);
+			"k is too large for thread-local heap MapReduce. Reduce k or use a different algorithm.");
 	}
 
 	const int max_allowed_threads = std::max<int>(block_size, static_cast<int>(max_workspace_bytes / bytes_per_thread));
 	const int max_allowed_blocks = max_allowed_threads / block_size;
 
-	if (grid_size > max_allowed_blocks) grid_size = max_allowed_blocks;
+	if (grid_size > max_allowed_blocks)
+		grid_size = max_allowed_blocks;
 	const int total_threads = grid_size * block_size;
 
 	DeviceBuffer<float> d_input_float(n);
@@ -402,11 +411,8 @@ std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k,
 	const std::size_t n_vec = n / 2;
 	if (n_vec > 0) {
 		const dim3 grid_vec((n_vec + block_size - 1) / block_size);
-		cast_float_to_half_vec2<<<grid_vec, block_size>>>(
-			reinterpret_cast<const float2*>(d_input_float.get()), 
-			reinterpret_cast<__half2*>(d_input_half.get()), 
-			n_vec
-		);
+		cast_float_to_half_vec2<<<grid_vec, block_size>>>(reinterpret_cast<const float2*>(d_input_float.get()),
+														  reinterpret_cast<__half2*>(d_input_half.get()), n_vec);
 		CUDA_CHECK(cudaGetLastError());
 	}
 	if (n % 2 != 0) {
@@ -419,8 +425,9 @@ std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k,
 	CUDA_CHECK(cudaEventCreate(&stop));
 	CUDA_CHECK(cudaEventRecord(start));
 
-	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(
-		d_input_half.get(), n, static_cast<int>(k), want_max, d_thread_workspaces.get(), d_thread_counts.get(), d_block_outputs.get());
+	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(d_input_half.get(), n, static_cast<int>(k), want_max,
+																d_thread_workspaces.get(), d_thread_counts.get(),
+																d_block_outputs.get());
 
 	CUDA_CHECK(cudaEventRecord(stop));
 	CUDA_CHECK(cudaEventSynchronize(stop));
@@ -429,7 +436,8 @@ std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k,
 	CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms, start, stop));
 
 	std::vector<__half> block_results_half(static_cast<std::size_t>(grid_size) * k);
-	CUDA_CHECK(cudaMemcpy(block_results_half.data(), d_block_outputs.get(), static_cast<std::size_t>(grid_size) * k * sizeof(__half), cudaMemcpyDeviceToHost));
+	CUDA_CHECK(cudaMemcpy(block_results_half.data(), d_block_outputs.get(),
+						  static_cast<std::size_t>(grid_size) * k * sizeof(__half), cudaMemcpyDeviceToHost));
 
 	CUDA_CHECK(cudaEventDestroy(start));
 	CUDA_CHECK(cudaEventDestroy(stop));

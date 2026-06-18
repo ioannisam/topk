@@ -58,8 +58,7 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
 				return common::benchmark::TimedValueWithStats<std::vector<T>, gpu::bitonic::RunStats>{
-					elapsed_wall_ms, std::move(temp), stats
-				};
+					elapsed_wall_ms, std::move(temp), stats};
 			});
 
 		gpu::bitonic::RunStats best_stats = best.stats;
@@ -78,7 +77,7 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 		} else {
 			last_full_stats = best_stats;
 		}
-		
+
 		common::topk::BasicRunStats stats{};
 		stats.end_to_end_ms = best.elapsed_ms;
 		stats.algorithm_ms = best_stats.elapsed_ms;
@@ -126,8 +125,7 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
 				return common::benchmark::TimedValueWithStats<std::vector<T>, gpu::map_reduce::RunStats>{
-					elapsed_wall_ms, std::move(output), map_stats
-				};
+					elapsed_wall_ms, std::move(output), map_stats};
 			});
 
 		if (stats != nullptr) {
@@ -152,14 +150,15 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 
 class GpuMapReduceFp16Hooks final : public common::topk::MapReduceRunnerHooks<float> {
   public:
-	explicit GpuMapReduceFp16Hooks() : device_name(gpu::bitonic::query_device_name()) {}
+	explicit GpuMapReduceFp16Hooks() : device_name(gpu::bitonic::query_device_name()) {
+	}
 
 	void print_configuration(const Config& cfg, std::size_t n) override {
 		gpu::reporting::print_configuration(cfg, n, device_name);
 	}
 
 	std::vector<float> run(const std::vector<float>& input, const Config& cfg,
-					       common::topk::MapReduceRunStats* stats) override {
+						   common::topk::MapReduceRunStats* stats) override {
 		auto best = common::benchmark::run_benchmark(
 			[&]() -> common::benchmark::TimedValueWithStats<std::vector<float>, gpu::map_reduce::RunStats> {
 				gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
@@ -172,8 +171,7 @@ class GpuMapReduceFp16Hooks final : public common::topk::MapReduceRunnerHooks<fl
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
 				return common::benchmark::TimedValueWithStats<std::vector<float>, gpu::map_reduce::RunStats>{
-					elapsed_wall_ms, std::move(output), map_stats
-				};
+					elapsed_wall_ms, std::move(output), map_stats};
 			});
 
 		if (stats != nullptr) {
@@ -202,7 +200,8 @@ class GpuMapReduceFp16Hooks final : public common::topk::MapReduceRunnerHooks<fl
 
 template <typename T> class GpuGroundTruthHooks final : public common::topk::GroundTruthRunnerHooks<T> {
   public:
-	explicit GpuGroundTruthHooks() : device_name(gpu::bitonic::query_device_name()) {}
+	explicit GpuGroundTruthHooks() : device_name(gpu::bitonic::query_device_name()) {
+	}
 
 	void print_configuration(const Config& cfg, std::size_t n) override {
 		gpu::reporting::print_configuration(cfg, n, device_name);
@@ -212,8 +211,8 @@ template <typename T> class GpuGroundTruthHooks final : public common::topk::Gro
 					   common::topk::GroundTruthRunStats* stats) override {
 		const std::size_t k = std::min(cfg.k, input.size());
 
-		auto best = common::benchmark::run_benchmark(
-			[&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, double> {
+		auto best =
+			common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, double> {
 				std::vector<T> temp = input;
 				auto t0 = std::chrono::high_resolution_clock::now();
 
@@ -222,9 +221,8 @@ template <typename T> class GpuGroundTruthHooks final : public common::topk::Gro
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-				return common::benchmark::TimedValueWithStats<std::vector<T>, double>{
-					elapsed_wall_ms, std::move(temp), algo_ms
-				};
+				return common::benchmark::TimedValueWithStats<std::vector<T>, double>{elapsed_wall_ms, std::move(temp),
+																					  algo_ms};
 			});
 
 		if (stats != nullptr) {

@@ -20,14 +20,12 @@ struct IntraOp {
 	std::size_t k;
 };
 
-template <typename Tr, int J>
-inline void cx_step(typename Tr::Vec& v, std::size_t idx, std::size_t k) {
+template <typename Tr, int J> inline void cx_step(typename Tr::Vec& v, std::size_t idx, std::size_t k) {
 	auto s = Tr::template permutex<J>(v);
 	v = Tr::blend(Tr::template get_blend_mask<J>(idx, k), Tr::min(v, s), Tr::max(v, s));
 }
 
-template <typename Tr>
-inline void apply_step(typename Tr::Vec& v, std::size_t idx, std::size_t j, std::size_t k) {
+template <typename Tr> inline void apply_step(typename Tr::Vec& v, std::size_t idx, std::size_t j, std::size_t k) {
 	switch (j) {
 	case 1:
 		cx_step<Tr, 1>(v, idx, k);
@@ -187,33 +185,33 @@ void run_layer_inter_simd(T* ptr, std::size_t begin, std::size_t end, std::size_
 		if (chunk_end > n)
 			chunk_end = n;
 
-        const bool asc = (i & k) == 0;
-        if (asc) {
-            for (; i + TraitsT::width - 1 < chunk_end; i += TraitsT::width) {
-                std::size_t ixj = i + j;
-                auto v1 = TraitsT::load(ptr + i);
-                auto v2 = TraitsT::load(ptr + ixj);
+		const bool asc = (i & k) == 0;
+		if (asc) {
+			for (; i + TraitsT::width - 1 < chunk_end; i += TraitsT::width) {
+				std::size_t ixj = i + j;
+				auto v1 = TraitsT::load(ptr + i);
+				auto v2 = TraitsT::load(ptr + ixj);
 
-                auto lo = TraitsT::min(v1, v2);
-                auto hi = TraitsT::max(v1, v2);
+				auto lo = TraitsT::min(v1, v2);
+				auto hi = TraitsT::max(v1, v2);
 
-                TraitsT::store(ptr + i, lo);
-                TraitsT::store(ptr + ixj, hi);
-            }
-        } else {
-            for (; i + TraitsT::width - 1 < chunk_end; i += TraitsT::width) {
-                std::size_t ixj = i + j;
-                auto v1 = TraitsT::load(ptr + i);
-                auto v2 = TraitsT::load(ptr + ixj);
+				TraitsT::store(ptr + i, lo);
+				TraitsT::store(ptr + ixj, hi);
+			}
+		} else {
+			for (; i + TraitsT::width - 1 < chunk_end; i += TraitsT::width) {
+				std::size_t ixj = i + j;
+				auto v1 = TraitsT::load(ptr + i);
+				auto v2 = TraitsT::load(ptr + ixj);
 
-                auto lo = TraitsT::min(v1, v2);
-                auto hi = TraitsT::max(v1, v2);
+				auto lo = TraitsT::min(v1, v2);
+				auto hi = TraitsT::max(v1, v2);
 
-                // Store inverted for descending
-                TraitsT::store(ptr + i, hi);
-                TraitsT::store(ptr + ixj, lo);
-            }
-        }
+				// Store inverted for descending
+				TraitsT::store(ptr + i, hi);
+				TraitsT::store(ptr + ixj, lo);
+			}
+		}
 
 		// Scalar fallback
 		for (; i < chunk_end; ++i) {
@@ -281,8 +279,8 @@ bool try_run_fused_intra(T* ptr, std::size_t begin, std::size_t end, const Intra
 		}
 	}
 	if (cpu::simd::cpu_supports_avx2()) {
-		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> ||
-					  std::is_same_v<T, std::uint32_t> || std::is_same_v<T, double>) {
+		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t> ||
+					  std::is_same_v<T, double>) {
 			run_fused_intra<T, cpu::simd::SimdTraits256>(ptr, begin, end, ops, nops);
 			return true;
 		}
@@ -333,8 +331,8 @@ bool try_run_fused_trunc_resort(const T* src, T* dst, std::size_t obegin, std::s
 		}
 	}
 	if (cpu::simd::cpu_supports_avx2()) {
-		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> ||
-					  std::is_same_v<T, std::uint32_t> || std::is_same_v<T, double>) {
+		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t> ||
+					  std::is_same_v<T, double>) {
 			run_fused_trunc_resort<T, cpu::simd::SimdTraits256>(src, dst, obegin, oend, ops, nops);
 			return true;
 		}
@@ -355,8 +353,7 @@ template <typename T>
 bool try_run_inter(T* ptr, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, std::size_t n) {
 #if defined(__x86_64__) || defined(__i386__)
 	if (cpu::simd::cpu_supports_avx512f() && k <= std::numeric_limits<std::int32_t>::max()) {
-		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> ||
-					  std::is_same_v<T, std::uint32_t>) {
+		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>) {
 			if (j >= 16) {
 				run_layer_inter_simd<T, cpu::simd::SimdTraits512>(ptr, begin, end, k, j, n);
 				return true;
@@ -370,8 +367,7 @@ bool try_run_inter(T* ptr, std::size_t begin, std::size_t end, std::size_t k, st
 		}
 	}
 	if (cpu::simd::cpu_supports_avx2()) {
-		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> ||
-					  std::is_same_v<T, std::uint32_t>) {
+		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>) {
 			if (j >= 8) {
 				run_layer_inter_simd<T, cpu::simd::SimdTraits256>(ptr, begin, end, k, j, n);
 				return true;
@@ -451,8 +447,8 @@ void run_normal_scalar(T* ptr, std::size_t begin, std::size_t end, std::size_t k
 }
 
 template <typename T>
-void run_tiled(T* ptr, std::size_t begin, std::size_t end, const IntraOp* ops, std::size_t nops,
-			   std::size_t active_n, std::size_t tile_w, std::size_t width) {
+void run_tiled(T* ptr, std::size_t begin, std::size_t end, const IntraOp* ops, std::size_t nops, std::size_t active_n,
+			   std::size_t tile_w, std::size_t width) {
 	for (std::size_t tb = begin; tb < end; tb += tile_w) {
 		const std::size_t te = std::min(tb + tile_w, end);
 		for (std::size_t o = 0; o < nops; ++o) {
@@ -508,7 +504,7 @@ struct Group {
 	std::size_t k;			  // InterNormal
 	std::size_t ops_begin;	  // IntraRun / TiledRun / TruncResort: range into the flat ops vector
 	std::size_t ops_count;
-	std::size_t max_k;		  // largest k in the fused run (AVX-512 mask guard)
+	std::size_t max_k; // largest k in the fused run (AVX-512 mask guard)
 };
 
 template <typename T>
@@ -617,10 +613,8 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 		pool.emplace_back([&, tid]() {
 			for (const auto& group : groups) {
 				const std::size_t active_n = group.active_n;
-				const bool writes_dst =
-					group.kind == GroupKind::Truncate || group.kind == GroupKind::TruncResort;
-				const std::size_t slice_n =
-					group.kind == GroupKind::TruncResort ? group.out_active_n : active_n;
+				const bool writes_dst = group.kind == GroupKind::Truncate || group.kind == GroupKind::TruncResort;
+				const std::size_t slice_n = group.kind == GroupKind::TruncResort ? group.out_active_n : active_n;
 
 				const std::size_t gran =
 					group.kind == GroupKind::TiledRun ? run_tile_elems<T>(group.j) : (64 / sizeof(T));

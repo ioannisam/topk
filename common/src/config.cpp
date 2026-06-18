@@ -12,10 +12,9 @@
 namespace common::config {
 namespace {
 
-constexpr const char* kUsage =
-	"Usage: ./topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] "
-	"[algo=bitonic|map_reduce|gt] [run=full|trunc|both] [debug=true|false] "
-	"[threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>]";
+constexpr const char* kUsage = "Usage: ./topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] "
+							   "[algo=bitonic|map_reduce|gt] [run=full|trunc|both] [debug=true|false] "
+							   "[threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>]";
 
 DataType parse_dtype(const std::string& token);
 Algorithm parse_algorithm(const std::string& token);
@@ -294,7 +293,7 @@ Algorithm parse_algorithm(const std::string& token) {
 	if (value == "map_reduce" || value == "mapreduce") {
 		return Algorithm::MapReduce;
 	}
-    if (value == "gt") {
+	if (value == "gt") {
 		return Algorithm::GroundTruth;
 	}
 	throw std::invalid_argument("Unsupported algorithm. Use one of: bitonic, map_reduce, gt");

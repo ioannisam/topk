@@ -6,31 +6,36 @@ from typing import Iterable, Optional
 try:
     import matplotlib.pyplot as plt
     import numpy as np
+
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
 from ..models import CaseRecord
 
+
 def get_bytes_per_element(dtype: str) -> int:
     d = dtype.lower()
-    if "double" in d: return 8
-    if "fp16" in d: return 2
+    if "double" in d:
+        return 8
+    if "fp16" in d:
+        return 2
     return 4
+
 
 def plot(
     records: Iterable[CaseRecord],
     out_path: str,
     agg: str = "mean",
     error_bars: str = "p10-p90",
-    title: str = "Effective Memory Bandwidth vs. Input Size (N)"
+    title: str = "Effective Memory Bandwidth vs. Input Size (N)",
 ) -> Optional[str]:
     if not MATPLOTLIB_AVAILABLE or not records:
         return None
 
     # Group data by (backend, algorithm)
     data: dict[tuple[str, str], dict[int, list[float]]] = {}
-    
+
     for r in records:
         if r.n is None or r.time_ms is None or r.time_ms <= 0:
             continue
@@ -43,7 +48,7 @@ def plot(
             data[key] = {}
         if r.n not in data[key]:
             data[key][r.n] = []
-            
+
         data[key][r.n].append(bw_gbps)
 
     if not data:
@@ -54,7 +59,7 @@ def plot(
 
     for (backend, algo), n_dict in data.items():
         ns = sorted(n_dict.keys())
-        
+
         if agg == "median":
             y = [float(np.median(n_dict[n])) for n in ns]
         else:

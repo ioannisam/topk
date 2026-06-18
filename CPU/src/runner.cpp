@@ -41,7 +41,8 @@ Context build_context(const Config& cfg) {
 
 template <typename T> class CpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
   public:
-	explicit CpuBitonicRunnerHooks(const Context& ctx) : context(ctx) {}
+	explicit CpuBitonicRunnerHooks(const Context& ctx) : context(ctx) {
+	}
 
 	void print_configuration(const Config& cfg, std::size_t n) override {
 		cpu::reporting::print_configuration(cfg, context.ex_threads, n);
@@ -83,7 +84,8 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 
 template <typename T> class CpuMapReduceHooks final : public common::topk::MapReduceRunnerHooks<T> {
   public:
-	explicit CpuMapReduceHooks(const Context& ctx) : context(ctx) {}
+	explicit CpuMapReduceHooks(const Context& ctx) : context(ctx) {
+	}
 
 	void print_configuration(const Config& cfg, std::size_t n) override {
 		cpu::reporting::print_configuration(cfg, context.ex_threads, n);
@@ -103,8 +105,7 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 				double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
 				return common::benchmark::TimedValueWithStats<std::vector<T>, cpu::map_reduce::RunStats>{
-					elapsed, std::move(output), run_stats
-				};
+					elapsed, std::move(output), run_stats};
 			});
 
 		if (stats != nullptr) {
@@ -131,7 +132,8 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 
 template <typename T> class CpuGroundTruthHooks final : public common::topk::GroundTruthRunnerHooks<T> {
   public:
-	explicit CpuGroundTruthHooks(const Context& ctx) : context(ctx) {}
+	explicit CpuGroundTruthHooks(const Context& ctx) : context(ctx) {
+	}
 
 	void print_configuration(const Config& cfg, std::size_t n) override {
 		cpu::reporting::print_configuration(cfg, context.ex_threads, n);
@@ -150,8 +152,10 @@ template <typename T> class CpuGroundTruthHooks final : public common::topk::Gro
 			auto t1 = std::chrono::high_resolution_clock::now();
 			double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-			if (k > 0 && k < temp.size()) temp.resize(k);
-			else if (k == 0) temp.clear();
+			if (k > 0 && k < temp.size())
+				temp.resize(k);
+			else if (k == 0)
+				temp.clear();
 
 			return common::benchmark::TimedValue<std::vector<T>>{elapsed_wall_ms, std::move(temp)};
 		});
@@ -178,7 +182,7 @@ template <typename T> class CpuGroundTruthHooks final : public common::topk::Gro
 
 template <typename T> int topk_typed(const Config& cfg) {
 	const Context ctx = build_context(cfg);
-	
+
 	if (cfg.algorithm == Algorithm::MapReduce) {
 		CpuMapReduceHooks<T> hooks(ctx);
 		return common::topk::execute_map_reduce<T>(cfg, hooks);
@@ -186,7 +190,7 @@ template <typename T> int topk_typed(const Config& cfg) {
 		CpuGroundTruthHooks<T> hooks(ctx);
 		return common::topk::execute_ground_truth<T>(cfg, hooks);
 	}
-	
+
 	CpuBitonicRunnerHooks<T> hooks(ctx);
 	return common::topk::execute_bitonic<T>(cfg, hooks);
 }

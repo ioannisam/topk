@@ -12,12 +12,7 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
         lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     )
     for rec in records:
-        if (
-            not rec.backend
-            or rec.algorithm not in {"bitonic", "map_reduce"}
-            or rec.n is None
-            or rec.k is None
-        ):
+        if not rec.backend or rec.algorithm not in {"bitonic", "map_reduce"} or rec.n is None or rec.k is None:
             continue
         time_ms = select_time_ms(rec, "algorithmic")
         if time_ms is None or time_ms <= 0:

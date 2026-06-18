@@ -5,18 +5,14 @@ from typing import Optional
 from ..models import CaseRecord
 from .common import aggregate_value, error_bounds, plt, select_time_ms, style_axes
 
+
 def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) -> Optional[list[str]]:
     # Group by: K -> backend -> algorithm -> n -> times
     grouped: dict[int, dict[str, dict[str, dict[int, list[float]]]]] = defaultdict(
         lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     )
     for rec in records:
-        if (
-            not rec.backend
-            or rec.algorithm not in {"bitonic", "map_reduce", "gt"}
-            or rec.n is None
-            or rec.k is None
-        ):
+        if not rec.backend or rec.algorithm not in {"bitonic", "map_reduce", "gt"} or rec.n is None or rec.k is None:
             continue
         time_ms = select_time_ms(rec, "algorithmic")
         if time_ms is None or time_ms <= 0:
@@ -25,7 +21,7 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
 
     if not grouped:
         return None
-        
+
     base_dir, base_name = os.path.dirname(out_path) or ".", os.path.splitext(os.path.basename(out_path))[0]
     outputs: list[str] = []
 
@@ -33,7 +29,7 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
         for backend, algo_map in sorted(backend_map.items()):
             fig, ax = plt.subplots(figsize=(10, 6))
             has_data = False
-            
+
             # ---> Added "gt" to the plotting loop <---
             for algorithm in ("bitonic", "map_reduce", "gt"):
                 if algorithm not in algo_map:

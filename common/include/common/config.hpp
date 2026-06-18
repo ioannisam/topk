@@ -24,7 +24,7 @@ enum class RunMode {
 enum class Algorithm {
 	Bitonic,
 	MapReduce,
-    GroundTruth,
+	GroundTruth,
 };
 
 struct Config {

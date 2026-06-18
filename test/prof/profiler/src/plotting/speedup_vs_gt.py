@@ -8,6 +8,7 @@ from typing import Optional
 from ..models import CaseRecord
 from .common import aggregate_value, plt, select_time_ms, style_axes
 
+
 def plot(records: list[CaseRecord], out_path: str, agg: str) -> Optional[list[str]]:
     # gt_algo_lists: backend -> k -> (dtype, mode, n) -> list[time]
     gt_algo_lists: dict[str, dict[int, dict[tuple[str, str, int], list[float]]]] = defaultdict(

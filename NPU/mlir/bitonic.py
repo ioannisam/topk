@@ -11,10 +11,12 @@ BATCH_CHUNKS = NUM_COLS * CHUNKS_PER_COL
 ELEMS_PER_COL = CHUNKS_PER_COL * TILE
 BATCH_ELEMS = BATCH_CHUNKS * TILE
 
+
 def build_design():
     with Context(), Location.unknown():
         module = Module.create()
         with InsertionPoint(module.body):
+
             @device(AIEDevice.npu1)
             def npu_device():
                 memref_tile = T.memref(TILE, T.i32())
@@ -50,16 +52,27 @@ def build_design():
                     for col in range(NUM_COLS):
                         elem_offset = col * ELEMS_PER_COL
                         bd_base = col * 2
-                        npu_dma_memcpy_nd(metadata=f"out_{col}", bd_id=bd_base + 0, mem=out,
-                                          offsets=[0, 0, 0, elem_offset],
-                                          sizes=[1, 1, CHUNKS_PER_COL, TILE], strides=[1, 1, TILE, 1])
-                        npu_dma_memcpy_nd(metadata=f"in_{col}", bd_id=bd_base + 1, mem=inp,
-                                          offsets=[0, 0, 0, elem_offset],
-                                          sizes=[1, 1, CHUNKS_PER_COL, TILE], strides=[1, 1, TILE, 1])
+                        npu_dma_memcpy_nd(
+                            metadata=f"out_{col}",
+                            bd_id=bd_base + 0,
+                            mem=out,
+                            offsets=[0, 0, 0, elem_offset],
+                            sizes=[1, 1, CHUNKS_PER_COL, TILE],
+                            strides=[1, 1, TILE, 1],
+                        )
+                        npu_dma_memcpy_nd(
+                            metadata=f"in_{col}",
+                            bd_id=bd_base + 1,
+                            mem=inp,
+                            offsets=[0, 0, 0, elem_offset],
+                            sizes=[1, 1, CHUNKS_PER_COL, TILE],
+                            strides=[1, 1, TILE, 1],
+                        )
 
                     npu_sync(column=0, row=0, direction=0, channel=0, column_num=NUM_COLS, row_num=1)
 
         return module
+
 
 if __name__ == "__main__":
     print(build_design())

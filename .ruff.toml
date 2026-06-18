@@ -10,6 +10,9 @@ ignore = []
 fixable = ["ALL"]
 unfixable = []
 
+[lint.per-file-ignores]
+"NPU/mlir/*.py" = ["F403", "F405"]
+
 [format]
 indent-style = "space"
 

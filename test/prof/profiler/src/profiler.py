@@ -397,14 +397,14 @@ def main() -> int:
             for current_k in unique_ks:
                 # all backends, no gt
                 records_no_gt_k = [r for r in records_no_gt if r.k == current_k]
-                
+
                 if records_no_gt_k:
                     out_main = memory_bandwidth_vs_n.plot(
                         records_no_gt_k,
                         os.path.join(out_memory, f"memory_bandwidth_vs_n_k{current_k}.png"),
                         args.agg,
                         args.error_bars,
-                        title=f"Effective Memory Bandwidth vs. N (All Backends, K={current_k})"
+                        title=f"Effective Memory Bandwidth vs. N (All Backends, K={current_k})",
                     )
                     if out_main:
                         collect_output(out_main)
@@ -415,13 +415,13 @@ def main() -> int:
                     backend_records_k = [r for r in records if r.backend == b and r.k == current_k]
                     if not backend_records_k:
                         continue
-                    
+
                     out_b = memory_bandwidth_vs_n.plot(
                         backend_records_k,
                         os.path.join(out_memory, f"{b}_memory_bandwidth_vs_n_k{current_k}.png"),
                         args.agg,
                         args.error_bars,
-                        title=f"{b.upper()} Effective Memory Bandwidth vs. N (with GT, K={current_k})"
+                        title=f"{b.upper()} Effective Memory Bandwidth vs. N (with GT, K={current_k})",
                     )
                     if out_b:
                         collect_output(out_b)

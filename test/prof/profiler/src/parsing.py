@@ -17,9 +17,12 @@ COMMAND_RE = re.compile(r"^Command:\s*(?P<cmd>.+)$")
 
 def infer_backend_from_command(cmd: str) -> str:
     text = cmd.lower()
-    if "/cpu/" in text or "cpu/build/topk" in text: return "cpu"
-    if "/gpu/" in text or "gpu/build/topk" in text: return "gpu"
-    if "/npu/" in text or "npu/build/topk" in text: return "npu"
+    if "/cpu/" in text or "cpu/build/topk" in text:
+        return "cpu"
+    if "/gpu/" in text or "gpu/build/topk" in text:
+        return "gpu"
+    if "/npu/" in text or "npu/build/topk" in text:
+        return "npu"
     return ""
 
 
@@ -97,29 +100,31 @@ def _parse_test_output_json(path: str) -> list[CaseRecord]:
             reason=result.get("reason", ""),
             dtype=result.get("type", ""),
             algorithm=algo,
-            mode="max" if "_max" in result.get("case_name", "") else ("min" if "_min" in result.get("case_name", "") else ""),
+            mode="max"
+            if "_max" in result.get("case_name", "")
+            else ("min" if "_min" in result.get("case_name", "") else ""),
             k=result.get("k"),
             n=None,
         )
-        
+
         q = result.get("q")
         if q is not None:
             rec.n = 1 << int(q)
-            
+
         stdout = result.get("stdout", "")
         timings: dict[str, float] = {}
         for line in stdout.splitlines():
             line = line.strip()
             if not line:
                 continue
-            kv_match = KV_RE.match(f"  {line}") 
+            kv_match = KV_RE.match(f"  {line}")
             if kv_match:
                 key, val = kv_match.group("key").strip(), kv_match.group("value").strip()
                 if key.endswith("time (ms)"):
                     t = parse_float(val)
                     if t is not None:
                         timings[key] = t
-                        
+
         e2e_label, e2e_ms, algo_label, algo_ms = select_time_fields(timings)
         rec.timing_label_e2e = e2e_label
         rec.time_end_to_end_ms = e2e_ms
@@ -129,7 +134,7 @@ def _parse_test_output_json(path: str) -> list[CaseRecord]:
         rec.time_ms = e2e_ms if e2e_ms is not None else algo_ms
 
         records.append(rec)
-        
+
     return records
 
 
@@ -234,11 +239,11 @@ def parse_measurements(paths: Iterable[str]) -> list[MeasurementRecord]:
 
         base = os.path.basename(path)
         parts = base.replace(".txt", "").split("_")
-        
+
         backend = ""
         dtype = ""
         algo = ""
-        
+
         if len(parts) >= 5:
             backend = parts[2]
             dtype = parts[3]
