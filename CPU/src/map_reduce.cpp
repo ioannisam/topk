@@ -149,6 +149,8 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 	const std::size_t n = data.size();
 	k = std::min(k, n);
 	workers = std::max<std::size_t>(1, std::min(workers, n));
+	workers = std::min<std::size_t>(workers, 8);
+	workers = std::min(workers, std::max<std::size_t>(1, n >> 20));
 
 #if defined(__x86_64__) || defined(__i386__)
 	const bool has_avx512f = cpu::simd::cpu_supports_avx512f();

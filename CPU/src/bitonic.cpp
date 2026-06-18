@@ -300,6 +300,7 @@ bool try_run_fused_intra(T* ptr, std::size_t begin, std::size_t end, const Intra
 
 constexpr std::size_t kTileCapBytes = 524288;
 constexpr std::size_t kTileMinBytes = 16384;
+constexpr std::size_t kMaxWorkers = 8;
 
 template <typename T> std::size_t pow2_floor_elems(std::size_t bytes) {
 	std::size_t w = bytes / sizeof(T);
@@ -588,6 +589,9 @@ std::vector<Group> build_groups(const std::vector<common::bitonic::Layer>& layer
 template <typename T>
 void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers) {
 	const std::size_t n = data.size();
+
+	workers = std::min<std::size_t>(workers, kMaxWorkers);
+	workers = std::min(workers, std::max<std::size_t>(1, n >> 16));
 
 	const bool use_avx512 = cpu::simd::cpu_supports_avx512f();
 	const bool use_avx2 = cpu::simd::cpu_supports_avx2();
