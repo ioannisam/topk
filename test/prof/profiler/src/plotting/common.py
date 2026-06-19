@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import math
+import sys
 from statistics import mean, median, pstdev
 from typing import Any, Literal
 
 try:
+    import matplotlib
+
+    if "--show" not in sys.argv:
+        matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     MATPLOTLIB_AVAILABLE = True
