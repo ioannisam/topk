@@ -21,14 +21,31 @@ using common::config::Algorithm;
 using common::config::Config;
 using common::config::DataType;
 
+#if defined(__FLT16_MANT_DIG__)
+std::vector<float> to_float(const std::vector<_Float16>& in) {
+	std::vector<float> out(in.size());
+	for (std::size_t i = 0; i < in.size(); ++i) {
+		out[i] = static_cast<float>(in[i]);
+	}
+	return out;
+}
+
+std::vector<_Float16> to_half(const std::vector<float>& in) {
+	std::vector<_Float16> out(in.size());
+	for (std::size_t i = 0; i < in.size(); ++i) {
+		out[i] = static_cast<_Float16>(in[i]);
+	}
+	return out;
+}
+#endif
+
 // ==========================================
 // Bitonic Hooks
 // ==========================================
 
 template <typename T> class GpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
   public:
-	explicit GpuBitonicRunnerHooks(bool fp16_emulation)
-		: device_name(gpu::bitonic::query_device_name()), use_fp16_path(fp16_emulation) {
+	explicit GpuBitonicRunnerHooks() : device_name(gpu::bitonic::query_device_name()) {
 	}
 
 	void print_configuration(const Config& cfg, std::size_t n) override {
@@ -45,14 +62,7 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 
 				auto t0 = std::chrono::high_resolution_clock::now();
 
-				if constexpr (std::is_same_v<T, float>) {
-					if (use_fp16_path)
-						stats = gpu::bitonic::run_network_cuda_fp16(temp, layers);
-					else
-						stats = gpu::bitonic::run_network_cuda(temp, layers);
-				} else {
-					stats = gpu::bitonic::run_network_cuda(temp, layers);
-				}
+				stats = gpu::bitonic::run_network_cuda(temp, layers);
 
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -93,10 +103,73 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 
   private:
 	std::string device_name;
-	bool use_fp16_path = false;
 	gpu::bitonic::RunStats last_full_stats{0.0, 0, 0, 0};
 	gpu::bitonic::RunStats last_trunc_stats{0.0, 0, 0, 0};
 };
+
+#if defined(__FLT16_MANT_DIG__)
+class GpuBitonicFp16Hooks final : public common::topk::BitonicRunnerHooks<_Float16> {
+  public:
+	explicit GpuBitonicFp16Hooks() : device_name(gpu::bitonic::query_device_name()) {
+	}
+
+	void print_configuration(const Config& cfg, std::size_t n) override {
+		gpu::reporting::print_configuration(cfg, n, device_name);
+	}
+
+	common::topk::BasicRunStats run(std::vector<_Float16>& data,
+									const std::vector<common::bitonic::Layer>& layers) override {
+		std::vector<float> data_backup = to_float(data);
+
+		auto best = common::benchmark::run_benchmark(
+			[&]() -> common::benchmark::TimedValueWithStats<std::vector<float>, gpu::bitonic::RunStats> {
+				std::vector<float> temp = data_backup;
+
+				auto t0 = std::chrono::high_resolution_clock::now();
+				gpu::bitonic::RunStats stats = gpu::bitonic::run_network_cuda_fp16(temp, layers);
+				auto t1 = std::chrono::high_resolution_clock::now();
+				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+				return common::benchmark::TimedValueWithStats<std::vector<float>, gpu::bitonic::RunStats>{
+					elapsed_wall_ms, std::move(temp), stats};
+			});
+
+		gpu::bitonic::RunStats best_stats = best.stats;
+		data = to_half(best.value);
+
+		bool is_trunc = false;
+		for (const auto& l : layers) {
+			if (l.type == common::bitonic::LayerType::Truncate) {
+				is_trunc = true;
+				break;
+			}
+		}
+
+		if (is_trunc) {
+			last_trunc_stats = best_stats;
+		} else {
+			last_full_stats = best_stats;
+		}
+
+		common::topk::BasicRunStats stats{};
+		stats.end_to_end_ms = best.elapsed_ms;
+		stats.algorithm_ms = best_stats.elapsed_ms;
+
+		return stats;
+	}
+
+	void print_debug_metrics(const Config& cfg, const common::topk::BitonicRunStats& stats) override {
+		const gpu::bitonic::RunStats* full_run = (stats.full_run_stats != nullptr) ? &last_full_stats : nullptr;
+		const gpu::bitonic::RunStats* trunc_run = (stats.trunc_run_stats != nullptr) ? &last_trunc_stats : nullptr;
+		gpu::reporting::print_bitonic_debug_metrics(cfg, device_name, stats, full_run, trunc_run);
+	}
+
+  private:
+	std::string device_name;
+	gpu::bitonic::RunStats last_full_stats{0.0, 0, 0, 0};
+	gpu::bitonic::RunStats last_trunc_stats{0.0, 0, 0, 0};
+};
+#endif
 
 // ==========================================
 // MapReduce Hooks
@@ -148,7 +221,8 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 	gpu::map_reduce::RunStats last_stats{0.0, 0, 0, 0};
 };
 
-class GpuMapReduceFp16Hooks final : public common::topk::MapReduceRunnerHooks<float> {
+#if defined(__FLT16_MANT_DIG__)
+class GpuMapReduceFp16Hooks final : public common::topk::MapReduceRunnerHooks<_Float16> {
   public:
 	explicit GpuMapReduceFp16Hooks() : device_name(gpu::bitonic::query_device_name()) {
 	}
@@ -157,15 +231,17 @@ class GpuMapReduceFp16Hooks final : public common::topk::MapReduceRunnerHooks<fl
 		gpu::reporting::print_configuration(cfg, n, device_name);
 	}
 
-	std::vector<float> run(const std::vector<float>& input, const Config& cfg,
-						   common::topk::MapReduceRunStats* stats) override {
+	std::vector<_Float16> run(const std::vector<_Float16>& input, const Config& cfg,
+							  common::topk::MapReduceRunStats* stats) override {
+		std::vector<float> input_f = to_float(input);
+
 		auto best = common::benchmark::run_benchmark(
 			[&]() -> common::benchmark::TimedValueWithStats<std::vector<float>, gpu::map_reduce::RunStats> {
 				gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
 				auto t0 = std::chrono::high_resolution_clock::now();
 
 				std::vector<float> output =
-					gpu::map_reduce::run_topk_fp16(input, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
+					gpu::map_reduce::run_topk_fp16(input_f, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
 
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -182,7 +258,7 @@ class GpuMapReduceFp16Hooks final : public common::topk::MapReduceRunnerHooks<fl
 		}
 
 		last_stats = best.stats;
-		return std::move(best.value);
+		return to_half(best.value);
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
@@ -193,6 +269,7 @@ class GpuMapReduceFp16Hooks final : public common::topk::MapReduceRunnerHooks<fl
 	std::string device_name;
 	gpu::map_reduce::RunStats last_stats{0.0, 0, 0, 0};
 };
+#endif
 
 // ==========================================
 // Ground Truth Hooks
@@ -240,6 +317,51 @@ template <typename T> class GpuGroundTruthHooks final : public common::topk::Gro
 	std::string device_name;
 };
 
+#if defined(__FLT16_MANT_DIG__)
+class GpuGroundTruthFp16Hooks final : public common::topk::GroundTruthRunnerHooks<_Float16> {
+  public:
+	explicit GpuGroundTruthFp16Hooks() : device_name(gpu::bitonic::query_device_name()) {
+	}
+
+	void print_configuration(const Config& cfg, std::size_t n) override {
+		gpu::reporting::print_configuration(cfg, n, device_name);
+	}
+
+	std::vector<_Float16> run(const std::vector<_Float16>& input, const Config& cfg,
+							  common::topk::GroundTruthRunStats* stats) override {
+		const std::size_t k = std::min(cfg.k, input.size());
+		std::vector<float> input_f = to_float(input);
+
+		auto best = common::benchmark::run_benchmark(
+			[&]() -> common::benchmark::TimedValueWithStats<std::vector<float>, double> {
+				std::vector<float> temp = input_f;
+				auto t0 = std::chrono::high_resolution_clock::now();
+
+				double algo_ms = gpu::ground_truth::run_topk(temp, k, cfg.want_max);
+
+				auto t1 = std::chrono::high_resolution_clock::now();
+				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+				return common::benchmark::TimedValueWithStats<std::vector<float>, double>{elapsed_wall_ms,
+																						  std::move(temp), algo_ms};
+			});
+
+		if (stats != nullptr) {
+			stats->end_to_end_ms = best.elapsed_ms;
+			stats->algorithm_ms = best.stats;
+		}
+
+		return to_half(best.value);
+	}
+
+	void print_debug_metrics(const Config& cfg, const common::topk::GroundTruthRunStats& stats) override {
+	}
+
+  private:
+	std::string device_name;
+};
+#endif
+
 // ==========================================
 // Dispatch
 // ==========================================
@@ -252,20 +374,25 @@ template <typename T> int topk_typed(const Config& cfg) {
 		GpuGroundTruthHooks<T> hooks;
 		return common::topk::execute_ground_truth<T>(cfg, hooks);
 	}
-	GpuBitonicRunnerHooks<T> hooks(false);
+	GpuBitonicRunnerHooks<T> hooks;
 	return common::topk::execute_bitonic<T>(cfg, hooks);
 }
 
 int topk_fp16_dispatch(const Config& cfg) {
+#if defined(__FLT16_MANT_DIG__)
 	if (cfg.algorithm == Algorithm::MapReduce) {
 		GpuMapReduceFp16Hooks hooks;
-		return common::topk::execute_map_reduce<float>(cfg, hooks);
+		return common::topk::execute_map_reduce<_Float16>(cfg, hooks);
 	} else if (cfg.algorithm == Algorithm::GroundTruth) {
-		GpuGroundTruthHooks<float> hooks;
-		return common::topk::execute_ground_truth<float>(cfg, hooks);
+		GpuGroundTruthFp16Hooks hooks;
+		return common::topk::execute_ground_truth<_Float16>(cfg, hooks);
 	}
-	GpuBitonicRunnerHooks<float> hooks(true);
-	return common::topk::execute_bitonic<float>(cfg, hooks);
+	GpuBitonicFp16Hooks hooks;
+	return common::topk::execute_bitonic<_Float16>(cfg, hooks);
+#else
+	(void)cfg;
+	throw std::invalid_argument("dtype=fp16 is not supported by this compiler target");
+#endif
 }
 
 } // namespace
