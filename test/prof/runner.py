@@ -133,8 +133,8 @@ def main():
             type_fail = 0
 
             algorithms = ["bitonic", "map_reduce", "gt"]
-            if backend == "npu":
-                algorithms = ["bitonic", "gt"]  # NPU might not have map_reduce
+            if backend == "npu" and not os.path.isfile(os.path.join(ROOT_DIR, "build/NPU/map_reduce.xclbin")):
+                algorithms = ["bitonic", "gt"]
 
             for algo in algorithms:
                 for q in range(args.q_min, args.q_max + 1):
