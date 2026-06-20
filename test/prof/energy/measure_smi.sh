@@ -10,6 +10,7 @@ Usage:
 
 Options:
     --out <file>          Also write report to file (for profiler ingestion).
+    --baseline-watts <w> Idle power (W) to subtract; emits net_energy_joules/net_average_watts.
     --gpu-index <idx>    Select GPU index to sample (default: 0).
     --interval-ms <ms>   Sampling interval in milliseconds (default: 100).
     --list-gpus          List available GPUs and power-management info.
@@ -17,8 +18,8 @@ Options:
     --                   End script options; remaining args are the command to run.
 
 Examples:
-    ./test/prof/energy/measure_smi.sh -- ./test/smoke/GPU/build/smoke
-    ./test/prof/energy/measure_smi.sh --out ./test/prof/results/measurements/gpu_run1.txt -- ./GPU/build/topk ./test/prof/cases/bitonic/int/q10_k8_max.case
+    ./test/prof/energy/measure_smi.sh -- ./build/GPU/topk q=20 k=256 dtype=int algo=bitonic
+    ./test/prof/energy/measure_smi.sh --out ./test/prof/results/energy/gpu_run1.txt -- ./build/GPU/topk q=20 k=256 dtype=int algo=bitonic
     ./test/prof/energy/measure_smi.sh --gpu-index 0 --interval-ms 100 -- sleep 1
 
 Notes:
@@ -53,6 +54,7 @@ GPU_INDEX="0"
 INTERVAL_MS="100"
 LIST_ONLY="no"
 OUT_FILE=""
+BASELINE_WATTS=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -63,6 +65,15 @@ while [[ $# -gt 0 ]]; do
                 exit 2
             fi
             OUT_FILE="$2"
+            shift 2
+            ;;
+        --baseline-watts)
+            if [[ $# -lt 2 ]]; then
+                echo "error: --baseline-watts needs a value" >&2
+                usage
+                exit 2
+            fi
+            BASELINE_WATTS="$2"
             shift 2
             ;;
         --gpu-index)
@@ -126,6 +137,8 @@ if [[ $# -eq 0 ]]; then
     exit 2
 fi
 
+CMD_STR="$*"
+
 if ! read_gpu_power_w "${GPU_INDEX}" >/dev/null; then
     echo "error: could not read GPU power.draw for index ${GPU_INDEX}" >&2
     echo "hint: verify nvidia-smi is available and power telemetry is supported" >&2
@@ -168,6 +181,8 @@ REPORT="$(awk \
     -v gpu_index="${GPU_INDEX}" \
     -v interval_ms="${INTERVAL_MS}" \
     -v cmd_status="${cmd_status}" \
+    -v baseline_watts="${BASELINE_WATTS}" \
+    -v cmd_str="${CMD_STR}" \
 'BEGIN {
     n = 0
 }
@@ -202,12 +217,22 @@ END {
     avg_w = energy / dt_total
 
     print "GPU measurement"
+    if (cmd_str != "") print "Command: " cmd_str
     print "- gpu_index: " gpu_index
     print "- sample_interval_ms: " interval_ms
     print "- sample_count: " n
     printf("- elapsed_seconds: %.6f\n", dt_total)
     printf("- energy_joules: %.6f\n", energy)
     printf("- average_watts: %.6f\n", avg_w)
+    if (baseline_watts != "") {
+        net_j = energy - baseline_watts * dt_total
+        net_w = avg_w - baseline_watts
+        if (net_j < 0) net_j = 0
+        if (net_w < 0) net_w = 0
+        printf("- baseline_watts: %.6f\n", baseline_watts)
+        printf("- net_energy_joules: %.6f\n", net_j)
+        printf("- net_average_watts: %.6f\n", net_w)
+    }
     print "- command_exit_code: " cmd_status
 }
 ' "${samples_file}"

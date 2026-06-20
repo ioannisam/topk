@@ -14,10 +14,10 @@ fi
 VENV_DIR="${ROOT_DIR}/test/prof/profiler/.venv"
 REQ_FILE="${ROOT_DIR}/test/prof/profiler/requirements.txt"
 PROFILER="${ROOT_DIR}/test/prof/profiler/profiler.py"
-TEST_INPUT="${ROOT_DIR}/test/prof/results/test_output.txt"
+TEST_INPUT="${ROOT_DIR}/test/prof/results/cases_output.txt"
 OUT_DIR="${ROOT_DIR}/test/prof/results/plots"
 CSV_OUT="${ROOT_DIR}/test/prof/results/profile_cases.csv"
-MEAS_CSV_OUT="${ROOT_DIR}/test/prof/results/profile_measurements.csv"
+MEAS_CSV_OUT="${ROOT_DIR}/test/prof/results/profile_energy.csv"
 
 pick_python() {
     if [[ -x "${ROOT_DIR}/NPU/npu_env/bin/python" ]]; then

@@ -4,21 +4,27 @@ ARGS ?=
 
 .PHONY: all help build-all build-cpu build-gpu build-npu clean \
 	run-cpu run-gpu run-npu run-cases run-energy run-profiler \
-	profiler-bootstrap profiler-clean smoke lint specs a-test ab-test
+	benchmark benchmark-cases benchmark-energy profiler-bootstrap profiler-clean \
+	lint specs a-test ab-test
 
 all: build-all
 
 help:
 	@echo "Targets:"
 	@echo "  build-all | build-cpu | build-gpu | build-npu"
-	@echo "  run-cpu | run-gpu | run-npu       - run backend binaries (ARGS=...)"
-	@echo "  smoke                           - run smoke tests"
-	@echo "  run-cases                       - run testcase suite via runner.py (ARGS=...)"
-	@echo "  run-energy                      - energy measurement run (ARGS=...)"
-	@echo "  run-profiler                    - run Python profiler to generate plots (ARGS=...)"
-	@echo "  profiler-bootstrap              - create profiler venv"
-	@echo "  profiler-clean                  - clean profiler artifacts"
-	@echo "  lint | specs | a-test | ab-test"
+	@echo "  run-cpu | run-gpu | run-npu       - run a backend binary (ARGS=...)"
+	@echo ""
+	@echo "  Measure (write test/prof/results/):"
+	@echo "    run-cases                     - measure timing data via runner.py (ARGS=...)"
+	@echo "    run-energy                    - measure energy data, all backends; sudo for RAPL (ARGS=...)"
+	@echo "  Plot:"
+	@echo "    run-profiler                  - plot results from measured data (ARGS=...)"
+	@echo "  Pipelines (measure + plot):"
+	@echo "    benchmark-cases               - timing: run-cases + run-profiler"
+	@echo "    benchmark-energy              - energy: run-energy + run-profiler"
+	@echo "    benchmark                     - everything: benchmark-cases + benchmark-energy"
+	@echo ""
+	@echo "  profiler-bootstrap | profiler-clean | lint | specs | a-test | ab-test"
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -35,12 +41,9 @@ build-gpu: $(BUILD_DIR)
 	cd $(BUILD_DIR) && cmake .. -DTOPK_BUILD_CPU=OFF -DTOPK_BUILD_GPU=ON -DTOPK_BUILD_NPU=OFF
 	cd $(BUILD_DIR) && make -j$(shell nproc)
 
-run-npu: build-npu
-	@# If the user hasn't specified an offload file, default to bitonic
-	@if [ -z "$$NPU_OFFLOAD_XCLBIN" ]; then \
-		export NPU_OFFLOAD_XCLBIN="$(BUILD_DIR)/NPU/bitonic.xclbin"; \
-	fi; \
-	./$(BUILD_DIR)/NPU/topk $(ARGS)
+build-npu: $(BUILD_DIR)
+	cd $(BUILD_DIR) && cmake .. -DTOPK_BUILD_CPU=OFF -DTOPK_BUILD_GPU=OFF -DTOPK_BUILD_NPU=ON
+	cd $(BUILD_DIR) && make -j$(shell nproc)
 
 run-cpu: build-cpu
 	./$(BUILD_DIR)/CPU/topk $(ARGS)
@@ -49,16 +52,17 @@ run-gpu: build-gpu
 	./$(BUILD_DIR)/GPU/topk $(ARGS)
 
 run-npu: build-npu
+	@# default offload file: bitonic
+	@if [ -z "$$NPU_OFFLOAD_XCLBIN" ]; then \
+		export NPU_OFFLOAD_XCLBIN="$(BUILD_DIR)/NPU/bitonic.xclbin"; \
+	fi; \
 	./$(BUILD_DIR)/NPU/topk $(ARGS)
 
-smoke:
-	./test/smoke/run_smoke_tests.sh
-
 run-cases:
-	python3 ./test/prof/runner.py $(ARGS)
+	./test/prof/run_cases.sh $(ARGS)
 
 run-energy:
-	./test/prof/energy/run_energy_profile.sh $(ARGS)
+	./test/prof/energy/run_energy.sh $(ARGS)
 
 run-profiler:
 	./test/prof/profiler/run_profiler.sh $(ARGS)
@@ -70,12 +74,20 @@ profiler-clean:
 	./test/prof/clean_prof.sh
 
 benchmark:
-	@echo "=== 0. Cleaning Previous Benchmark Artifacts ==="
-	$(MAKE) profiler-clean
-	@echo "=== 1. Running Heavy Benchmark Cases ==="
-	-$(MAKE) run-cases ARGS="cpu gpu --types int uint float double fp16 --q-max 24 --min 0 --max 1000000000"
-	@echo "=== 2. Generating Benchmark Plots ==="
+	$(MAKE) benchmark-cases
+	$(MAKE) benchmark-energy
+
+benchmark-cases:
+	@echo "=== 1. Measuring timing (all backends) ==="
+	-$(MAKE) run-cases
+	@echo "=== 2. Generating timing plots ==="
 	$(MAKE) run-profiler ARGS="--plot all --error-bars none"
+
+benchmark-energy:
+	@echo "=== 1. Measuring energy (all backends) ==="
+	-$(MAKE) run-energy
+	@echo "=== 2. Generating energy plots ==="
+	$(MAKE) run-profiler ARGS="--plot energy-by-backend power-by-backend energy-vs-n power-vs-n edp-vs-n energy-per-element-vs-n time-vs-energy --energy-metric both --error-bars none --measurement-csv-out ./test/prof/results/profile_energy.csv"
 
 lint:
 	./scripts/lint.sh $(ARGS)

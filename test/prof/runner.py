@@ -35,6 +35,32 @@ def resolve_energy_mode(backend, requested_mode):
     return requested_mode
 
 
+def resolve_npu_xclbin(backend, algo):
+    if backend != "npu":
+        return ""
+    path = os.path.join(ROOT_DIR, "build/NPU", f"{algo}.xclbin")
+    return path if os.path.isfile(path) else ""
+
+
+def extract_avg_watts(report_text):
+    for line in report_text.splitlines():
+        s = line.strip()
+        if s.startswith("- average_watts:"):
+            try:
+                return float(s.split(":", 1)[1].strip())
+            except ValueError:
+                return None
+    return None
+
+
+def capture_baseline_watts(measure_cmd):
+    try:
+        result = subprocess.run(measure_cmd, capture_output=True, text=True)
+    except Exception:
+        return None
+    return extract_avg_watts(result.stdout)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Dynamic Top-K Test Runner")
     parser.add_argument("backends", nargs="+", help="Backends to test (e.g., cpu gpu npu)")
@@ -44,8 +70,10 @@ def parse_args():
     parser.add_argument(
         "--energy", choices=["none", "auto", "rapl", "gpu"], default="none", help="Energy measurement wrapper"
     )
-    parser.add_argument("--energy-out-dir", default=os.path.join(ROOT_DIR, "test/prof/results/measurements"))
+    parser.add_argument("--energy-out-dir", default=os.path.join(ROOT_DIR, "test/prof/results/energy"))
     parser.add_argument("--rapl-path", default="")
+    parser.add_argument("--repeats", type=int, default=1, help="Energy measurement repeats per case (for averaging)")
+    parser.add_argument("--baseline-seconds", type=float, default=3.0, help="Idle baseline sampling duration (seconds)")
     parser.add_argument("--gpu-index", type=int, default=0)
     parser.add_argument("--gpu-interval-ms", type=int, default=100)
     parser.add_argument("--q-min", type=int, default=1)
@@ -58,8 +86,8 @@ def parse_args():
     parser.add_argument("--min", type=int, default=0)
     parser.add_argument("--max", type=int, default=1000)
     parser.add_argument("--verify", choices=["true", "false"], default="true")
-    parser.add_argument("--output-raw", default=os.path.join(ROOT_DIR, "test/prof/results/test_output.txt"))
-    parser.add_argument("--output-json", default=os.path.join(ROOT_DIR, "test/prof/results/test_output.json"))
+    parser.add_argument("--output-raw", default=os.path.join(ROOT_DIR, "test/prof/results/cases_output.txt"))
+    parser.add_argument("--output-json", default=os.path.join(ROOT_DIR, "test/prof/results/cases_output.json"))
     return parser.parse_args()
 
 
@@ -105,6 +133,30 @@ def main():
         f_raw.write(f"Energy  : {args.energy}\n\n")
 
     expected_marker = "Top-k correctness vs CPU sorted reference: OK"
+
+    rapl_baseline_w = None
+    gpu_baseline_w = None
+    if args.energy != "none":
+        sleep_cmd = ["sleep", str(args.baseline_seconds)]
+        modes = {resolve_energy_mode(b, args.energy) for b in backends}
+        if "rapl" in modes:
+            rapl_cmd = [os.path.join(ROOT_DIR, "test/prof/energy/measure_rapl.sh")]
+            if args.rapl_path:
+                rapl_cmd += ["--path", args.rapl_path]
+            rapl_cmd += ["--"] + sleep_cmd
+            rapl_baseline_w = capture_baseline_watts(rapl_cmd)
+            print(f"Idle RAPL baseline (package): {rapl_baseline_w} W")
+        if "gpu" in modes:
+            gpu_cmd = [
+                os.path.join(ROOT_DIR, "test/prof/energy/measure_smi.sh"),
+                "--gpu-index",
+                str(args.gpu_index),
+                "--interval-ms",
+                str(args.gpu_interval_ms),
+                "--",
+            ] + sleep_cmd
+            gpu_baseline_w = capture_baseline_watts(gpu_cmd)
+            print(f"Idle GPU baseline: {gpu_baseline_w} W")
 
     for backend in backends:
         binary_path = resolve_binary_path(backend)
@@ -161,41 +213,54 @@ def main():
                         ]
 
                         energy_mode = resolve_energy_mode(backend, args.energy)
-                        energy_case_file = ""
+                        baseline_w = (
+                            rapl_baseline_w
+                            if energy_mode == "rapl"
+                            else (gpu_baseline_w if energy_mode == "gpu" else None)
+                        )
+
+                        case_env = os.environ.copy()
+                        npu_xclbin = resolve_npu_xclbin(backend, algo)
+                        if npu_xclbin:
+                            case_env["NPU_OFFLOAD_XCLBIN"] = npu_xclbin
+
+                        # Execute Subprocess (repeated for energy averaging)
+                        result = None
                         run_cmd = []
+                        energy_case_file = ""
+                        for rep in range(1, args.repeats + 1):
+                            suffix = f"_rep{rep}" if args.repeats > 1 else ""
+                            if energy_mode == "none":
+                                run_cmd = [binary_path] + case_args
+                                energy_case_file = ""
+                            else:
+                                energy_case_file = os.path.join(
+                                    args.energy_out_dir,
+                                    f"{run_id}_{backend}_{dtype}_{algo}_{case_name}{suffix}_{energy_mode}.txt",
+                                )
+                                if energy_mode == "rapl":
+                                    run_cmd = [
+                                        os.path.join(ROOT_DIR, "test/prof/energy/measure_rapl.sh"),
+                                        "--out",
+                                        energy_case_file,
+                                    ]
+                                    if args.rapl_path:
+                                        run_cmd += ["--path", args.rapl_path]
+                                else:
+                                    run_cmd = [
+                                        os.path.join(ROOT_DIR, "test/prof/energy/measure_smi.sh"),
+                                        "--out",
+                                        energy_case_file,
+                                        "--gpu-index",
+                                        str(args.gpu_index),
+                                        "--interval-ms",
+                                        str(args.gpu_interval_ms),
+                                    ]
+                                if baseline_w is not None:
+                                    run_cmd += ["--baseline-watts", str(baseline_w)]
+                                run_cmd += ["--", binary_path] + case_args
+                            result = subprocess.run(run_cmd, capture_output=True, text=True, env=case_env)
 
-                        if energy_mode == "none":
-                            run_cmd = [binary_path] + case_args
-                        elif energy_mode == "rapl":
-                            energy_case_file = os.path.join(
-                                args.energy_out_dir, f"{run_id}_{backend}_{dtype}_{algo}_{case_name}_{energy_mode}.txt"
-                            )
-                            run_cmd = [
-                                os.path.join(ROOT_DIR, "test/prof/energy/measure_rapl.sh"),
-                                "--out",
-                                energy_case_file,
-                            ]
-                            if args.rapl_path:
-                                run_cmd.extend(["--path", args.rapl_path])
-                            run_cmd.extend(["--", binary_path] + case_args)
-                        elif energy_mode == "gpu":
-                            energy_case_file = os.path.join(
-                                args.energy_out_dir, f"{run_id}_{backend}_{dtype}_{algo}_{case_name}_{energy_mode}.txt"
-                            )
-                            run_cmd = [
-                                os.path.join(ROOT_DIR, "test/prof/energy/measure_smi.sh"),
-                                "--out",
-                                energy_case_file,
-                                "--gpu-index",
-                                str(args.gpu_index),
-                                "--interval-ms",
-                                str(args.gpu_interval_ms),
-                                "--",
-                                binary_path,
-                            ] + case_args
-
-                        # Execute Subprocess
-                        result = subprocess.run(run_cmd, capture_output=True, text=True)
                         stdout = result.stdout
 
                         case_status = "FAIL"

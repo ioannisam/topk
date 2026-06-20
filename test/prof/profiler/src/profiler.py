@@ -31,12 +31,18 @@ from .plotting import heatmap_time
 from .plotting import memory_bandwidth_vs_n
 
 
+def metric_path(out_dir: str, name: str, metric: str) -> str:
+    base, ext = os.path.splitext(name)
+    suffix = "" if metric == "total" else f"_{metric}"
+    return os.path.join(out_dir, f"{base}{suffix}{ext}")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Parse testcase output and generate profiler plots.")
     parser.add_argument(
         "--input",
         nargs="+",
-        default=["test/prof/results/test_output.json"],
+        default=["test/prof/results/cases_output.json"],
         help="Path(s) to testcase output file(s) (.json or .txt).",
     )
     parser.add_argument(
@@ -115,7 +121,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--measurement-glob",
-        default="test/prof/results/measurements/*.txt",
+        default="test/prof/results/energy/*.txt",
         help="Glob for auto-discovered measurement files.",
     )
     parser.add_argument(
@@ -134,6 +140,12 @@ def parse_args() -> argparse.Namespace:
         choices=["none", "p10-p90", "std"],
         default="p10-p90",
         help="Error band style for line/bar plots (default: p10-p90).",
+    )
+    parser.add_argument(
+        "--energy-metric",
+        choices=["total", "net", "both"],
+        default="both",
+        help="Energy/power metric: raw total, idle-baseline-subtracted net, or both (default: both).",
     )
     parser.add_argument(
         "--compare-n",
@@ -158,6 +170,7 @@ def main() -> int:
     dtypes_filter = {d.lower() for d in args.dtype}
     algorithms = {a.lower() for a in args.algorithm}
     backends = {b.lower() for b in args.backend}
+    energy_metrics = ["total", "net"] if args.energy_metric == "both" else [args.energy_metric]
 
     measurement_paths = list(args.measurement_input)
     measurement_paths.extend(sorted(glob.glob(args.measurement_glob)))
@@ -435,77 +448,101 @@ def main() -> int:
 
         # Energy tools use stripped data
         if "energy-by-source" in requested:
-            out = energy_by_source.plot(
-                dtype_measurements_no_gt,
-                os.path.join(out_energy, "energy_by_source.png"),
-                args.agg,
-                args.compare_n,
-            )
-            if out:
-                collect_output(out)
-            else:
+            produced = False
+            for metric in energy_metrics:
+                out = energy_by_source.plot(
+                    dtype_measurements_no_gt,
+                    metric_path(out_energy, "energy_by_source.png", metric),
+                    args.agg,
+                    args.compare_n,
+                    metric,
+                )
+                if out:
+                    collect_output(out)
+                    produced = True
+            if not produced:
                 print(f"Skipped energy-by-source ({dtype_dir}): no measurement energy points found.")
 
         if "power-by-source" in requested:
-            out = power_by_source.plot(
-                dtype_measurements_no_gt,
-                os.path.join(out_energy, "power_by_source.png"),
-                args.agg,
-                args.compare_n,
-            )
-            if out:
-                collect_output(out)
-            else:
+            produced = False
+            for metric in energy_metrics:
+                out = power_by_source.plot(
+                    dtype_measurements_no_gt,
+                    metric_path(out_energy, "power_by_source.png", metric),
+                    args.agg,
+                    args.compare_n,
+                    metric,
+                )
+                if out:
+                    collect_output(out)
+                    produced = True
+            if not produced:
                 print(f"Skipped power-by-source ({dtype_dir}): no measurement power points found.")
 
         if "energy-vs-n" in requested:
-            out = energy_vs_n.plot(
-                dtype_measurements_no_gt,
-                os.path.join(out_energy, "energy_vs_n.png"),
-                args.agg,
-                args.error_bars,
-            )
-            if out:
-                collect_output(out)
-            else:
+            produced = False
+            for metric in energy_metrics:
+                out = energy_vs_n.plot(
+                    dtype_measurements_no_gt,
+                    metric_path(out_energy, "energy_vs_n.png", metric),
+                    args.agg,
+                    args.error_bars,
+                    metric,
+                )
+                if out:
+                    collect_output(out)
+                    produced = True
+            if not produced:
                 print(f"Skipped energy-vs-n ({dtype_dir}): no measurement records with inferred N were found.")
 
         if "power-vs-n" in requested:
-            out = power_vs_n.plot(
-                dtype_measurements_no_gt,
-                os.path.join(out_energy, "power_vs_n.png"),
-                args.agg,
-                args.error_bars,
-            )
-            if out:
-                collect_output(out)
-            else:
+            produced = False
+            for metric in energy_metrics:
+                out = power_vs_n.plot(
+                    dtype_measurements_no_gt,
+                    metric_path(out_energy, "power_vs_n.png", metric),
+                    args.agg,
+                    args.error_bars,
+                    metric,
+                )
+                if out:
+                    collect_output(out)
+                    produced = True
+            if not produced:
                 print(f"Skipped power-vs-n ({dtype_dir}): no measurement records with inferred N were found.")
 
         if "energy-by-backend" in requested:
-            out = energy_by_backend.plot(
-                dtype_measurements_no_gt,
-                os.path.join(out_energy, "energy_by_backend.png"),
-                args.agg,
-                args.compare_n,
-                args.error_bars,
-            )
-            if out:
-                collect_output(out)
-            else:
+            produced = False
+            for metric in energy_metrics:
+                out = energy_by_backend.plot(
+                    dtype_measurements_no_gt,
+                    metric_path(out_energy, "energy_by_backend.png", metric),
+                    args.agg,
+                    args.compare_n,
+                    args.error_bars,
+                    metric,
+                )
+                if out:
+                    collect_output(out)
+                    produced = True
+            if not produced:
                 print(f"Skipped energy-by-backend ({dtype_dir}): no matching measurement energy points found.")
 
         if "power-by-backend" in requested:
-            out = power_by_backend.plot(
-                dtype_measurements_no_gt,
-                os.path.join(out_energy, "power_by_backend.png"),
-                args.agg,
-                args.compare_n,
-                args.error_bars,
-            )
-            if out:
-                collect_output(out)
-            else:
+            produced = False
+            for metric in energy_metrics:
+                out = power_by_backend.plot(
+                    dtype_measurements_no_gt,
+                    metric_path(out_energy, "power_by_backend.png", metric),
+                    args.agg,
+                    args.compare_n,
+                    args.error_bars,
+                    metric,
+                )
+                if out:
+                    collect_output(out)
+                    produced = True
+            if not produced:
                 print(f"Skipped power-by-backend ({dtype_dir}): no matching measurement power points found.")
 
         if "time-vs-energy" in requested:
@@ -522,29 +559,37 @@ def main() -> int:
                 print(f"Skipped time-vs-energy ({dtype_dir}): no matched runtime and energy records were found.")
 
         if "edp-vs-n" in requested:
-            out = edp_vs_n.plot(
-                dtype_measurements_no_gt,
-                os.path.join(out_energy, "edp_vs_n.png"),
-                args.agg,
-                args.error_bars,
-            )
-            if out:
-                collect_output(out)
-            else:
+            produced = False
+            for metric in energy_metrics:
+                out = edp_vs_n.plot(
+                    dtype_measurements_no_gt,
+                    metric_path(out_energy, "edp_vs_n.png", metric),
+                    args.agg,
+                    args.error_bars,
+                    metric,
+                )
+                if out:
+                    collect_output(out)
+                    produced = True
+            if not produced:
                 print(
                     f"Skipped edp-vs-n ({dtype_dir}): no measurement records with elapsed time and energy were found."
                 )
 
         if "energy-per-element-vs-n" in requested:
-            out = energy_per_element_vs_n.plot(
-                dtype_measurements_no_gt,
-                os.path.join(out_energy, "energy_per_element_vs_n.png"),
-                args.agg,
-                args.error_bars,
-            )
-            if out:
-                collect_output(out)
-            else:
+            produced = False
+            for metric in energy_metrics:
+                out = energy_per_element_vs_n.plot(
+                    dtype_measurements_no_gt,
+                    metric_path(out_energy, "energy_per_element_vs_n.png", metric),
+                    args.agg,
+                    args.error_bars,
+                    metric,
+                )
+                if out:
+                    collect_output(out)
+                    produced = True
+            if not produced:
                 print(
                     f"Skipped energy-per-element-vs-n ({dtype_dir}): "
                     "no measurement records with N and energy were found."

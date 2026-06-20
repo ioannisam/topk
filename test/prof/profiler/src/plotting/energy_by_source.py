@@ -5,16 +5,19 @@ from collections import defaultdict
 from typing import Optional
 
 from ..models import MeasurementRecord
-from .common import aggregate_value, plt, style_axes
+from .common import aggregate_value, metric_title_suffix, plt, select_energy_joules, style_axes
 
 
-def plot(records: list[MeasurementRecord], out_path: str, agg: str, compare_n: Optional[int]) -> Optional[str]:
+def plot(
+    records: list[MeasurementRecord], out_path: str, agg: str, compare_n: Optional[int], metric: str = "total"
+) -> Optional[str]:
     energy_by_source: dict[str, list[float]] = defaultdict(list)
     for rec in records:
         if compare_n is not None and rec.n != compare_n:
             continue
-        if rec.energy_joules is not None and rec.energy_joules >= 0:
-            energy_by_source[rec.source].append(rec.energy_joules)
+        energy = select_energy_joules(rec, metric)
+        if energy is not None and energy >= 0:
+            energy_by_source[rec.source].append(energy)
 
     if not energy_by_source:
         return None
@@ -27,7 +30,7 @@ def plot(records: list[MeasurementRecord], out_path: str, agg: str, compare_n: O
     for bar, y in zip(bars, ys):
         ax.text(bar.get_x() + bar.get_width() / 2, y, f"{y:.3f}", ha="center", va="bottom")
 
-    style_axes(ax, "Average Energy by Source", "Source", "Energy (J)")
+    style_axes(ax, "Average Energy by Source" + metric_title_suffix(metric), "Source", "Energy (J)")
     fig.tight_layout()
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     fig.savefig(out_path, dpi=160)

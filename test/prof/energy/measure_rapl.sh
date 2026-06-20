@@ -10,14 +10,15 @@ Usage:
 
 Options:
     --out <file>              Also write report to file (for profiler ingestion).
+    --baseline-watts <w>     Idle power (W) to subtract; emits net_energy_joules/net_average_watts.
     --path <energy_uj_path>  Use a specific RAPL energy counter file.
     --list-paths             List discovered energy_uj paths and readability.
     --help, -h               Show this help message.
     --                       End script options; remaining args are the command to run.
 
 Examples:
-    sudo ./test/prof/energy/measure_rapl.sh -- ./test/smoke/CPU/build/smoke
-    sudo ./test/prof/energy/measure_rapl.sh --out ./test/prof/results/measurements/rapl_run1.txt -- ./CPU/build/topk ./test/prof/cases/bitonic/int/q10_k8_max.case
+    sudo ./test/prof/energy/measure_rapl.sh -- ./build/CPU/topk q=20 k=256 dtype=int algo=bitonic
+    sudo ./test/prof/energy/measure_rapl.sh --out ./test/prof/results/energy/cpu_run1.txt -- ./build/CPU/topk q=20 k=256 dtype=int algo=bitonic
     sudo ./test/prof/energy/measure_rapl.sh --path /sys/class/powercap/intel-rapl:0/energy_uj -- sleep 1
 
 Notes:
@@ -61,6 +62,7 @@ list_energy_paths() {
 ENERGY_PATH=""
 LIST_ONLY="no"
 OUT_FILE=""
+BASELINE_WATTS=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -71,6 +73,15 @@ while [[ $# -gt 0 ]]; do
                 exit 2
             fi
             OUT_FILE="$2"
+            shift 2
+            ;;
+        --baseline-watts)
+            if [[ $# -lt 2 ]]; then
+                echo "error: --baseline-watts needs a value" >&2
+                usage
+                exit 2
+            fi
+            BASELINE_WATTS="$2"
             shift 2
             ;;
         --path)
@@ -113,6 +124,8 @@ if [[ $# -eq 0 ]]; then
     exit 2
 fi
 
+CMD_STR="$*"
+
 if [[ -z "${ENERGY_PATH}" ]]; then
     if ! ENERGY_PATH="$(find_default_energy_path)"; then
         echo "error: could not find a readable energy_uj path under /sys/class/powercap" >&2
@@ -150,6 +163,8 @@ REPORT="$(awk \
     -v end_ts="${END_TS}" \
     -v max_range_uj="${MAX_RANGE_UJ}" \
     -v cmd_status="${CMD_STATUS}" \
+    -v baseline_watts="${BASELINE_WATTS}" \
+    -v cmd_str="${CMD_STR}" \
 'BEGIN {
     delta_uj = end_uj - start_uj
     wrapped = "no"
@@ -174,11 +189,21 @@ REPORT="$(awk \
     watts = joules / dt
 
     print "RAPL measurement"
+    if (cmd_str != "") print "Command: " cmd_str
     print "- energy_path: " path
     print "- wrapped: " wrapped
     printf("- elapsed_seconds: %.6f\n", dt)
     printf("- energy_joules: %.6f\n", joules)
     printf("- average_watts: %.6f\n", watts)
+    if (baseline_watts != "") {
+        net_j = joules - baseline_watts * dt
+        net_w = watts - baseline_watts
+        if (net_j < 0) net_j = 0
+        if (net_w < 0) net_w = 0
+        printf("- baseline_watts: %.6f\n", baseline_watts)
+        printf("- net_energy_joules: %.6f\n", net_j)
+        printf("- net_average_watts: %.6f\n", net_w)
+    }
     print "- command_exit_code: " cmd_status
 }
 '

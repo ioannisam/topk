@@ -40,4 +40,7 @@ class MeasurementRecord:
     elapsed_seconds: Optional[float] = None
     energy_joules: Optional[float] = None
     average_watts: Optional[float] = None
+    baseline_watts: Optional[float] = None
+    net_energy_joules: Optional[float] = None
+    net_average_watts: Optional[float] = None
     command_exit_code: Optional[int] = None

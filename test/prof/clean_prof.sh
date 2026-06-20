@@ -30,6 +30,11 @@ if [[ -d "${RESULTS_DIR}" ]]; then
         echo "  -> Emptying measurements directory"
         rm -rf "${RESULTS_DIR}/measurements/"*
     fi
+
+    if [[ -d "${RESULTS_DIR}/energy" ]]; then
+        echo "  -> Emptying energy directory"
+        rm -rf "${RESULTS_DIR}/energy/"*
+    fi
 else
     echo "  -> No results directory found at ${RESULTS_DIR}, skipping."
 fi

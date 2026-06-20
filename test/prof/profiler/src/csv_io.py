@@ -69,6 +69,9 @@ def write_measurement_csv(records: Iterable[MeasurementRecord], out_path: str) -
                 "elapsed_seconds",
                 "energy_joules",
                 "average_watts",
+                "baseline_watts",
+                "net_energy_joules",
+                "net_average_watts",
                 "command_exit_code",
             ]
         )
@@ -86,6 +89,9 @@ def write_measurement_csv(records: Iterable[MeasurementRecord], out_path: str) -
                     "" if rec.elapsed_seconds is None else f"{rec.elapsed_seconds:.12g}",
                     "" if rec.energy_joules is None else f"{rec.energy_joules:.12g}",
                     "" if rec.average_watts is None else f"{rec.average_watts:.12g}",
+                    "" if rec.baseline_watts is None else f"{rec.baseline_watts:.12g}",
+                    "" if rec.net_energy_joules is None else f"{rec.net_energy_joules:.12g}",
+                    "" if rec.net_average_watts is None else f"{rec.net_average_watts:.12g}",
                     "" if rec.command_exit_code is None else rec.command_exit_code,
                 ]
             )

@@ -100,6 +100,22 @@ def select_time_ms(rec, metric: str) -> float | None:
     return rec.time_end_to_end_ms if rec.time_end_to_end_ms is not None else rec.time_algorithmic_ms
 
 
+def select_energy_joules(rec, metric: str) -> float | None:
+    if metric == "net" and rec.net_energy_joules is not None:
+        return rec.net_energy_joules
+    return rec.energy_joules
+
+
+def select_power_watts(rec, metric: str) -> float | None:
+    if metric == "net" and rec.net_average_watts is not None:
+        return rec.net_average_watts
+    return rec.average_watts
+
+
+def metric_title_suffix(metric: str) -> str:
+    return " (net of idle)" if metric == "net" else ""
+
+
 def percentile(values: list[float], pct: float) -> float:
     if not values:
         raise ValueError("percentile on empty list")
