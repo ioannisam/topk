@@ -81,7 +81,7 @@ std::size_t prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_pt
 		std::fill(cfg_words + full_chunks, cfg_words + batch_chunks, dummy_cfg);
 	}
 
-	src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE, full_chunks * chunk_size * sizeof(T), 0);
+	src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE, full_chunks * chunk_size * sizeof(std::int32_t), 0);
 	cfg_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 	return full_chunks;
 }
@@ -134,7 +134,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 	const std::size_t BATCH_CHUNKS = 1024;
 	const std::size_t chunk_size = 1024;
 	const std::size_t batch_size = BATCH_CHUNKS * chunk_size;
-	const std::size_t batch_bytes = batch_size * sizeof(T);
+	const std::size_t batch_bytes = batch_size * sizeof(std::int32_t);
 
 	state.allocate_mr_buffers(batch_bytes);
 
@@ -185,8 +185,8 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 		rl[next_idx].execute();
 		total_dispatches++;
 
-		state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE, valid_chunks[active_idx] * chunk_size * sizeof(T),
-										 0);
+		state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
+										 valid_chunks[active_idx] * chunk_size * sizeof(std::int32_t), 0);
 		process_npu_results<WantMax>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx], sentinel_key);
 
 		std::swap(active_idx, next_idx);
@@ -195,8 +195,8 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 
 	if (total_dispatches > 0) {
 		npu::utils::wait_for_runlist_or_throw(rl[active_idx], npu::utils::read_wait_timeout_ms());
-		state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE, valid_chunks[active_idx] * chunk_size * sizeof(T),
-										 0);
+		state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
+										 valid_chunks[active_idx] * chunk_size * sizeof(std::int32_t), 0);
 		process_npu_results<WantMax>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx], sentinel_key);
 	}
 
