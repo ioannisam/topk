@@ -59,7 +59,13 @@ fi
 # Memory
 capture free free -h
 if run dmidecode; then
-    capture dmidecode_memory dmidecode -t memory
+    if [[ "${EUID}" -eq 0 ]]; then
+        capture dmidecode_memory dmidecode -t memory
+    elif run sudo && sudo -v; then
+        capture dmidecode_memory sudo dmidecode -t memory
+    else
+        echo "dmidecode requires root; re-run with sudo to validate memory channel topology" >"${TMP_DIR}/dmidecode_memory.txt"
+    fi
 fi
 
 # Storage
@@ -189,16 +195,31 @@ NPU_EVIDENCE_FILE="${TMP_DIR}/npu_memory_evidence.txt"
     block "NPU memory model evidence" "${NPU_EVIDENCE_FILE}" "npu memory evidence unavailable"
 
     MEMORY_CHANNEL_STATUS="unknown"
-    if [[ -f "${TMP_DIR}/dmidecode_memory.txt" ]] && ! grep -q '^\[command failed\]' "${TMP_DIR}/dmidecode_memory.txt"; then
-        CHANNEL_LABLEL_COUNT="$(grep -E '^\s*Bank Locator:' "${TMP_DIR}/dmidecode_memory.txt" | sed 's/^\s*Bank Locator:\s*//' | grep -Eio 'channel[^ ]*' | sort -u | wc -l | tr -d ' ')"
-        POPULATED_MODULE_COUNT="$(grep -E '^\s*Size:\s*[0-9]+' "${TMP_DIR}/dmidecode_memory.txt" | wc -l | tr -d ' ')"
+    if [[ -f "${TMP_DIR}/dmidecode_memory.txt" ]] && grep -q '^Memory Device$' "${TMP_DIR}/dmidecode_memory.txt"; then
+        read -r POPULATED_MODULE_COUNT DISTINCT_CHANNEL_COUNT < <(awk '
+            function flush() {
+                if (in_dev && size != "" && size !~ /No Module Installed/) {
+                    pop++
+                    if (chan != "") seen[toupper(chan)] = 1
+                }
+                in_dev = 0; size = ""; chan = ""
+            }
+            /^Memory Device$/ { flush(); in_dev = 1; next }
+            in_dev && /^[[:space:]]*Size:/ { v = $0; sub(/^[^:]*:[[:space:]]*/, "", v); size = v }
+            in_dev && /^[[:space:]]*(Bank )?Locator:/ {
+                if (match($0, /[Cc][Hh][Aa][Nn][Nn][Ee][Ll][[:space:]]*[A-Za-z0-9]+/))
+                    chan = substr($0, RSTART, RLENGTH)
+            }
+            /^$/ { flush() }
+            END { flush(); n = 0; for (c in seen) n++; print pop + 0, n + 0 }
+        ' "${TMP_DIR}/dmidecode_memory.txt")
 
-        if [[ "${CHANNEL_LABLEL_COUNT}" -ge 2 ]]; then
-            MEMORY_CHANNEL_STATUS="no"
-        elif [[ "${CHANNEL_LABLEL_COUNT}" -eq 1 || "${POPULATED_MODULE_COUNT}" -eq 1 ]]; then
-            MEMORY_CHANNEL_STATUS="likely yes"
-        else
-            MEMORY_CHANNEL_STATUS="unknown"
+        if [[ "${POPULATED_MODULE_COUNT}" -ge 2 && "${DISTINCT_CHANNEL_COUNT}" -ge 2 ]]; then
+            MEMORY_CHANNEL_STATUS="dual-channel (${POPULATED_MODULE_COUNT} modules across ${DISTINCT_CHANNEL_COUNT} channels)"
+        elif [[ "${POPULATED_MODULE_COUNT}" -eq 1 ]]; then
+            MEMORY_CHANNEL_STATUS="single-channel (1 module populated)"
+        elif [[ "${POPULATED_MODULE_COUNT}" -ge 2 ]]; then
+            MEMORY_CHANNEL_STATUS="${POPULATED_MODULE_COUNT} modules populated; channel labels inconclusive"
         fi
     fi
 
@@ -216,7 +237,8 @@ NPU_EVIDENCE_FILE="${TMP_DIR}/npu_memory_evidence.txt"
     echo "- GPU query available: $( [[ -f "${TMP_DIR}/nvidia_query.txt" ]] && ! grep -q '^\[command failed\]' "${TMP_DIR}/nvidia_query.txt" && echo yes || echo no )"
     echo "- NPU runtime query available: $( [[ -f "${TMP_DIR}/xrt.txt" ]] && grep -q 'Device(s) Present' "${TMP_DIR}/xrt.txt" && echo yes || echo no )"
     echo "- energy_uj path present: $(grep -q 'energy_uj' "${TMP_DIR}/energy_paths.txt" && echo yes || echo no)"
-    echo "- Single-channel memory indication (dmidecode): ${MEMORY_CHANNEL_STATUS}"
+    echo "- Installed RAM (MemTotal): $(awk '/^MemTotal:/ {printf "%.1f GiB", $2/1048576}' /proc/meminfo)"
+    echo "- Memory channel configuration (dmidecode): ${MEMORY_CHANNEL_STATUS}"
     echo "- NPU shared-system-memory indication: ${NPU_SHARED_MEMORY_STATUS}"
 } >"${OUT_FILE}"
 
