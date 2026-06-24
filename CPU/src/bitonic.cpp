@@ -1,5 +1,5 @@
 #include "../include/algorithm.hpp"
-#include "../include/simd_traits.hpp"
+#include "simd_traits.hpp"
 
 #include <algorithm>
 #include <atomic>

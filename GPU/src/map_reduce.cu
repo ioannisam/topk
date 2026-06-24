@@ -1,5 +1,5 @@
 #include "../include/algorithm.hpp"
-#include "../include/device_traits.cuh"
+#include "device_traits.cuh"
 
 #include <algorithm>
 #include <cstdint>
