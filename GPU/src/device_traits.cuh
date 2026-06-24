@@ -8,6 +8,16 @@
 
 namespace gpu::traits {
 
+template <typename T> struct DeviceType {
+    using type = T;
+};
+
+#if defined(__FLT16_MANT_DIG__)
+template <> struct DeviceType<_Float16> {
+    using type = __half;
+};
+#endif
+
 template <typename T> struct DeviceTraits;
 
 template <> struct DeviceTraits<float> {

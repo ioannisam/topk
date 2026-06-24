@@ -405,6 +405,8 @@ std::string query_device_name() {
 template <typename T>
 RunStats run_network_cuda(T* data, std::size_t n, std::size_t& final_n,
 						  const std::vector<common::bitonic::Layer>& layers) {
+	using D = typename gpu::traits::DeviceType<T>::type;
+
 	if (n == 0) {
 		final_n = 0;
 		return RunStats{0.0, 0, 0, 0};
@@ -412,30 +414,23 @@ RunStats run_network_cuda(T* data, std::size_t n, std::size_t& final_n,
 
 	const std::size_t block_size = BITONIC_BLOCK_SIZE;
 
-	DeviceBuffer<T> d_data(n);
-	DeviceBuffer<T> d_data_alt(n);
+	DeviceBuffer<D> d_data(n);
+	DeviceBuffer<D> d_data_alt(n);
 
-	CUDA_CHECK(cudaMemcpy(d_data.get(), data, n * sizeof(T), cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMemcpy(d_data.get(), data, n * sizeof(D), cudaMemcpyHostToDevice));
 
 	double elapsed_ms = 0.0;
 	std::size_t launches = 0;
 	std::size_t comparators = 0;
 	final_n = n;
 
-	T* final_src = execute_network_kernels(d_data.get(), d_data_alt.get(), n, layers, block_size, elapsed_ms, launches,
+	D* final_src = execute_network_kernels(d_data.get(), d_data_alt.get(), n, layers, block_size, elapsed_ms, launches,
 										   comparators, final_n);
 
-	CUDA_CHECK(cudaMemcpy(data, final_src, final_n * sizeof(T), cudaMemcpyDeviceToHost));
+	CUDA_CHECK(cudaMemcpy(data, final_src, final_n * sizeof(D), cudaMemcpyDeviceToHost));
 
 	return RunStats{elapsed_ms, launches, comparators, block_size};
 }
-
-#if defined(__FLT16_MANT_DIG__)
-RunStats run_network_cuda_fp16(_Float16* data, std::size_t n, std::size_t& final_n,
-							   const std::vector<common::bitonic::Layer>& layers) {
-	return run_network_cuda<__half>(reinterpret_cast<__half*>(data), n, final_n, layers);
-}
-#endif
 
 template RunStats run_network_cuda<std::int32_t>(std::int32_t*, std::size_t, std::size_t&,
 												 const std::vector<common::bitonic::Layer>&);
@@ -446,8 +441,8 @@ template RunStats run_network_cuda<float>(float*, std::size_t, std::size_t&,
 template RunStats run_network_cuda<double>(double*, std::size_t, std::size_t&,
 										   const std::vector<common::bitonic::Layer>&);
 #if defined(__FLT16_MANT_DIG__)
-template RunStats run_network_cuda<__half>(__half*, std::size_t, std::size_t&,
-										   const std::vector<common::bitonic::Layer>&);
+template RunStats run_network_cuda<_Float16>(_Float16*, std::size_t, std::size_t&,
+											 const std::vector<common::bitonic::Layer>&);
 #endif
 
 } // namespace gpu::bitonic

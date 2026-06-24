@@ -1,4 +1,5 @@
 #include "../include/algorithm.hpp"
+#include "device_traits.cuh"
 
 #include <algorithm>
 #include <cstdint>
@@ -73,19 +74,18 @@ template <typename T> struct DeviceBuffer {
 
 } // namespace
 
-template <typename T> double run_topk(std::vector<T>& data, std::size_t k, bool want_max) {
-	if (k == 0 || data.empty()) {
-		data.clear();
+template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, bool want_max) {
+	using D = typename gpu::traits::DeviceType<T>::type;
+
+	if (k == 0 || n == 0) {
 		return 0.0;
 	}
 
-	const std::size_t n = data.size();
+	DeviceBuffer<D> d_data(n);
 
-	DeviceBuffer<T> d_data(n);
+	CUDA_CHECK(cudaMemcpy(d_data.get(), data, n * sizeof(D), cudaMemcpyHostToDevice));
 
-	CUDA_CHECK(cudaMemcpy(d_data.get(), data.data(), n * sizeof(T), cudaMemcpyHostToDevice));
-
-	thrust::device_ptr<T> dev_ptr(d_data.get());
+	thrust::device_ptr<D> dev_ptr(d_data.get());
 
 	cudaEvent_t start, stop;
 	CUDA_CHECK(cudaEventCreate(&start));
@@ -94,9 +94,9 @@ template <typename T> double run_topk(std::vector<T>& data, std::size_t k, bool 
 	CUDA_CHECK(cudaEventRecord(start));
 
 	if (want_max) {
-		thrust::sort(thrust::device, dev_ptr, dev_ptr + n, thrust::greater<T>());
+		thrust::sort(thrust::device, dev_ptr, dev_ptr + n, thrust::greater<D>());
 	} else {
-		thrust::sort(thrust::device, dev_ptr, dev_ptr + n, thrust::less<T>());
+		thrust::sort(thrust::device, dev_ptr, dev_ptr + n, thrust::less<D>());
 	}
 
 	CUDA_CHECK(cudaEventRecord(stop));
@@ -110,16 +110,18 @@ template <typename T> double run_topk(std::vector<T>& data, std::size_t k, bool 
 
 	std::size_t out_size = std::min(k, n);
 
-	CUDA_CHECK(cudaMemcpy(data.data(), d_data.get(), out_size * sizeof(T), cudaMemcpyDeviceToHost));
-	data.resize(out_size);
+	CUDA_CHECK(cudaMemcpy(data, d_data.get(), out_size * sizeof(D), cudaMemcpyDeviceToHost));
 
 	return static_cast<double>(algo_ms);
 }
 
 // Explicit instantiations
-template double run_topk<std::int32_t>(std::vector<std::int32_t>& data, std::size_t k, bool want_max);
-template double run_topk<std::uint32_t>(std::vector<std::uint32_t>& data, std::size_t k, bool want_max);
-template double run_topk<float>(std::vector<float>& data, std::size_t k, bool want_max);
-template double run_topk<double>(std::vector<double>& data, std::size_t k, bool want_max);
+template double run_topk<std::int32_t>(std::int32_t* data, std::size_t n, std::size_t k, bool want_max);
+template double run_topk<std::uint32_t>(std::uint32_t* data, std::size_t n, std::size_t k, bool want_max);
+template double run_topk<float>(float* data, std::size_t n, std::size_t k, bool want_max);
+template double run_topk<double>(double* data, std::size_t n, std::size_t k, bool want_max);
+#if defined(__FLT16_MANT_DIG__)
+template double run_topk<_Float16>(_Float16* data, std::size_t n, std::size_t k, bool want_max);
+#endif
 
 } // namespace gpu::ground_truth
