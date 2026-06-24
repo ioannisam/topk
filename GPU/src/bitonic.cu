@@ -102,34 +102,6 @@ struct FusedLayers {
 	int count;
 };
 
-__global__ void cast_float_to_half_vec2(const float2* __restrict__ src, __half2* __restrict__ dst,
-										std::size_t num_vecs) {
-	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-	if (tid < num_vecs) {
-		dst[tid] = __float22half2_rn(src[tid]);
-	}
-}
-
-__global__ void cast_float_to_half_scalar_tail(const float* __restrict__ src, __half* __restrict__ dst, std::size_t n) {
-	if (n % 2 != 0) {
-		dst[n - 1] = __float2half(src[n - 1]);
-	}
-}
-
-__global__ void cast_half_to_float_vec2(const __half2* __restrict__ src, float2* __restrict__ dst,
-										std::size_t num_vecs) {
-	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-	if (tid < num_vecs) {
-		dst[tid] = __half22float2(src[tid]);
-	}
-}
-
-__global__ void cast_half_to_float_scalar_tail(const __half* __restrict__ src, float* __restrict__ dst, std::size_t n) {
-	if (n % 2 != 0) {
-		dst[n - 1] = __half2float(src[n - 1]);
-	}
-}
-
 template <typename T, int TPB>
 __global__ __launch_bounds__(TPB) void bitonic_fused_wide(T* __restrict__ data, std::size_t tile_elems,
 														  FusedLayers layers) {
@@ -431,94 +403,51 @@ std::string query_device_name() {
 }
 
 template <typename T>
-RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) {
-	if (data.empty()) {
+RunStats run_network_cuda(T* data, std::size_t n, std::size_t& final_n,
+						  const std::vector<common::bitonic::Layer>& layers) {
+	if (n == 0) {
+		final_n = 0;
 		return RunStats{0.0, 0, 0, 0};
 	}
 
-	const std::size_t n = data.size();
 	const std::size_t block_size = BITONIC_BLOCK_SIZE;
 
 	DeviceBuffer<T> d_data(n);
 	DeviceBuffer<T> d_data_alt(n);
 
-	CUDA_CHECK(cudaMemcpy(d_data.get(), data.data(), n * sizeof(T), cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMemcpy(d_data.get(), data, n * sizeof(T), cudaMemcpyHostToDevice));
 
 	double elapsed_ms = 0.0;
 	std::size_t launches = 0;
 	std::size_t comparators = 0;
-	std::size_t final_n = n;
+	final_n = n;
 
 	T* final_src = execute_network_kernels(d_data.get(), d_data_alt.get(), n, layers, block_size, elapsed_ms, launches,
 										   comparators, final_n);
 
-	CUDA_CHECK(cudaMemcpy(data.data(), final_src, final_n * sizeof(T), cudaMemcpyDeviceToHost));
-
-	data.resize(final_n);
+	CUDA_CHECK(cudaMemcpy(data, final_src, final_n * sizeof(T), cudaMemcpyDeviceToHost));
 
 	return RunStats{elapsed_ms, launches, comparators, block_size};
 }
 
-RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers) {
-	if (data.empty()) {
-		return RunStats{0.0, 0, 0, 0};
-	}
-
-	const std::size_t n = data.size();
-	const std::size_t block_size = BITONIC_BLOCK_SIZE;
-
-	DeviceBuffer<float> d_float_data(n);
-	DeviceBuffer<__half> d_half_data(n);
-	DeviceBuffer<__half> d_half_alt(n);
-
-	CUDA_CHECK(cudaMemcpy(d_float_data.get(), data.data(), n * sizeof(float), cudaMemcpyHostToDevice));
-
-	const std::size_t n_vec = n / 2;
-	const dim3 grid_vec((n_vec + block_size - 1) / block_size);
-	cast_float_to_half_vec2<<<grid_vec, block_size>>>(reinterpret_cast<const float2*>(d_float_data.get()),
-													  reinterpret_cast<__half2*>(d_half_data.get()), n_vec);
-	CUDA_CHECK(cudaGetLastError());
-
-	// Handle odd-sized input
-	if (n % 2 != 0) {
-		cast_float_to_half_scalar_tail<<<1, 1>>>(d_float_data.get(), d_half_data.get(), n);
-		CUDA_CHECK(cudaGetLastError());
-	}
-
-	double elapsed_ms = 0.0;
-	std::size_t launches = 0;
-	std::size_t comparators = 0;
-	std::size_t final_n = n;
-
-	__half* final_src = execute_network_kernels(d_half_data.get(), d_half_alt.get(), n, layers, block_size, elapsed_ms,
-												launches, comparators, final_n);
-
-	const std::size_t final_n_vec = final_n / 2;
-	const dim3 final_grid_vec((final_n_vec + block_size - 1) / block_size);
-	cast_half_to_float_vec2<<<final_grid_vec, block_size>>>(reinterpret_cast<const __half2*>(final_src),
-															reinterpret_cast<float2*>(d_float_data.get()), final_n_vec);
-	CUDA_CHECK(cudaGetLastError());
-
-	// Handle odd-sized output
-	if (final_n % 2 != 0) {
-		cast_half_to_float_scalar_tail<<<1, 1>>>(final_src, d_float_data.get(), final_n);
-		CUDA_CHECK(cudaGetLastError());
-	}
-
-	CUDA_CHECK(cudaMemcpy(data.data(), d_float_data.get(), final_n * sizeof(float), cudaMemcpyDeviceToHost));
-	data.resize(final_n);
-
-	return RunStats{elapsed_ms, launches, comparators, block_size};
+#if defined(__FLT16_MANT_DIG__)
+RunStats run_network_cuda_fp16(_Float16* data, std::size_t n, std::size_t& final_n,
+							   const std::vector<common::bitonic::Layer>& layers) {
+	return run_network_cuda<__half>(reinterpret_cast<__half*>(data), n, final_n, layers);
 }
+#endif
 
-template RunStats run_network_cuda<std::int32_t>(std::vector<std::int32_t>& data,
-												 const std::vector<common::bitonic::Layer>& layers);
-template RunStats run_network_cuda<std::uint32_t>(std::vector<std::uint32_t>& data,
-												  const std::vector<common::bitonic::Layer>& layers);
-template RunStats run_network_cuda<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers);
-template RunStats run_network_cuda<double>(std::vector<double>& data,
-										   const std::vector<common::bitonic::Layer>& layers);
-template RunStats run_network_cuda<__half>(std::vector<__half>& data,
-										   const std::vector<common::bitonic::Layer>& layers);
+template RunStats run_network_cuda<std::int32_t>(std::int32_t*, std::size_t, std::size_t&,
+												 const std::vector<common::bitonic::Layer>&);
+template RunStats run_network_cuda<std::uint32_t>(std::uint32_t*, std::size_t, std::size_t&,
+												  const std::vector<common::bitonic::Layer>&);
+template RunStats run_network_cuda<float>(float*, std::size_t, std::size_t&,
+										  const std::vector<common::bitonic::Layer>&);
+template RunStats run_network_cuda<double>(double*, std::size_t, std::size_t&,
+										   const std::vector<common::bitonic::Layer>&);
+#if defined(__FLT16_MANT_DIG__)
+template RunStats run_network_cuda<__half>(__half*, std::size_t, std::size_t&,
+										   const std::vector<common::bitonic::Layer>&);
+#endif
 
 } // namespace gpu::bitonic

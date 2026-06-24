@@ -18,9 +18,13 @@ struct RunStats {
 std::string query_device_name();
 
 template <typename T>
-RunStats run_network_cuda(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers);
+RunStats run_network_cuda(T* data, std::size_t n, std::size_t& final_n,
+						  const std::vector<common::bitonic::Layer>& layers);
 
-RunStats run_network_cuda_fp16(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers);
+#if defined(__FLT16_MANT_DIG__)
+RunStats run_network_cuda_fp16(_Float16* data, std::size_t n, std::size_t& final_n,
+							   const std::vector<common::bitonic::Layer>& layers);
+#endif
 
 } // namespace gpu::bitonic
 
@@ -34,11 +38,13 @@ struct RunStats {
 };
 
 template <typename T>
-std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers,
+std::vector<T> run_topk(const T* data, std::size_t n, std::size_t k, bool want_max, std::size_t workers,
 						RunStats* stats = nullptr);
 
-std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k, bool want_max, std::size_t ex_threads,
-								 RunStats* stats = nullptr);
+#if defined(__FLT16_MANT_DIG__)
+std::size_t run_topk_fp16(const _Float16* input, std::size_t n, std::size_t k, bool want_max, std::size_t ex_threads,
+						  _Float16* out, RunStats* stats = nullptr);
+#endif
 
 } // namespace gpu::map_reduce
 

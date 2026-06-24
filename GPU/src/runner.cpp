@@ -62,7 +62,9 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 
 				auto t0 = std::chrono::high_resolution_clock::now();
 
-				stats = gpu::bitonic::run_network_cuda(temp, layers);
+				std::size_t final_n = temp.size();
+				stats = gpu::bitonic::run_network_cuda(temp.data(), temp.size(), final_n, layers);
+				temp.resize(final_n);
 
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -119,23 +121,26 @@ class GpuBitonicFp16Hooks final : public common::topk::BitonicRunnerHooks<_Float
 
 	common::topk::BasicRunStats run(std::vector<_Float16>& data,
 									const std::vector<common::bitonic::Layer>& layers) override {
-		std::vector<float> data_backup = to_float(data);
+		std::vector<_Float16> data_backup = data;
 
 		auto best = common::benchmark::run_benchmark(
-			[&]() -> common::benchmark::TimedValueWithStats<std::vector<float>, gpu::bitonic::RunStats> {
-				std::vector<float> temp = data_backup;
+			[&]() -> common::benchmark::TimedValueWithStats<std::vector<_Float16>, gpu::bitonic::RunStats> {
+				std::vector<_Float16> temp = data_backup;
 
 				auto t0 = std::chrono::high_resolution_clock::now();
-				gpu::bitonic::RunStats stats = gpu::bitonic::run_network_cuda_fp16(temp, layers);
+				std::size_t final_n = temp.size();
+				gpu::bitonic::RunStats stats =
+					gpu::bitonic::run_network_cuda_fp16(temp.data(), temp.size(), final_n, layers);
+				temp.resize(final_n);
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-				return common::benchmark::TimedValueWithStats<std::vector<float>, gpu::bitonic::RunStats>{
+				return common::benchmark::TimedValueWithStats<std::vector<_Float16>, gpu::bitonic::RunStats>{
 					elapsed_wall_ms, std::move(temp), stats};
 			});
 
 		gpu::bitonic::RunStats best_stats = best.stats;
-		data = to_half(best.value);
+		data = std::move(best.value);
 
 		bool is_trunc = false;
 		for (const auto& l : layers) {
@@ -191,8 +196,8 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 				gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
 				auto t0 = std::chrono::high_resolution_clock::now();
 
-				std::vector<T> output =
-					gpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
+				std::vector<T> output = gpu::map_reduce::run_topk(input.data(), input.size(), cfg.k, cfg.want_max,
+																  cfg.ex_threads, &map_stats);
 
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -233,20 +238,20 @@ class GpuMapReduceFp16Hooks final : public common::topk::MapReduceRunnerHooks<_F
 
 	std::vector<_Float16> run(const std::vector<_Float16>& input, const Config& cfg,
 							  common::topk::MapReduceRunStats* stats) override {
-		std::vector<float> input_f = to_float(input);
-
 		auto best = common::benchmark::run_benchmark(
-			[&]() -> common::benchmark::TimedValueWithStats<std::vector<float>, gpu::map_reduce::RunStats> {
+			[&]() -> common::benchmark::TimedValueWithStats<std::vector<_Float16>, gpu::map_reduce::RunStats> {
 				gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
+				std::vector<_Float16> output(cfg.k);
 				auto t0 = std::chrono::high_resolution_clock::now();
 
-				std::vector<float> output =
-					gpu::map_reduce::run_topk_fp16(input_f, cfg.k, cfg.want_max, cfg.ex_threads, &map_stats);
+				std::size_t count = gpu::map_reduce::run_topk_fp16(input.data(), input.size(), cfg.k, cfg.want_max,
+																   cfg.ex_threads, output.data(), &map_stats);
 
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-				return common::benchmark::TimedValueWithStats<std::vector<float>, gpu::map_reduce::RunStats>{
+				output.resize(count);
+				return common::benchmark::TimedValueWithStats<std::vector<_Float16>, gpu::map_reduce::RunStats>{
 					elapsed_wall_ms, std::move(output), map_stats};
 			});
 
@@ -258,7 +263,7 @@ class GpuMapReduceFp16Hooks final : public common::topk::MapReduceRunnerHooks<_F
 		}
 
 		last_stats = best.stats;
-		return to_half(best.value);
+		return std::move(best.value);
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {

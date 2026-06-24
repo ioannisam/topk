@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -255,28 +256,12 @@ __global__ __launch_bounds__(256, 4) void topk_map_kernel(const T* __restrict__ 
 	}
 }
 
-__global__ void cast_float_to_half_vec2(const float2* __restrict__ src, __half2* __restrict__ dst,
-										std::size_t num_vecs) {
-	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-	if (tid < num_vecs) {
-		dst[tid] = __float22half2_rn(src[tid]);
-	}
-}
-
-__global__ void cast_float_to_half_scalar_tail(const float* __restrict__ src, __half* __restrict__ dst, std::size_t n) {
-	if (n % 2 != 0) {
-		dst[n - 1] = __float2half(src[n - 1]);
-	}
-}
-
 } // namespace
 
 template <typename T>
-std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_max, std::size_t ex_threads,
+std::vector<T> run_topk(const T* input, std::size_t n, std::size_t k, bool want_max, std::size_t ex_threads,
 						RunStats* stats) {
-	const std::size_t n = input.size();
-
-	if (k == 0 || input.empty()) {
+	if (k == 0 || n == 0) {
 		return {};
 	}
 
@@ -314,7 +299,7 @@ std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_ma
 	DeviceBuffer<int> d_thread_counts(total_threads);
 	DeviceBuffer<T> d_block_outputs(static_cast<std::size_t>(grid_size) * k);
 
-	CUDA_CHECK(cudaMemcpy(d_input.get(), input.data(), n * sizeof(T), cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMemcpy(d_input.get(), input, n * sizeof(T), cudaMemcpyHostToDevice));
 
 	cudaEvent_t start, stop;
 	CUDA_CHECK(cudaEventCreate(&start));
@@ -367,120 +352,24 @@ std::vector<T> run_topk(const std::vector<T>& input, std::size_t k, bool want_ma
 	return block_results;
 }
 
-std::vector<float> run_topk_fp16(const std::vector<float>& input, std::size_t k, bool want_max, std::size_t ex_threads,
-								 RunStats* stats) {
-	const std::size_t n = input.size();
-	if (k == 0 || input.empty()) {
-		return {};
-	}
-
-	cudaDeviceProp prop{};
-	CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
-	const int block_size = 256;
-	const size_t shared_mem_size = 0;
-
-	int num_blocks;
-	CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, topk_map_kernel<__half>, block_size,
-															 shared_mem_size));
-	num_blocks = map_blocks_per_sm(num_blocks, prop.multiProcessorCount, n, k);
-	int grid_size = prop.multiProcessorCount * num_blocks;
-
-	const size_t max_workspace_bytes = 1024ULL * 1024ULL * 512ULL;
-	const size_t bytes_per_thread = k * sizeof(__half);
-
-	if (bytes_per_thread > max_workspace_bytes / block_size) {
-		throw std::invalid_argument(
-			"k is too large for thread-local heap MapReduce. Reduce k or use a different algorithm.");
-	}
-
-	const int max_allowed_threads = std::max<int>(block_size, static_cast<int>(max_workspace_bytes / bytes_per_thread));
-	const int max_allowed_blocks = max_allowed_threads / block_size;
-
-	if (grid_size > max_allowed_blocks)
-		grid_size = max_allowed_blocks;
-	const int total_threads = grid_size * block_size;
-
-	DeviceBuffer<float> d_input_float(n);
-	DeviceBuffer<__half> d_input_half(n);
-	DeviceBuffer<__half> d_thread_workspaces(static_cast<std::size_t>(total_threads) * k);
-	DeviceBuffer<int> d_thread_counts(total_threads);
-	DeviceBuffer<__half> d_block_outputs(static_cast<std::size_t>(grid_size) * k);
-
-	CUDA_CHECK(cudaMemcpy(d_input_float.get(), input.data(), n * sizeof(float), cudaMemcpyHostToDevice));
-
-	const std::size_t n_vec = n / 2;
-	if (n_vec > 0) {
-		const dim3 grid_vec((n_vec + block_size - 1) / block_size);
-		cast_float_to_half_vec2<<<grid_vec, block_size>>>(reinterpret_cast<const float2*>(d_input_float.get()),
-														  reinterpret_cast<__half2*>(d_input_half.get()), n_vec);
-		CUDA_CHECK(cudaGetLastError());
-	}
-	if (n % 2 != 0) {
-		cast_float_to_half_scalar_tail<<<1, 1>>>(d_input_float.get(), d_input_half.get(), n);
-		CUDA_CHECK(cudaGetLastError());
-	}
-
-	cudaEvent_t start, stop;
-	CUDA_CHECK(cudaEventCreate(&start));
-	CUDA_CHECK(cudaEventCreate(&stop));
-	CUDA_CHECK(cudaEventRecord(start));
-
-	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(d_input_half.get(), n, static_cast<int>(k), want_max,
-																d_thread_workspaces.get(), d_thread_counts.get(),
-																d_block_outputs.get());
-
-	CUDA_CHECK(cudaEventRecord(stop));
-	CUDA_CHECK(cudaEventSynchronize(stop));
-
-	float elapsed_ms;
-	CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms, start, stop));
-
-	std::vector<__half> block_results_half(static_cast<std::size_t>(grid_size) * k);
-	CUDA_CHECK(cudaMemcpy(block_results_half.data(), d_block_outputs.get(),
-						  static_cast<std::size_t>(grid_size) * k * sizeof(__half), cudaMemcpyDeviceToHost));
-
-	CUDA_CHECK(cudaEventDestroy(start));
-	CUDA_CHECK(cudaEventDestroy(stop));
-
-	if (stats != nullptr) {
-		stats->elapsed_ms = elapsed_ms;
-		stats->tiles_used = grid_size;
-		stats->aggregated_candidates = grid_size * k;
-		stats->block_size = block_size;
-	}
-
-	std::vector<float> block_results(block_results_half.size());
-	for (size_t i = 0; i < block_results_half.size(); ++i) {
-		block_results[i] = __half2float(block_results_half[i]);
-	}
-
-	if (block_results.size() > k) {
-		auto mid = block_results.begin() + static_cast<std::ptrdiff_t>(k);
-		if (want_max) {
-			std::nth_element(block_results.begin(), mid, block_results.end(), std::greater<float>());
-			block_results.resize(k);
-			std::sort(block_results.begin(), block_results.end(), std::greater<float>());
-		} else {
-			std::nth_element(block_results.begin(), mid, block_results.end(), std::less<float>());
-			block_results.resize(k);
-			std::sort(block_results.begin(), block_results.end(), std::less<float>());
-		}
-	} else {
-		if (want_max) {
-			std::sort(block_results.begin(), block_results.end(), std::greater<float>());
-		} else {
-			std::sort(block_results.begin(), block_results.end(), std::less<float>());
-		}
-	}
-
-	return block_results;
+#if defined(__FLT16_MANT_DIG__)
+std::size_t run_topk_fp16(const _Float16* input, std::size_t n, std::size_t k, bool want_max, std::size_t ex_threads,
+						  _Float16* out, RunStats* stats) {
+	std::vector<__half> result =
+		run_topk<__half>(reinterpret_cast<const __half*>(input), n, k, want_max, ex_threads, stats);
+	std::memcpy(out, result.data(), result.size() * sizeof(__half));
+	return result.size();
 }
+#endif
 
-template std::vector<float> run_topk<float>(const std::vector<float>&, std::size_t, bool, std::size_t, RunStats*);
-template std::vector<std::int32_t> run_topk<std::int32_t>(const std::vector<std::int32_t>&, std::size_t, bool,
+template std::vector<float> run_topk<float>(const float*, std::size_t, std::size_t, bool, std::size_t, RunStats*);
+template std::vector<std::int32_t> run_topk<std::int32_t>(const std::int32_t*, std::size_t, std::size_t, bool,
 														  std::size_t, RunStats*);
-template std::vector<std::uint32_t> run_topk<std::uint32_t>(const std::vector<std::uint32_t>&, std::size_t, bool,
+template std::vector<std::uint32_t> run_topk<std::uint32_t>(const std::uint32_t*, std::size_t, std::size_t, bool,
 															std::size_t, RunStats*);
-template std::vector<double> run_topk<double>(const std::vector<double>&, std::size_t, bool, std::size_t, RunStats*);
+template std::vector<double> run_topk<double>(const double*, std::size_t, std::size_t, bool, std::size_t, RunStats*);
+#if defined(__FLT16_MANT_DIG__)
+template std::vector<__half> run_topk<__half>(const __half*, std::size_t, std::size_t, bool, std::size_t, RunStats*);
+#endif
 
 } // namespace gpu::map_reduce
