@@ -52,9 +52,7 @@ std::size_t derive_kept_prefix(const std::vector<common::bitonic::Layer>& layers
 template <typename T>
 std::size_t prepare_batch(xrt::bo& src_bo, const T* data_ptr, std::size_t batch_elems, std::int32_t pad_key) {
 	std::int32_t* src_map = src_bo.map<std::int32_t*>();
-	for (std::size_t i = 0; i < batch_elems; ++i) {
-		src_map[i] = to_key<T>(data_ptr[i]);
-	}
+	npu::utils::encode_keys<T>(src_map, data_ptr, batch_elems);
 
 	const std::size_t full_tiles = batch_elems / kTile;
 	const std::size_t remainder = batch_elems % kTile;

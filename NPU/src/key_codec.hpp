@@ -1,8 +1,13 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
+
+#if defined(__F16C__)
+#include <immintrin.h>
+#endif
 
 namespace npu::utils {
 
@@ -30,6 +35,23 @@ template <typename T> inline std::int32_t to_key(T v) {
 	} else {
 		return static_cast<std::int32_t>(v);
 	}
+}
+
+template <typename T> inline void encode_keys(std::int32_t* dst, const T* src, std::size_t n) {
+	std::size_t i = 0;
+#if defined(__FLT16_MANT_DIG__) && defined(__F16C__)
+	if constexpr (std::is_same_v<T, _Float16>) {
+		const __m256i flip = _mm256_set1_epi32(0x7FFFFFFF);
+		for (; i + 8 <= n; i += 8) {
+			const __m256i u =
+				_mm256_castps_si256(_mm256_cvtph_ps(_mm_loadu_si128(reinterpret_cast<const __m128i*>(src + i))));
+			const __m256i mask = _mm256_srai_epi32(u, 31);
+			_mm256_storeu_si256(reinterpret_cast<__m256i*>(dst + i), _mm256_xor_si256(u, _mm256_and_si256(mask, flip)));
+		}
+	}
+#endif
+	for (; i < n; ++i)
+		dst[i] = to_key<T>(src[i]);
 }
 
 template <typename T> inline T from_key(std::int32_t key) {

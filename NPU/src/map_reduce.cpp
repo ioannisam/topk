@@ -48,8 +48,7 @@ std::size_t prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_pt
 		if (current_batch > 0)
 			std::memcpy(src_map, data_ptr, current_batch * sizeof(std::int32_t));
 	} else {
-		for (std::size_t i = 0; i < current_batch; ++i)
-			src_map[i] = to_key<T>(data_ptr[i]);
+		npu::utils::encode_keys<T>(src_map, data_ptr, current_batch);
 	}
 
 	struct alignas(16) CfgWord {

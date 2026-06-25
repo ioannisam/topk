@@ -19,6 +19,7 @@ add_executable(npu_topk
 set_target_properties(npu_topk PROPERTIES OUTPUT_NAME "topk")
 
 target_include_directories(npu_topk PRIVATE include)
+target_compile_options(npu_topk PRIVATE -march=native)
 target_link_libraries(npu_topk PRIVATE common xrt_coreutil uuid)
 
 add_dependencies(npu_topk npu_hardware)
