@@ -403,6 +403,12 @@ bool try_run_simd_layer_truncate(const T* src, T* dst, std::size_t begin, std::s
 				return true;
 			}
 		}
+		if constexpr (std::is_same_v<T, double>) {
+			if (j >= 8) {
+				run_layer_truncate_simd<T, cpu::simd::SimdTraits512>(src, dst, begin, end, j, n);
+				return true;
+			}
+		}
 	}
 	if (cpu::simd::cpu_supports_avx2()) {
 		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t> ||
