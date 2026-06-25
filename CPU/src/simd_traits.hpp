@@ -243,6 +243,54 @@ template <> struct SimdTraits512<double> {
 	}
 };
 
+#if defined(__FLT16_MANT_DIG__)
+template <> struct SimdTraits512<_Float16> {
+	using Vec = __m512;
+	using Mask = __mmask16;
+	static constexpr std::size_t width = 16;
+
+	// -- Bitonic Sort Primitives --
+	static Vec load(const _Float16* p) {
+		return _mm512_cvtph_ps(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(p)));
+	}
+	static void store(_Float16* p, Vec v) {
+		_mm256_storeu_si256(reinterpret_cast<__m256i*>(p),
+							_mm512_cvtps_ph(v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
+	}
+	static Vec min(Vec a, Vec b) {
+		return _mm512_min_ps(a, b);
+	}
+	static Vec max(Vec a, Vec b) {
+		return _mm512_max_ps(a, b);
+	}
+	static Vec blend(Mask m, Vec a, Vec b) {
+		return _mm512_mask_blend_ps(m, a, b);
+	}
+
+	template <int J> static Vec permutex(Vec v) {
+		return SimdTraits512<float>::template permutex<J>(v);
+	}
+
+	template <int J> static Mask get_blend_mask(std::size_t i, std::size_t k) {
+		return SimdTraits512<float>::template get_blend_mask<J>(i, k);
+	}
+
+	// -- Map-Reduce Primitives --
+	template <bool WantMax>
+	__attribute__((target("avx512f"))) static bool any_greater(const _Float16* ptr, _Float16 threshold) {
+		return get_candidate_mask<WantMax>(ptr, threshold) != 0;
+	}
+
+	template <bool WantMax>
+	__attribute__((target("avx512f"))) static std::uint64_t get_candidate_mask(const _Float16* ptr,
+																			   _Float16 threshold) {
+		const __m512 v = _mm512_cvtph_ps(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(ptr)));
+		const __m512 t = _mm512_set1_ps(static_cast<float>(threshold));
+		return WantMax ? _mm512_cmp_ps_mask(v, t, _CMP_GT_OQ) : _mm512_cmp_ps_mask(v, t, _CMP_LT_OQ);
+	}
+};
+#endif
+
 // ==========================================
 // AVX2 Traits
 // ==========================================
@@ -464,12 +512,67 @@ template <> struct SimdTraits256<double> {
 	}
 };
 
+#if defined(__FLT16_MANT_DIG__)
+template <> struct SimdTraits256<_Float16> {
+	using Vec = __m256;
+	using Mask = __m256;
+	static constexpr std::size_t width = 8;
+
+	// -- Bitonic Sort Primitives --
+	static Vec load(const _Float16* p) {
+		return _mm256_cvtph_ps(_mm_loadu_si128(reinterpret_cast<const __m128i*>(p)));
+	}
+	static void store(_Float16* p, Vec v) {
+		_mm_storeu_si128(reinterpret_cast<__m128i*>(p),
+						 _mm256_cvtps_ph(v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
+	}
+	static Vec min(Vec a, Vec b) {
+		return _mm256_min_ps(a, b);
+	}
+	static Vec max(Vec a, Vec b) {
+		return _mm256_max_ps(a, b);
+	}
+	static Vec blend(Mask m, Vec a, Vec b) {
+		return _mm256_blendv_ps(a, b, m);
+	}
+
+	template <int J> static Vec permutex(Vec v) {
+		return SimdTraits256<float>::template permutex<J>(v);
+	}
+
+	template <int J> static Mask get_blend_mask(std::size_t i, std::size_t k) {
+		return SimdTraits256<float>::template get_blend_mask<J>(i, k);
+	}
+
+	// -- Map-Reduce Primitives --
+	template <bool WantMax>
+	__attribute__((target("avx2,f16c"))) static bool any_greater(const _Float16* ptr, _Float16 threshold) {
+		return get_candidate_mask<WantMax>(ptr, threshold) != 0;
+	}
+
+	template <bool WantMax>
+	__attribute__((target("avx2,f16c"))) static std::uint64_t get_candidate_mask(const _Float16* ptr,
+																				 _Float16 threshold) {
+		const __m256 v = _mm256_cvtph_ps(_mm_loadu_si128(reinterpret_cast<const __m128i*>(ptr)));
+		const __m256 t = _mm256_set1_ps(static_cast<float>(threshold));
+		const __m256 cmp = WantMax ? _mm256_cmp_ps(v, t, _CMP_GT_OQ) : _mm256_cmp_ps(v, t, _CMP_LT_OQ);
+		return _mm256_movemask_ps(cmp);
+	}
+};
+#endif
+
 // Detection helpers to avoid instantiating incomplete trait specializations
 template <typename T, typename = void> struct has_simd512_width : std::false_type {};
 template <typename T> struct has_simd512_width<T, std::void_t<decltype(SimdTraits512<T>::width)>> : std::true_type {};
 
 template <typename T, typename = void> struct has_simd256_width : std::false_type {};
 template <typename T> struct has_simd256_width<T, std::void_t<decltype(SimdTraits256<T>::width)>> : std::true_type {};
+
+template <typename T> struct is_fp16 : std::false_type {};
+#if defined(__FLT16_MANT_DIG__)
+template <> struct is_fp16<_Float16> : std::true_type {};
+#endif
+template <typename T> inline constexpr bool is_fp16_v = is_fp16<T>::value;
 
 template <typename T, typename = void> struct has_simd512_any_greater : std::false_type {};
 template <typename T>

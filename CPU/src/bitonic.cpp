@@ -279,8 +279,7 @@ bool try_run_fused_intra(T* ptr, std::size_t begin, std::size_t end, const Intra
 		}
 	}
 	if (cpu::simd::cpu_supports_avx2()) {
-		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t> ||
-					  std::is_same_v<T, double>) {
+		if constexpr (cpu::simd::has_simd256_width<T>::value) {
 			run_fused_intra<T, cpu::simd::SimdTraits256>(ptr, begin, end, ops, nops);
 			return true;
 		}
@@ -331,8 +330,7 @@ bool try_run_fused_trunc_resort(const T* src, T* dst, std::size_t obegin, std::s
 		}
 	}
 	if (cpu::simd::cpu_supports_avx2()) {
-		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t> ||
-					  std::is_same_v<T, double>) {
+		if constexpr (cpu::simd::has_simd256_width<T>::value) {
 			run_fused_trunc_resort<T, cpu::simd::SimdTraits256>(src, dst, obegin, oend, ops, nops);
 			return true;
 		}
@@ -353,7 +351,8 @@ template <typename T>
 bool try_run_inter(T* ptr, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, std::size_t n) {
 #if defined(__x86_64__) || defined(__i386__)
 	if (cpu::simd::cpu_supports_avx512f() && k <= std::numeric_limits<std::int32_t>::max()) {
-		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>) {
+		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t> ||
+					  cpu::simd::is_fp16_v<T>) {
 			if (j >= 16) {
 				run_layer_inter_simd<T, cpu::simd::SimdTraits512>(ptr, begin, end, k, j, n);
 				return true;
@@ -367,7 +366,8 @@ bool try_run_inter(T* ptr, std::size_t begin, std::size_t end, std::size_t k, st
 		}
 	}
 	if (cpu::simd::cpu_supports_avx2()) {
-		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>) {
+		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t> ||
+					  cpu::simd::is_fp16_v<T>) {
 			if (j >= 8) {
 				run_layer_inter_simd<T, cpu::simd::SimdTraits256>(ptr, begin, end, k, j, n);
 				return true;
@@ -396,7 +396,8 @@ bool try_run_simd_layer_truncate(const T* src, T* dst, std::size_t begin, std::s
 								 std::size_t n) {
 #if defined(__x86_64__) || defined(__i386__)
 	if (cpu::simd::cpu_supports_avx512f()) {
-		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>) {
+		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t> ||
+					  cpu::simd::is_fp16_v<T>) {
 			if (j >= 16) {
 				run_layer_truncate_simd<T, cpu::simd::SimdTraits512>(src, dst, begin, end, j, n);
 				return true;
@@ -404,7 +405,8 @@ bool try_run_simd_layer_truncate(const T* src, T* dst, std::size_t begin, std::s
 		}
 	}
 	if (cpu::simd::cpu_supports_avx2()) {
-		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>) {
+		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t> ||
+					  cpu::simd::is_fp16_v<T>) {
 			if (j >= 8) {
 				run_layer_truncate_simd<T, cpu::simd::SimdTraits256>(src, dst, begin, end, j, n);
 				return true;
