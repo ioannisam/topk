@@ -29,7 +29,6 @@ struct ChannelSummary {
 	double mean = 0.0;
 	double stdev = 0.0;
 	double min = 0.0;
-	double median = 0.0;
 };
 
 inline ChannelSummary summarize(std::vector<double> samples) {
@@ -55,7 +54,6 @@ inline ChannelSummary summarize(std::vector<double> samples) {
 	summary.stdev = std::sqrt(acc / static_cast<double>(n));
 
 	summary.min = samples.front();
-	summary.median = (n % 2 == 1) ? samples[n / 2] : 0.5 * (samples[n / 2 - 1] + samples[n / 2]);
 
 	return summary;
 }

@@ -182,19 +182,26 @@ void print_output(const common::config::Config& cfg, const std::vector<std::stri
 	constexpr std::size_t values_per_row = 16;
 	const std::size_t width = number_width(output);
 
+	// With debug off, only preview the first row so large-k runs do not dump
+	// thousands of values into stdout (and into the profiler's captured output).
+	const std::size_t shown = cfg.debug_output ? output.size() : std::min(output.size(), values_per_row);
+
 	std::cout << "  Values:\n";
-	for (std::size_t i = 0; i < output.size(); ++i) {
+	for (std::size_t i = 0; i < shown; ++i) {
 		if (i % values_per_row == 0) {
 			std::cout << "    ";
 		}
 		std::cout << std::right << std::setw(static_cast<int>(width)) << output[i];
 		const bool end_of_row = (i + 1) % values_per_row == 0;
-		const bool last_value = (i + 1) == output.size();
+		const bool last_value = (i + 1) == shown;
 		if (end_of_row || last_value) {
 			std::cout << "\n";
 		} else {
 			std::cout << " ";
 		}
+	}
+	if (shown < output.size()) {
+		std::cout << "    ... (" << (output.size() - shown) << " more; enable debug=true for the full list)\n";
 	}
 
 	std::cout << std::left;
