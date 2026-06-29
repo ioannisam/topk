@@ -14,11 +14,13 @@ namespace {
 
 constexpr const char* kUsage = "Usage: ./topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] "
 							   "[algo=bitonic|map_reduce|gt] [run=full|trunc|both] [debug=true|false] "
-							   "[threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>]";
+							   "[threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>] "
+							   "[dist=uniform|normal|sorted|reverse]";
 
 DataType parse_dtype(const std::string& token);
 Algorithm parse_algorithm(const std::string& token);
 RunMode parse_run_mode(const std::string& token);
+Distribution parse_distribution(const std::string& token);
 
 bool starts_with(const std::string& text, const std::string& prefix) {
 	return text.rfind(prefix, 0) == 0;
@@ -151,6 +153,7 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 	Algorithm algorithm = Algorithm::Bitonic;
 	std::size_t ex_threads = 0;
 	DataType dtype = DataType::Int;
+	Distribution dist = Distribution::Uniform;
 
 	for (std::size_t i = 0; i < tokens.size(); i++) {
 		const std::string& token = tokens[i];
@@ -228,6 +231,10 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 			run_mode = parse_run_mode(token.substr(4));
 			continue;
 		}
+		if (starts_with(token, "dist=")) {
+			dist = parse_distribution(token.substr(5));
+			continue;
+		}
 
 		throw std::invalid_argument("Unknown key token: " + token);
 	}
@@ -262,6 +269,7 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 	cfg.verify_output = verify_output;
 	cfg.rand_min = rand_min;
 	cfg.rand_max = rand_max;
+	cfg.dist = dist;
 	return cfg;
 }
 
@@ -310,6 +318,22 @@ RunMode parse_run_mode(const std::string& token) {
 		return RunMode::Both;
 	}
 	throw std::invalid_argument("Unsupported run mode. Use one of: full, trunc, both");
+}
+
+Distribution parse_distribution(const std::string& token) {
+	if (token == "uniform") {
+		return Distribution::Uniform;
+	}
+	if (token == "normal" || token == "gaussian") {
+		return Distribution::Normal;
+	}
+	if (token == "sorted") {
+		return Distribution::Sorted;
+	}
+	if (token == "reverse") {
+		return Distribution::Reverse;
+	}
+	throw std::invalid_argument("Unsupported distribution. Use one of: uniform, normal, sorted, reverse");
 }
 
 } // namespace

@@ -52,11 +52,11 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
 				return common::benchmark::TimedValueWithStats<std::vector<T>, gpu::bitonic::RunStats>{
-					elapsed_wall_ms, std::move(temp), stats};
+					elapsed_wall_ms, stats.elapsed_ms, std::move(temp), stats};
 			});
 
-		gpu::bitonic::RunStats best_stats = best.stats;
-		data = std::move(best.value);
+		gpu::bitonic::RunStats best_stats = best.sample.stats;
+		data = std::move(best.sample.value);
 
 		bool is_trunc = false;
 		for (const auto& l : layers) {
@@ -73,8 +73,12 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 		}
 
 		common::topk::BasicRunStats stats{};
-		stats.end_to_end_ms = best.elapsed_ms;
-		stats.algorithm_ms = best_stats.elapsed_ms;
+		stats.end_to_end_ms = best.e2e.mean;
+		stats.algorithm_ms = best.algo.mean;
+		stats.end_to_end_stdev_ms = best.e2e.stdev;
+		stats.algorithm_stdev_ms = best.algo.stdev;
+		stats.end_to_end_min_ms = best.e2e.min;
+		stats.algorithm_min_ms = best.algo.min;
 
 		return stats;
 	}
@@ -120,18 +124,22 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 
 				output.resize(count);
 				return common::benchmark::TimedValueWithStats<std::vector<T>, gpu::map_reduce::RunStats>{
-					elapsed_wall_ms, std::move(output), map_stats};
+					elapsed_wall_ms, map_stats.elapsed_ms, std::move(output), map_stats};
 			});
 
 		if (stats != nullptr) {
-			stats->end_to_end_ms = best.elapsed_ms;
-			stats->algorithm_ms = best.stats.elapsed_ms;
-			stats->tiles_used = best.stats.tiles_used;
-			stats->aggregated_candidates = best.stats.aggregated_candidates;
+			stats->end_to_end_ms = best.e2e.mean;
+			stats->algorithm_ms = best.algo.mean;
+			stats->end_to_end_stdev_ms = best.e2e.stdev;
+			stats->algorithm_stdev_ms = best.algo.stdev;
+			stats->end_to_end_min_ms = best.e2e.min;
+			stats->algorithm_min_ms = best.algo.min;
+			stats->tiles_used = best.sample.stats.tiles_used;
+			stats->aggregated_candidates = best.sample.stats.aggregated_candidates;
 		}
 
-		last_stats = best.stats;
-		return std::move(best.value);
+		last_stats = best.sample.stats;
+		return std::move(best.sample.value);
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
@@ -175,16 +183,20 @@ template <typename T> class GpuGroundTruthHooks final : public common::topk::Gro
 				else if (k == 0)
 					temp.clear();
 
-				return common::benchmark::TimedValueWithStats<std::vector<T>, double>{elapsed_wall_ms, std::move(temp),
-																					  algo_ms};
+				return common::benchmark::TimedValueWithStats<std::vector<T>, double>{elapsed_wall_ms, algo_ms,
+																					  std::move(temp), algo_ms};
 			});
 
 		if (stats != nullptr) {
-			stats->end_to_end_ms = best.elapsed_ms;
-			stats->algorithm_ms = best.stats;
+			stats->end_to_end_ms = best.e2e.mean;
+			stats->algorithm_ms = best.algo.mean;
+			stats->end_to_end_stdev_ms = best.e2e.stdev;
+			stats->algorithm_stdev_ms = best.algo.stdev;
+			stats->end_to_end_min_ms = best.e2e.min;
+			stats->algorithm_min_ms = best.algo.min;
 		}
 
-		return std::move(best.value);
+		return std::move(best.sample.value);
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::GroundTruthRunStats& stats) override {

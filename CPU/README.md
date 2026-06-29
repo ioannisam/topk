@@ -43,7 +43,7 @@ cmake -S . -B build \
 ## Run
 
 ```bash
-./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [algo=bitonic|map_reduce] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>]
+./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [algo=bitonic|map_reduce|gt] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>] [dist=uniform|normal|sorted|reverse]
 ```
 
 Only `key=value` arguments are accepted. Required key: `q`.
@@ -60,7 +60,8 @@ Arguments are accepted in any order, but examples below use the canonical order 
 - random range defaults to `min=0`, `max=1000`
 - `threads=<num>` optionally overrides execution threads
 - `dtype=<type>` selects value type: `int`, `uint`, `float`, `double`, `fp16` (fp16 requires compiler support)
-- `algo=<name>` chooses backend algorithm: `bitonic` (default) or `map_reduce`
+- `algo=<name>` chooses backend algorithm: `bitonic` (default), `map_reduce`, or `gt` (std::partial_sort top-k baseline)
+- `dist=<name>` selects input distribution: `uniform` (default), `normal`, `sorted`, `reverse`
 
 Example:
 

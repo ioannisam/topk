@@ -132,7 +132,8 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 	const std::size_t full_cmp = common::bitonic::count_full_comparators(n);
 	const std::size_t trunc_cmp = common::bitonic::count_trunc_comparators(trunc_layers);
 
-	const std::vector<T> raw_input = common::utils::generate_random_input<T>(n, cfg.seed, cfg.rand_min, cfg.rand_max);
+	const std::vector<T> raw_input =
+		common::utils::generate_random_input<T>(n, cfg.seed, cfg.rand_min, cfg.rand_max, cfg.dist);
 	std::vector<T> input = raw_input;
 	apply_mode_transform(input, cfg.want_max);
 
@@ -159,7 +160,9 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 	common::reporting::print_section_header("Timing");
 	if (run_full) {
 		common::reporting::print_key_value("Full bitonic end-to-end time (ms)", full_stats.end_to_end_ms, 3);
+		common::reporting::print_key_value("Full bitonic end-to-end stdev (ms)", full_stats.end_to_end_stdev_ms, 3);
 		common::reporting::print_key_value("Full bitonic algorithmic time (ms)", full_stats.algorithm_ms, 3);
+		common::reporting::print_key_value("Full bitonic algorithmic stdev (ms)", full_stats.algorithm_stdev_ms, 3);
 	} else {
 		common::reporting::print_key_value("Full bitonic end-to-end time (ms)", "skipped");
 		common::reporting::print_key_value("Full bitonic algorithmic time (ms)", "skipped");
@@ -169,7 +172,9 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 
 	if (run_trunc) {
 		common::reporting::print_key_value("Trunc bitonic end-to-end time (ms)", trunc_stats.end_to_end_ms, 3);
+		common::reporting::print_key_value("Trunc bitonic end-to-end stdev (ms)", trunc_stats.end_to_end_stdev_ms, 3);
 		common::reporting::print_key_value("Trunc bitonic algorithmic time (ms)", trunc_stats.algorithm_ms, 3);
+		common::reporting::print_key_value("Trunc bitonic algorithmic stdev (ms)", trunc_stats.algorithm_stdev_ms, 3);
 	} else {
 		common::reporting::print_key_value("Trunc bitonic end-to-end time (ms)", "skipped");
 		common::reporting::print_key_value("Trunc bitonic algorithmic time (ms)", "skipped");
@@ -219,14 +224,16 @@ template <typename T> int execute_map_reduce(const common::config::Config& cfg, 
 	const std::size_t n = std::size_t{1} << cfg.q;
 	hooks.print_configuration(cfg, n);
 
-	std::vector<T> input = common::utils::generate_random_input<T>(n, cfg.seed, cfg.rand_min, cfg.rand_max);
+	std::vector<T> input = common::utils::generate_random_input<T>(n, cfg.seed, cfg.rand_min, cfg.rand_max, cfg.dist);
 
 	MapReduceRunStats run_stats{};
 	std::vector<T> output = hooks.run(input, cfg, &run_stats);
 
 	common::reporting::print_timing_lines({
 		{"Map-reduce top-k end-to-end time (ms)", std::optional<double>(run_stats.end_to_end_ms)},
+		{"Map-reduce top-k end-to-end stdev (ms)", std::optional<double>(run_stats.end_to_end_stdev_ms)},
 		{"Map-reduce top-k algorithmic time (ms)", std::optional<double>(run_stats.algorithm_ms)},
+		{"Map-reduce top-k algorithmic stdev (ms)", std::optional<double>(run_stats.algorithm_stdev_ms)},
 	});
 
 	const bool check_vs_reference = cfg.verify_output || cfg.run_mode == common::config::RunMode::Both;
@@ -251,14 +258,16 @@ template <typename T> int execute_ground_truth(const common::config::Config& cfg
 	const std::size_t n = std::size_t{1} << cfg.q;
 	hooks.print_configuration(cfg, n);
 
-	std::vector<T> input = common::utils::generate_random_input<T>(n, cfg.seed, cfg.rand_min, cfg.rand_max);
+	std::vector<T> input = common::utils::generate_random_input<T>(n, cfg.seed, cfg.rand_min, cfg.rand_max, cfg.dist);
 
 	GroundTruthRunStats run_stats{};
 	std::vector<T> output = hooks.run(input, cfg, &run_stats);
 
 	common::reporting::print_timing_lines({
 		{"Ground truth end-to-end time (ms)", std::optional<double>(run_stats.end_to_end_ms)},
+		{"Ground truth end-to-end stdev (ms)", std::optional<double>(run_stats.end_to_end_stdev_ms)},
 		{"Ground truth algorithmic time (ms)", std::optional<double>(run_stats.algorithm_ms)},
+		{"Ground truth algorithmic stdev (ms)", std::optional<double>(run_stats.algorithm_stdev_ms)},
 	});
 
 	const bool check_vs_reference = cfg.verify_output;

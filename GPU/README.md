@@ -36,7 +36,7 @@ cmake -S . -B build \
 ## Run
 
 ```bash
-./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>]
+./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [algo=bitonic|map_reduce|gt] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>] [dist=uniform|normal|sorted|reverse]
 ```
 
 Only key=value arguments are accepted. Required key: q.
@@ -52,6 +52,8 @@ Notes:
 - random range defaults to min=0 and max=1000
 - threads is accepted by shared CLI for parity across backends, but GPU launch geometry is selected internally by the CUDA backend
 - dtype supports int, uint, float, double, fp16 (fp16 uses float input with CUDA half compute path)
+- algo chooses bitonic (default), map_reduce, or gt (Thrust full-sort reference baseline)
+- dist selects the input distribution: uniform (default), normal, sorted, reverse
 
 ## Example
 

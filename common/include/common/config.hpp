@@ -27,6 +27,13 @@ enum class Algorithm {
 	GroundTruth,
 };
 
+enum class Distribution {
+	Uniform,
+	Normal,
+	Sorted,
+	Reverse,
+};
+
 struct Config {
 	int q;
 	std::size_t k;
@@ -40,6 +47,7 @@ struct Config {
 	bool verify_output;
 	int rand_min;
 	int rand_max;
+	Distribution dist;
 };
 
 Config parse_args(int argc, char** argv);

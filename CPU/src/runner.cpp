@@ -59,13 +59,17 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 
 			auto t1 = std::chrono::high_resolution_clock::now();
 			double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
-			return common::benchmark::TimedValue<std::vector<T>>{elapsed, std::move(temp)};
+			return common::benchmark::TimedValue<std::vector<T>>{elapsed, elapsed, std::move(temp)};
 		});
 
-		data = std::move(best.value);
+		data = std::move(best.sample.value);
 		common::topk::BasicRunStats stats{};
-		stats.end_to_end_ms = best.elapsed_ms;
-		stats.algorithm_ms = best.elapsed_ms;
+		stats.end_to_end_ms = best.e2e.mean;
+		stats.algorithm_ms = best.algo.mean;
+		stats.end_to_end_stdev_ms = best.e2e.stdev;
+		stats.algorithm_stdev_ms = best.algo.stdev;
+		stats.end_to_end_min_ms = best.e2e.min;
+		stats.algorithm_min_ms = best.algo.min;
 
 		return stats;
 	}
@@ -105,17 +109,21 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 				double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
 				return common::benchmark::TimedValueWithStats<std::vector<T>, cpu::map_reduce::RunStats>{
-					elapsed, std::move(output), run_stats};
+					elapsed, elapsed, std::move(output), run_stats};
 			});
 
 		if (stats != nullptr) {
-			stats->end_to_end_ms = best.elapsed_ms;
-			stats->algorithm_ms = best.elapsed_ms;
-			stats->tiles_used = best.stats.tiles_used;
-			stats->aggregated_candidates = best.stats.aggregated_candidates;
+			stats->end_to_end_ms = best.e2e.mean;
+			stats->algorithm_ms = best.algo.mean;
+			stats->end_to_end_stdev_ms = best.e2e.stdev;
+			stats->algorithm_stdev_ms = best.algo.stdev;
+			stats->end_to_end_min_ms = best.e2e.min;
+			stats->algorithm_min_ms = best.algo.min;
+			stats->tiles_used = best.sample.stats.tiles_used;
+			stats->aggregated_candidates = best.sample.stats.aggregated_candidates;
 		}
 
-		return std::move(best.value);
+		return std::move(best.sample.value);
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
@@ -157,15 +165,19 @@ template <typename T> class CpuGroundTruthHooks final : public common::topk::Gro
 			else if (k == 0)
 				temp.clear();
 
-			return common::benchmark::TimedValue<std::vector<T>>{elapsed_wall_ms, std::move(temp)};
+			return common::benchmark::TimedValue<std::vector<T>>{elapsed_wall_ms, elapsed_wall_ms, std::move(temp)};
 		});
 
 		if (stats != nullptr) {
-			stats->end_to_end_ms = best.elapsed_ms;
-			stats->algorithm_ms = best.elapsed_ms;
+			stats->end_to_end_ms = best.e2e.mean;
+			stats->algorithm_ms = best.algo.mean;
+			stats->end_to_end_stdev_ms = best.e2e.stdev;
+			stats->algorithm_stdev_ms = best.algo.stdev;
+			stats->end_to_end_min_ms = best.e2e.min;
+			stats->algorithm_min_ms = best.algo.min;
 		}
 
-		return std::move(best.value);
+		return std::move(best.sample.value);
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::GroundTruthRunStats& stats) override {

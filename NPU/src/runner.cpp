@@ -65,13 +65,14 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 
 				return common::benchmark::TimedValueWithStats<std::vector<T>, npu::bitonic::RunStats>{
 					elapsed_wall_ms,
+					stats.elapsed_ms,
 					std::move(temp),
 					stats,
 				};
 			});
 
-		npu::bitonic::RunStats best_stats = best.stats;
-		data = std::move(best.value);
+		npu::bitonic::RunStats best_stats = best.sample.stats;
+		data = std::move(best.sample.value);
 
 		bool is_trunc = false;
 		for (const auto& l : layers) {
@@ -87,8 +88,12 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 			last_full_stats = best_stats;
 		}
 		common::topk::BasicRunStats stats{};
-		stats.end_to_end_ms = best.elapsed_ms;
-		stats.algorithm_ms = best_stats.elapsed_ms;
+		stats.end_to_end_ms = best.e2e.mean;
+		stats.algorithm_ms = best.algo.mean;
+		stats.end_to_end_stdev_ms = best.e2e.stdev;
+		stats.algorithm_stdev_ms = best.algo.stdev;
+		stats.end_to_end_min_ms = best.e2e.min;
+		stats.algorithm_min_ms = best.algo.min;
 		return stats;
 	}
 
@@ -129,20 +134,25 @@ template <typename T> class NpuMapReduceRunnerHooks final : public common::topk:
 
 				return common::benchmark::TimedValueWithStats<std::vector<T>, npu::map_reduce::RunStats>{
 					elapsed_wall_ms,
+					run_stats.elapsed_ms,
 					std::move(output),
 					run_stats,
 				};
 			});
 
-		last_run_stats = best.stats;
+		last_run_stats = best.sample.stats;
 		if (stats != nullptr) {
-			stats->end_to_end_ms = best.elapsed_ms;
-			stats->algorithm_ms = best.stats.elapsed_ms;
+			stats->end_to_end_ms = best.e2e.mean;
+			stats->algorithm_ms = best.algo.mean;
+			stats->end_to_end_stdev_ms = best.e2e.stdev;
+			stats->algorithm_stdev_ms = best.algo.stdev;
+			stats->end_to_end_min_ms = best.e2e.min;
+			stats->algorithm_min_ms = best.algo.min;
 			stats->tiles_used = 0;
 			stats->aggregated_candidates = 0;
 		}
 
-		return std::move(best.value);
+		return std::move(best.sample.value);
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
@@ -183,15 +193,19 @@ template <typename T> class NpuGroundTruthHooks final : public common::topk::Gro
 			else if (k == 0)
 				temp.clear();
 
-			return common::benchmark::TimedValue<std::vector<T>>{elapsed_wall_ms, std::move(temp)};
+			return common::benchmark::TimedValue<std::vector<T>>{elapsed_wall_ms, elapsed_wall_ms, std::move(temp)};
 		});
 
 		if (stats != nullptr) {
-			stats->end_to_end_ms = best.elapsed_ms;
-			stats->algorithm_ms = best.elapsed_ms;
+			stats->end_to_end_ms = best.e2e.mean;
+			stats->algorithm_ms = best.algo.mean;
+			stats->end_to_end_stdev_ms = best.e2e.stdev;
+			stats->algorithm_stdev_ms = best.algo.stdev;
+			stats->end_to_end_min_ms = best.e2e.min;
+			stats->algorithm_min_ms = best.algo.min;
 		}
 
-		return std::move(best.value);
+		return std::move(best.sample.value);
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::GroundTruthRunStats& stats) override {

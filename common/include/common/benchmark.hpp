@@ -1,7 +1,11 @@
 #pragma once
 
-#include <iostream>
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace common::benchmark {
 
@@ -9,14 +13,57 @@ constexpr int kWarmupIters = 5;
 constexpr int kMeasureIters = 50;
 
 template <typename ValueT> struct TimedValue {
-	double elapsed_ms;
+	double e2e_ms;
+	double algo_ms;
 	ValueT value;
 };
 
 template <typename ValueT, typename StatsT> struct TimedValueWithStats {
-	double elapsed_ms;
+	double e2e_ms;
+	double algo_ms;
 	ValueT value;
 	StatsT stats;
+};
+
+struct ChannelSummary {
+	double mean = 0.0;
+	double stdev = 0.0;
+	double min = 0.0;
+	double median = 0.0;
+};
+
+inline ChannelSummary summarize(std::vector<double> samples) {
+	ChannelSummary summary;
+	if (samples.empty()) {
+		return summary;
+	}
+
+	std::sort(samples.begin(), samples.end());
+	const std::size_t n = samples.size();
+
+	double sum = 0.0;
+	for (const double x : samples) {
+		sum += x;
+	}
+	summary.mean = sum / static_cast<double>(n);
+
+	double acc = 0.0;
+	for (const double x : samples) {
+		const double d = x - summary.mean;
+		acc += d * d;
+	}
+	summary.stdev = std::sqrt(acc / static_cast<double>(n));
+
+	summary.min = samples.front();
+	summary.median = (n % 2 == 1) ? samples[n / 2] : 0.5 * (samples[n / 2 - 1] + samples[n / 2]);
+
+	return summary;
+}
+
+template <typename SampleT> struct BenchmarkResult {
+	ChannelSummary e2e;
+	ChannelSummary algo;
+	SampleT sample;
 };
 
 template <typename Fn> void warmup(int iterations, Fn&& fn) {
@@ -25,23 +72,35 @@ template <typename Fn> void warmup(int iterations, Fn&& fn) {
 	}
 }
 
-template <typename Fn> auto measure_best(int iterations, Fn&& fn) {
-	const int runs = iterations > 0 ? iterations : 1;
-	auto best = fn();
+template <typename Fn> auto run_benchmark(Fn&& timed_run_once) {
+	using SampleT = std::decay_t<decltype(timed_run_once())>;
+
+	warmup(kWarmupIters, [&]() { timed_run_once(); });
+
+	const int runs = kMeasureIters > 0 ? kMeasureIters : 1;
+	std::vector<double> e2e_samples;
+	std::vector<double> algo_samples;
+	e2e_samples.reserve(static_cast<std::size_t>(runs));
+	algo_samples.reserve(static_cast<std::size_t>(runs));
+
+	SampleT representative = timed_run_once();
+	e2e_samples.push_back(representative.e2e_ms);
+	algo_samples.push_back(representative.algo_ms);
+
 	for (int i = 1; i < runs; ++i) {
-		auto current = fn();
-		if (current.elapsed_ms < best.elapsed_ms) {
-			best = std::move(current);
+		SampleT current = timed_run_once();
+		e2e_samples.push_back(current.e2e_ms);
+		algo_samples.push_back(current.algo_ms);
+		if (current.e2e_ms < representative.e2e_ms) {
+			representative = std::move(current);
 		}
 	}
-	return best;
-}
 
-template <typename Fn> auto run_benchmark(Fn&& timed_run_once) {
-	warmup(kWarmupIters, [&]() { timed_run_once(); });
-	auto best = measure_best(kMeasureIters, timed_run_once);
-	std::cout << "[PROFILE_TIME_MS] " << best.elapsed_ms << "\n";
-	return best;
+	BenchmarkResult<SampleT> result;
+	result.e2e = summarize(std::move(e2e_samples));
+	result.algo = summarize(std::move(algo_samples));
+	result.sample = std::move(representative);
+	return result;
 }
 
 } // namespace common::benchmark

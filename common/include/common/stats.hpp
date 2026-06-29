@@ -7,6 +7,10 @@ namespace common::topk {
 struct BasicRunStats {
 	double end_to_end_ms = 0.0;
 	double algorithm_ms = 0.0;
+	double end_to_end_stdev_ms = 0.0;
+	double algorithm_stdev_ms = 0.0;
+	double end_to_end_min_ms = 0.0;
+	double algorithm_min_ms = 0.0;
 };
 
 struct BitonicRunStats {
@@ -20,6 +24,10 @@ struct BitonicRunStats {
 struct MapReduceRunStats {
 	double end_to_end_ms = 0.0;
 	double algorithm_ms = 0.0;
+	double end_to_end_stdev_ms = 0.0;
+	double algorithm_stdev_ms = 0.0;
+	double end_to_end_min_ms = 0.0;
+	double algorithm_min_ms = 0.0;
 	std::size_t tiles_used = 0;
 	std::size_t aggregated_candidates = 0;
 };
@@ -27,6 +35,10 @@ struct MapReduceRunStats {
 struct GroundTruthRunStats {
 	double end_to_end_ms = 0.0;
 	double algorithm_ms = 0.0;
+	double end_to_end_stdev_ms = 0.0;
+	double algorithm_stdev_ms = 0.0;
+	double end_to_end_min_ms = 0.0;
+	double algorithm_min_ms = 0.0;
 };
 
 } // namespace common::topk

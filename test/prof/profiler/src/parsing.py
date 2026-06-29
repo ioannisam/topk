@@ -63,6 +63,18 @@ def select_time_fields(timings: dict[str, float]) -> tuple[str, Optional[float],
     return e2e_label, e2e_ms, algo_label, algo_ms
 
 
+def select_stdev_fields(stdevs: dict[str, float]) -> tuple[Optional[float], Optional[float]]:
+    e2e_std: Optional[float] = None
+    algo_std: Optional[float] = None
+    for label, val in stdevs.items():
+        low = label.lower()
+        if "end-to-end" in low:
+            e2e_std = val
+        elif "algorithmic" in low:
+            algo_std = val
+    return e2e_std, algo_std
+
+
 def parse_int(val: str) -> Optional[int]:
     try:
         return int(val)
@@ -111,8 +123,12 @@ def _parse_test_output_json(path: str) -> list[CaseRecord]:
         if q is not None:
             rec.n = 1 << int(q)
 
+        rec.dist = result.get("dist", "")
+        rec.seed = result.get("seed")
+
         stdout = result.get("stdout", "")
         timings: dict[str, float] = {}
+        stdevs: dict[str, float] = {}
         for line in stdout.splitlines():
             line = line.strip()
             if not line:
@@ -124,6 +140,10 @@ def _parse_test_output_json(path: str) -> list[CaseRecord]:
                     t = parse_float(val)
                     if t is not None:
                         timings[key] = t
+                elif key.endswith("stdev (ms)"):
+                    s = parse_float(val)
+                    if s is not None:
+                        stdevs[key] = s
 
         e2e_label, e2e_ms, algo_label, algo_ms = select_time_fields(timings)
         rec.timing_label_e2e = e2e_label
@@ -132,6 +152,10 @@ def _parse_test_output_json(path: str) -> list[CaseRecord]:
         rec.time_algorithmic_ms = algo_ms
         rec.timing_label = e2e_label
         rec.time_ms = e2e_ms if e2e_ms is not None else algo_ms
+
+        e2e_std, algo_std = select_stdev_fields(stdevs)
+        rec.time_end_to_end_stdev_ms = e2e_std
+        rec.time_algorithmic_stdev_ms = algo_std
 
         records.append(rec)
 
@@ -143,6 +167,19 @@ def _parse_test_output_text(path: str) -> list[CaseRecord]:
     current_backend = ""
     current: Optional[CaseRecord] = None
     current_timings: dict[str, float] = {}
+    current_stdevs: dict[str, float] = {}
+
+    def finalize(rec: CaseRecord, timings: dict[str, float], stdevs: dict[str, float]) -> None:
+        e2e_label, e2e_ms, algo_label, algo_ms = select_time_fields(timings)
+        rec.timing_label_e2e = e2e_label
+        rec.time_end_to_end_ms = e2e_ms
+        rec.timing_label_algorithmic = algo_label
+        rec.time_algorithmic_ms = algo_ms
+        rec.timing_label = e2e_label
+        rec.time_ms = e2e_ms if e2e_ms is not None else algo_ms
+        e2e_std, algo_std = select_stdev_fields(stdevs)
+        rec.time_end_to_end_stdev_ms = e2e_std
+        rec.time_algorithmic_stdev_ms = algo_std
 
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -162,17 +199,12 @@ def _parse_test_output_text(path: str) -> list[CaseRecord]:
         c_match = CASE_HEADER_RE.match(line)
         if c_match:
             if current is not None:
-                e2e_label, e2e_ms, algo_label, algo_ms = select_time_fields(current_timings)
-                current.timing_label_e2e = e2e_label
-                current.time_end_to_end_ms = e2e_ms
-                current.timing_label_algorithmic = algo_label
-                current.time_algorithmic_ms = algo_ms
-                current.timing_label = e2e_label
-                current.time_ms = e2e_ms if e2e_ms is not None else algo_ms
+                finalize(current, current_timings, current_stdevs)
                 records.append(current)
 
             current = CaseRecord(backend=current_backend, case_name=c_match.group("name").strip())
             current_timings = {}
+            current_stdevs = {}
             continue
 
         if current is not None:
@@ -180,6 +212,10 @@ def _parse_test_output_text(path: str) -> list[CaseRecord]:
                 current.status = line.split(":", 1)[1].strip()
             elif line.startswith("Reason:"):
                 current.reason = line.split(":", 1)[1].strip()
+            elif line.startswith("Distribution:"):
+                current.dist = line.split(":", 1)[1].strip().lower()
+            elif line.startswith("Seed:"):
+                current.seed = parse_int(line.split(":", 1)[1].strip())
             elif line.startswith("Command:"):
                 cmd = line.split(":", 1)[1].strip()
                 if not current.backend:
@@ -204,19 +240,19 @@ def _parse_test_output_text(path: str) -> list[CaseRecord]:
                     current.k = parse_int(value)
                 elif key == "Input size N (2^q)":
                     current.n = parse_int(value)
+                elif key == "Input distribution":
+                    current.dist = value.lower()
                 elif key.endswith("time (ms)"):
                     t = parse_float(value)
                     if t is not None:
                         current_timings[key] = t
+                elif key.endswith("stdev (ms)"):
+                    s = parse_float(value)
+                    if s is not None:
+                        current_stdevs[key] = s
 
     if current is not None:
-        e2e_label, e2e_ms, algo_label, algo_ms = select_time_fields(current_timings)
-        current.timing_label_e2e = e2e_label
-        current.time_end_to_end_ms = e2e_ms
-        current.timing_label_algorithmic = algo_label
-        current.time_algorithmic_ms = algo_ms
-        current.timing_label = e2e_label
-        current.time_ms = e2e_ms if e2e_ms is not None else algo_ms
+        finalize(current, current_timings, current_stdevs)
         records.append(current)
 
     return records

@@ -72,7 +72,11 @@ def parse_args():
     )
     parser.add_argument("--energy-out-dir", default=os.path.join(ROOT_DIR, "test/prof/results/energy"))
     parser.add_argument("--rapl-path", default="")
-    parser.add_argument("--repeats", type=int, default=1, help="Energy measurement repeats per case (for averaging)")
+    parser.add_argument("--repeats", type=int, default=1, help="Repeats per (case, dist, seed) (for averaging)")
+    parser.add_argument(
+        "--dists", nargs="*", default=["uniform"], help="Input distributions: uniform normal sorted reverse"
+    )
+    parser.add_argument("--seeds", type=int, default=1, help="Number of distinct seeds swept per case")
     parser.add_argument("--baseline-seconds", type=float, default=3.0, help="Idle baseline sampling duration (seconds)")
     parser.add_argument("--gpu-index", type=int, default=0)
     parser.add_argument("--gpu-interval-ms", type=int, default=100)
@@ -102,6 +106,10 @@ def main():
     if len(types) == 1 and "," in types[0]:
         types = types[0].split(",")
 
+    dists = [d.lower().strip(", ") for d in args.dists]
+    if len(dists) == 1 and "," in dists[0]:
+        dists = dists[0].split(",")
+
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     os.makedirs(os.path.dirname(args.output_raw), exist_ok=True)
     if args.energy != "none":
@@ -118,6 +126,7 @@ def main():
     print(f"Types   : {','.join(types)}")
     print(f"Q range : {args.q_min}..{args.q_max}")
     print(f"Defaults: k=min({args.k},N) mode={args.mode} run={args.run} threads={args.threads} verify={args.verify}")
+    print(f"Dists   : {','.join(dists)} (seeds/case={max(1, args.seeds)}, repeats={args.repeats})")
     print(f"Random range: {args.min}..{args.max}")
     print(f"Energy  : {args.energy}")
 
@@ -193,120 +202,132 @@ def main():
                     n = 1 << q
 
                     effective_ks = sorted(list(set(k_val for k_val in args.k if k_val <= n)))
+                    multi_variant = args.repeats > 1 or len(dists) > 1 or args.seeds > 1
                     for k_eff in effective_ks:
-                        seed = args.seed_base + q + k_eff
-                        case_name = f"q{q:02d}_k{k_eff}_{args.mode}"
+                        base_seed = args.seed_base + q + k_eff
+                        seed_list = [base_seed + s for s in range(max(1, args.seeds))]
+                        base_case_name = f"q{q:02d}_k{k_eff}_{args.mode}"
 
-                        case_args = [
-                            f"q={q}",
-                            f"k={k_eff}",
-                            f"mode={args.mode}",
-                            f"dtype={dtype}",
-                            f"algo={algo}",
-                            f"run={args.run}",
-                            "debug=false",
-                            f"threads={args.threads}",
-                            f"seed={seed}",
-                            f"verify={args.verify}",
-                            f"min={args.min}",
-                            f"max={args.max}",
-                        ]
+                        # Sweep (distribution, seed); each combination is an independent
+                        # sample that feeds the error bands, repeated for energy averaging.
+                        for dist in dists:
+                            for seed in seed_list:
+                                case_args = [
+                                    f"q={q}",
+                                    f"k={k_eff}",
+                                    f"mode={args.mode}",
+                                    f"dtype={dtype}",
+                                    f"algo={algo}",
+                                    f"run={args.run}",
+                                    "debug=false",
+                                    f"threads={args.threads}",
+                                    f"seed={seed}",
+                                    f"verify={args.verify}",
+                                    f"min={args.min}",
+                                    f"max={args.max}",
+                                    f"dist={dist}",
+                                ]
 
-                        energy_mode = resolve_energy_mode(backend, args.energy)
-                        baseline_w = (
-                            rapl_baseline_w
-                            if energy_mode == "rapl"
-                            else (gpu_baseline_w if energy_mode == "gpu" else None)
-                        )
-
-                        case_env = os.environ.copy()
-                        npu_xclbin = resolve_npu_xclbin(backend, algo)
-                        if npu_xclbin:
-                            case_env["NPU_OFFLOAD_XCLBIN"] = npu_xclbin
-
-                        # Execute Subprocess (repeated for energy averaging)
-                        result = None
-                        run_cmd = []
-                        energy_case_file = ""
-                        for rep in range(1, args.repeats + 1):
-                            suffix = f"_rep{rep}" if args.repeats > 1 else ""
-                            if energy_mode == "none":
-                                run_cmd = [binary_path] + case_args
-                                energy_case_file = ""
-                            else:
-                                energy_case_file = os.path.join(
-                                    args.energy_out_dir,
-                                    f"{run_id}_{backend}_{dtype}_{algo}_{case_name}{suffix}_{energy_mode}.txt",
+                                energy_mode = resolve_energy_mode(backend, args.energy)
+                                baseline_w = (
+                                    rapl_baseline_w
+                                    if energy_mode == "rapl"
+                                    else (gpu_baseline_w if energy_mode == "gpu" else None)
                                 )
-                                if energy_mode == "rapl":
-                                    run_cmd = [
-                                        os.path.join(ROOT_DIR, "test/prof/energy/measure_rapl.sh"),
-                                        "--out",
-                                        energy_case_file,
-                                    ]
-                                    if args.rapl_path:
-                                        run_cmd += ["--path", args.rapl_path]
-                                else:
-                                    run_cmd = [
-                                        os.path.join(ROOT_DIR, "test/prof/energy/measure_smi.sh"),
-                                        "--out",
-                                        energy_case_file,
-                                        "--gpu-index",
-                                        str(args.gpu_index),
-                                        "--interval-ms",
-                                        str(args.gpu_interval_ms),
-                                    ]
-                                if baseline_w is not None:
-                                    run_cmd += ["--baseline-watts", str(baseline_w)]
-                                run_cmd += ["--", binary_path] + case_args
-                            result = subprocess.run(run_cmd, capture_output=True, text=True, env=case_env)
 
-                        stdout = result.stdout
+                                case_env = os.environ.copy()
+                                npu_xclbin = resolve_npu_xclbin(backend, algo)
+                                if npu_xclbin:
+                                    case_env["NPU_OFFLOAD_XCLBIN"] = npu_xclbin
 
-                        case_status = "FAIL"
-                        case_reason = "non-zero exit"
+                                for rep in range(1, args.repeats + 1):
+                                    variant = f"{dist}_s{seed}_rep{rep}"
+                                    suffix = f"_{variant}" if multi_variant else ""
+                                    if energy_mode == "none":
+                                        run_cmd = [binary_path] + case_args
+                                        energy_case_file = ""
+                                    else:
+                                        energy_case_file = os.path.join(
+                                            args.energy_out_dir,
+                                            f"{run_id}_{backend}_{dtype}_{algo}_{base_case_name}{suffix}_{energy_mode}.txt",
+                                        )
+                                        if energy_mode == "rapl":
+                                            run_cmd = [
+                                                os.path.join(ROOT_DIR, "test/prof/energy/measure_rapl.sh"),
+                                                "--out",
+                                                energy_case_file,
+                                            ]
+                                            if args.rapl_path:
+                                                run_cmd += ["--path", args.rapl_path]
+                                        else:
+                                            run_cmd = [
+                                                os.path.join(ROOT_DIR, "test/prof/energy/measure_smi.sh"),
+                                                "--out",
+                                                energy_case_file,
+                                                "--gpu-index",
+                                                str(args.gpu_index),
+                                                "--interval-ms",
+                                                str(args.gpu_interval_ms),
+                                            ]
+                                        if baseline_w is not None:
+                                            run_cmd += ["--baseline-watts", str(baseline_w)]
+                                        run_cmd += ["--", binary_path] + case_args
+                                    result = subprocess.run(run_cmd, capture_output=True, text=True, env=case_env)
 
-                        if result.returncode == 0:
-                            if args.verify == "true" and expected_marker not in stdout:
-                                case_reason = "PASS marker missing"
-                                print(f"    [FAIL] {case_name} (algo={algo}) ({case_reason})")
-                                type_fail += 1
-                            else:
-                                case_status = "PASS"
-                                case_reason = "ok"
-                                print(f"    [PASS] {case_name} (algo={algo})")
-                                type_pass += 1
-                        else:
-                            print(f"    [FAIL] {case_name} (algo={algo}) (non-zero exit)")
-                            type_fail += 1
+                                    stdout = result.stdout
+                                    label = f"{base_case_name} {dist} seed={seed}" + (
+                                        f" rep={rep}" if args.repeats > 1 else ""
+                                    )
 
-                        # Write Raw File
-                        with open(args.output_raw, "a", encoding="utf-8") as f_raw:
-                            f_raw.write(f"### Case: {case_name}\n")
-                            f_raw.write(f"Status: {case_status}\n")
-                            f_raw.write(f"Reason: {case_reason}\n")
-                            f_raw.write(f"Command: {' '.join(run_cmd)}\n")
-                            if energy_case_file:
-                                f_raw.write(f"Measurement file: {energy_case_file}\n")
-                            f_raw.write(f"Output:\n{stdout}\n\n")
+                                    case_status = "FAIL"
+                                    case_reason = "non-zero exit"
 
-                        # Append to JSON structure
-                        json_data["results"].append(
-                            {
-                                "backend": backend,
-                                "type": dtype,
-                                "algorithm": algo,
-                                "case_name": case_name,
-                                "q": q,
-                                "k": k_eff,
-                                "status": case_status,
-                                "reason": case_reason,
-                                "command": " ".join(run_cmd),
-                                "energy_file": energy_case_file,
-                                "exit_code": result.returncode,
-                                "stdout": stdout.strip(),
-                            }
-                        )
+                                    if result.returncode == 0:
+                                        if args.verify == "true" and expected_marker not in stdout:
+                                            case_reason = "PASS marker missing"
+                                            print(f"    [FAIL] {label} (algo={algo}) ({case_reason})")
+                                            type_fail += 1
+                                        else:
+                                            case_status = "PASS"
+                                            case_reason = "ok"
+                                            print(f"    [PASS] {label} (algo={algo})")
+                                            type_pass += 1
+                                    else:
+                                        print(f"    [FAIL] {label} (algo={algo}) (non-zero exit)")
+                                        type_fail += 1
+
+                                    # Write Raw File
+                                    with open(args.output_raw, "a", encoding="utf-8") as f_raw:
+                                        f_raw.write(f"### Case: {base_case_name}\n")
+                                        f_raw.write(f"Distribution: {dist}\n")
+                                        f_raw.write(f"Seed: {seed}\n")
+                                        f_raw.write(f"Status: {case_status}\n")
+                                        f_raw.write(f"Reason: {case_reason}\n")
+                                        f_raw.write(f"Command: {' '.join(run_cmd)}\n")
+                                        if energy_case_file:
+                                            f_raw.write(f"Measurement file: {energy_case_file}\n")
+                                        f_raw.write(f"Output:\n{stdout}\n\n")
+
+                                    # Append to JSON structure
+                                    json_data["results"].append(
+                                        {
+                                            "backend": backend,
+                                            "type": dtype,
+                                            "algorithm": algo,
+                                            "case_name": base_case_name,
+                                            "q": q,
+                                            "k": k_eff,
+                                            "dist": dist,
+                                            "seed": seed,
+                                            "rep": rep,
+                                            "status": case_status,
+                                            "reason": case_reason,
+                                            "command": " ".join(run_cmd),
+                                            "energy_file": energy_case_file,
+                                            "exit_code": result.returncode,
+                                            "stdout": stdout.strip(),
+                                        }
+                                    )
 
             print(f"    Type {dtype} summary: pass={type_pass} fail={type_fail}")
             backend_pass += type_pass

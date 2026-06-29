@@ -138,8 +138,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--error-bars",
         choices=["none", "p10-p90", "std"],
-        default="p10-p90",
-        help="Error band style for line/bar plots (default: p10-p90).",
+        default="std",
+        help="Error band style for line/bar plots (default: std).",
     )
     parser.add_argument(
         "--energy-metric",
