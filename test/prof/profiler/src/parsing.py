@@ -144,6 +144,8 @@ def _parse_test_output_json(path: str) -> list[CaseRecord]:
                     s = parse_float(val)
                     if s is not None:
                         stdevs[key] = s
+                elif key == "Benchmark iterations":
+                    rec.bench_ops = parse_int(val)
 
         e2e_label, e2e_ms, algo_label, algo_ms = select_time_fields(timings)
         rec.timing_label_e2e = e2e_label
@@ -242,6 +244,8 @@ def _parse_test_output_text(path: str) -> list[CaseRecord]:
                     current.n = parse_int(value)
                 elif key == "Input distribution":
                     current.dist = value.lower()
+                elif key == "Benchmark iterations":
+                    current.bench_ops = parse_int(value)
                 elif key.endswith("time (ms)"):
                     t = parse_float(value)
                     if t is not None:
@@ -296,10 +300,12 @@ def parse_measurements(paths: Iterable[str]) -> list[MeasurementRecord]:
                 cmd = line.split(":", 1)[1].strip()
                 if not rec.backend:
                     rec.backend = infer_backend_from_command(cmd)
+                # The command carries the exact algo=/dtype= tokens, so prefer it over
+                # the filename split (which breaks on the underscore in "map_reduce").
                 cmd_algo, cmd_dtype = infer_algorithm_and_dtype_from_command(cmd)
-                if not rec.algorithm and cmd_algo:
+                if cmd_algo:
                     rec.algorithm = cmd_algo
-                if not rec.dtype and cmd_dtype:
+                if cmd_dtype:
                     rec.dtype = cmd_dtype
 
                 m_q = re.search(r"(?:^|\s)q=(\d+)(?:\s|$)", cmd)

@@ -59,6 +59,16 @@ Notes:
   the mid-range), `sorted` (ascending), `reverse` (descending). Bitonic is
   data-oblivious, so its timing is a control; `map_reduce` and the library baselines
   are data-dependent.
+- **Energy:** reported as **per-operation, end-to-end** Joules. The wrapper integrates
+  power over the whole process (the binary reports `Benchmark iterations`, warmup +
+  measured), and the profiler divides by that count so energy shares the same window as
+  the e2e time. Energy is paired with **e2e** time (EDP, Pareto), never with algorithmic
+  time. The meters can't resolve a sub-millisecond kernel, so a separate "algorithmic
+  energy" is not measurable. Trust the larger `q` points, where the measured loop
+  dominates and fixed process overhead is amortized away. Scope note: energy is RAPL
+  package for CPU/NPU and GPU board for GPU, so the NPU figure is host energy to drive
+  the NPU (no XDNA power telemetry exists) and the GPU figure excludes host transfer
+  energy. The numbers are consistent per device, but not a single shared scope.
 - **Baselines** (`algo=gt`): CPU/NPU use `std::partial_sort` (the standard-library
   heap-based top-k, which for `k << n` is far faster than `nth_element` thanks to its
   cache-resident size-k heap and high rejection rate); GPU uses Thrust's `thrust::sort`

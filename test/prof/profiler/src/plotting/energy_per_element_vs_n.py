@@ -58,9 +58,9 @@ def plot(
         ax.set_yscale("log")
         style_axes(
             ax,
-            f"Energy per Element vs Input Size (K = {k})" + metric_title_suffix(metric),
+            f"End-to-end Energy per Element vs Input Size (K = {k})" + metric_title_suffix(metric),
             "N (log2 scale)",
-            "Energy / element (J)",
+            "Energy / element per op (J)",
         )
         ax.legend()
         fig.tight_layout()

@@ -3,7 +3,7 @@ import os
 from collections import defaultdict
 from typing import Optional
 from ..models import CaseRecord, MeasurementRecord
-from .common import aggregate_value, label_with_algorithm, plt, select_time_ms, style_axes
+from .common import aggregate_value, label_with_algorithm, plt, select_energy_joules, select_time_ms, style_axes
 
 
 def plot(
@@ -18,22 +18,18 @@ def plot(
         if rec.n is None or (compare_n is not None and rec.n != compare_n):
             continue
         key = (rec.backend, rec.dtype, rec.mode, rec.k, rec.n, rec.algorithm)
-        t = select_time_ms(rec, "algorithmic")
+        t = select_time_ms(rec, "e2e")
         if t is not None:
             time_map[key].append(t)
 
     energy_map: dict[tuple[str, str, str, Optional[int], Optional[int], str], list[float]] = defaultdict(list)
     for rec in measurement_records:
-        if (
-            rec.energy_joules is None
-            or rec.energy_joules < 0
-            or rec.n is None
-            or (compare_n is not None and rec.n != compare_n)
-        ):
+        energy = select_energy_joules(rec, "total")
+        if energy is None or energy < 0 or rec.n is None or (compare_n is not None and rec.n != compare_n):
             continue
         backend = rec.backend if rec.backend else rec.source
         key = (backend, rec.dtype, rec.mode, rec.k, rec.n, rec.algorithm)
-        energy_map[key].append(rec.energy_joules)
+        energy_map[key].append(energy)
 
     points: dict[str, list[tuple[float, float]]] = defaultdict(list)
     algorithms = {rec.algorithm for rec in case_records if rec.algorithm} | {
@@ -60,10 +56,10 @@ def plot(
 
     ax.set_xscale("log")
     ax.set_yscale("log")
-    title = "Algorithmic Time vs Energy (Pareto View)"
+    title = "End-to-end Time vs Energy (Pareto View)"
     if compare_n is not None:
         title += f" (N={compare_n})"
-    style_axes(ax, title, "Time (ms)", "Energy (J)")
+    style_axes(ax, title, "End-to-end time per op (ms)", "End-to-end energy per op (J)")
     ax.legend(title="Configuration", loc="best")
     fig.tight_layout()
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)

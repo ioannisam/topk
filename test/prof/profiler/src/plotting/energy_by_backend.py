@@ -69,7 +69,10 @@ def plot(
             ax.text(bar.get_x() + bar.get_width() / 2, y, f"{y:.3f}", ha="center", va="bottom")
 
         style_axes(
-            ax, f"Energy by Backend (K={k}, N={target_n})" + metric_title_suffix(metric), "Backend", "Energy (J)"
+            ax,
+            f"End-to-end Energy per op by Backend (K={k}, N={target_n})" + metric_title_suffix(metric),
+            "Backend",
+            "Energy per op (J)",
         )
         fig.tight_layout()
         os.makedirs(base_dir, exist_ok=True)

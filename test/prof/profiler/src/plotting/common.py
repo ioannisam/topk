@@ -101,12 +101,28 @@ def select_time_ms(rec, metric: str) -> float | None:
 
 
 def select_energy_joules(rec, metric: str) -> float | None:
+    # Whole-process energy is divided by the benchmark op count so the reported
+    # value is per-operation end-to-end energy (same window as the e2e time).
     if metric == "net" and rec.net_energy_joules is not None:
-        return rec.net_energy_joules
-    return rec.energy_joules
+        energy = rec.net_energy_joules
+    else:
+        energy = rec.energy_joules
+    if energy is None:
+        return None
+    ops = getattr(rec, "bench_ops", 1) or 1
+    return energy / ops
+
+
+def select_elapsed_seconds(rec) -> float | None:
+    # Per-operation end-to-end wall time, matching select_energy_joules' window.
+    if rec.elapsed_seconds is None:
+        return None
+    ops = getattr(rec, "bench_ops", 1) or 1
+    return rec.elapsed_seconds / ops
 
 
 def select_power_watts(rec, metric: str) -> float | None:
+    # Average power is energy/time, invariant under per-op normalization.
     if metric == "net" and rec.net_average_watts is not None:
         return rec.net_average_watts
     return rec.average_watts

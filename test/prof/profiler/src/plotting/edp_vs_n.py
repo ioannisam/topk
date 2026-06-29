@@ -11,6 +11,7 @@ from .common import (
     label_with_algorithm,
     metric_title_suffix,
     plt,
+    select_elapsed_seconds,
     select_energy_joules,
     style_axes,
 )
@@ -23,14 +24,15 @@ def plot(
     algorithms = {rec.algorithm for rec in records if rec.algorithm}
     include_algorithm = len(algorithms) > 1
     for rec in records:
-        if rec.k is None or rec.n is None or rec.elapsed_seconds is None:
+        if rec.k is None or rec.n is None:
             continue
         energy = select_energy_joules(rec, metric)
-        if energy is None or energy <= 0 or rec.elapsed_seconds <= 0:
+        elapsed = select_elapsed_seconds(rec)
+        if energy is None or energy <= 0 or elapsed is None or elapsed <= 0:
             continue
         base_label = rec.backend if rec.backend else rec.source
         label = label_with_algorithm(base_label, rec.algorithm, include_algorithm)
-        grouped[rec.k][label][rec.n].append(energy * rec.elapsed_seconds)
+        grouped[rec.k][label][rec.n].append(energy * elapsed)
 
     if not grouped:
         return None
@@ -58,9 +60,9 @@ def plot(
         ax.set_yscale("log")
         style_axes(
             ax,
-            f"EDP vs Input Size (K = {k})" + metric_title_suffix(metric),
+            f"End-to-end EDP per op vs Input Size (K = {k})" + metric_title_suffix(metric),
             "N (log2 scale)",
-            "Energy-Delay Product (J*s, log scale)",
+            "Energy-Delay Product per op (J*s, log scale)",
         )
         ax.legend()
         fig.tight_layout()

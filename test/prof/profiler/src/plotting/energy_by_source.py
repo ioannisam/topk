@@ -30,7 +30,7 @@ def plot(
     for bar, y in zip(bars, ys):
         ax.text(bar.get_x() + bar.get_width() / 2, y, f"{y:.3f}", ha="center", va="bottom")
 
-    style_axes(ax, "Average Energy by Source" + metric_title_suffix(metric), "Source", "Energy (J)")
+    style_axes(ax, "End-to-end Energy per op by Source" + metric_title_suffix(metric), "Source", "Energy per op (J)")
     fig.tight_layout()
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     fig.savefig(out_path, dpi=160)

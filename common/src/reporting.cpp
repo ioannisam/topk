@@ -7,6 +7,8 @@
 #include <sstream>
 #include <string>
 
+#include "common/benchmark.hpp"
+
 namespace common::reporting {
 namespace {
 
@@ -121,6 +123,8 @@ void print_configuration(const common::config::Config& cfg, std::size_t n, std::
 	print_key_value("CPU reference verify", (cfg.verify_output ? "on" : "off"));
 	print_key_value("Random range", std::to_string(cfg.rand_min) + ".." + std::to_string(cfg.rand_max));
 	print_key_value("Input distribution", distribution_name(cfg.dist));
+	print_key_value("Benchmark iterations",
+					static_cast<std::size_t>(common::benchmark::kWarmupIters + common::benchmark::kMeasureIters));
 }
 
 void print_timing_lines(const std::vector<std::pair<std::string, std::optional<double>>>& lines) {

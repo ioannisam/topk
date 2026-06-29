@@ -17,6 +17,7 @@ class CaseRecord:
     n: Optional[int] = None
     dist: str = ""
     seed: Optional[int] = None
+    bench_ops: Optional[int] = None
     timing_label: str = ""
     time_ms: Optional[float] = None
     timing_label_e2e: str = ""
@@ -48,3 +49,4 @@ class MeasurementRecord:
     net_energy_joules: Optional[float] = None
     net_average_watts: Optional[float] = None
     command_exit_code: Optional[int] = None
+    bench_ops: int = 1

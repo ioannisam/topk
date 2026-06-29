@@ -178,6 +178,17 @@ def main() -> int:
 
     measurement_records = parse_measurements(measurement_paths)
 
+    bench_ops_by_key: dict = {}
+    global_bench_ops = None
+    for rec in all_records:
+        if rec.bench_ops:
+            global_bench_ops = rec.bench_ops
+            bench_ops_by_key[(rec.backend, rec.dtype, rec.algorithm, rec.n, rec.k)] = rec.bench_ops
+    for rec in measurement_records:
+        ops = bench_ops_by_key.get((rec.backend, rec.dtype, rec.algorithm, rec.n, rec.k), global_bench_ops)
+        if ops:
+            rec.bench_ops = ops
+
     # Dtype selection
     discovered_dtypes = sorted(
         {
