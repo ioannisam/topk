@@ -51,6 +51,19 @@ Notes:
 
 ## Benchmark Methodology
 
+- **Pinned conditions (run first):** before a sweep, pin the machine into a fixed,
+  documented state so timing/energy don't drift with frequency scaling or thermals:
+
+  ```bash
+  ./scripts/pin_conditions.sh 60      # governor=performance, boost off, GPU persistence + 60 W cap
+  ACTION=show ./scripts/pin_conditions.sh   # record the exact state in the thesis
+  ```
+
+  Pick **one** GPU power cap and keep it for every run. The defaults are *not* pinned
+  (the machine ships on the `powersave` governor with boost on), so unpinned runs carry
+  uncontrolled frequency/thermal variance that mean±stdev does not capture. The laptop
+  shares one thermal budget across CPU/GPU/NPU, so leave a cooldown between backends and
+  don't run other heavy work during a sweep.
 - **Timing:** each case runs 5 warmup + 50 measured iterations; the binary reports
   the **mean ± standard deviation** (and the min as a best-case line) for both the
   end-to-end and algorithmic channels. Plots aggregate across the `(dist, seed)`

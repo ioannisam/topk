@@ -5,7 +5,7 @@ ARGS ?=
 .PHONY: all help build-all build-cpu build-gpu build-npu clean \
 	run-cpu run-gpu run-npu run-cases run-energy run-profiler \
 	benchmark benchmark-cases benchmark-energy profiler-bootstrap profiler-clean \
-	lint specs a-test ab-test
+	pin pin-show unpin lint specs a-test ab-test
 
 all: build-all
 
@@ -23,6 +23,8 @@ help:
 	@echo "    benchmark-cases               - timing: run-cases + run-profiler"
 	@echo "    benchmark-energy              - energy: run-energy + run-profiler"
 	@echo "    benchmark                     - everything: benchmark-cases + benchmark-energy"
+	@echo ""
+	@echo "  Conditions (sudo): pin | pin-show | unpin  - set/show/restore governor + GPU power (pin ARGS=watts)"
 	@echo ""
 	@echo "  profiler-bootstrap | profiler-clean | lint | specs | a-test | ab-test"
 
@@ -88,6 +90,15 @@ benchmark-energy:
 	-$(MAKE) run-energy
 	@echo "=== 2. Generating energy plots ==="
 	$(MAKE) run-profiler ARGS="--plot energy-by-backend power-by-backend energy-vs-n power-vs-n edp-vs-n energy-per-element-vs-n time-vs-energy --energy-metric both --error-bars none --measurement-csv-out ./test/prof/results/profile_energy.csv"
+
+pin-show:
+	ACTION=show ./scripts/pin_conditions.sh
+
+pin:
+	./scripts/pin_conditions.sh $(ARGS)
+
+unpin:
+	ACTION=restore ./scripts/pin_conditions.sh
 
 lint:
 	./scripts/lint.sh $(ARGS)
