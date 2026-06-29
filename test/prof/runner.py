@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime
 
 
@@ -79,6 +80,12 @@ def parse_args():
     )
     parser.add_argument("--seeds", type=int, default=1, help="Number of distinct seeds swept per case")
     parser.add_argument("--baseline-seconds", type=float, default=3.0, help="Idle baseline sampling duration (seconds)")
+    parser.add_argument(
+        "--cooldown",
+        type=float,
+        default=0.0,
+        help="Thermal cooldown (seconds) between backends (shared thermal budget)",
+    )
     parser.add_argument("--gpu-index", type=int, default=0)
     parser.add_argument("--gpu-interval-ms", type=int, default=100)
     parser.add_argument("--q-min", type=int, default=1)
@@ -174,7 +181,11 @@ def main():
             gpu_board_baseline_w = extract_field_watts(gpu_report, "board_average_watts")
             print(f"Idle GPU baseline: total={gpu_baseline_w} W board={gpu_board_baseline_w} W")
 
-    for backend in backends:
+    for backend_idx, backend in enumerate(backends):
+        if backend_idx > 0 and args.cooldown > 0:
+            print(f"\nCooldown {args.cooldown:.0f}s before {backend} (shared thermal budget)...")
+            time.sleep(args.cooldown)
+
         binary_path = resolve_binary_path(backend)
         if not os.path.isfile(binary_path) or not os.access(binary_path, os.X_OK):
             print(f"\nBackend binary not found or not executable: {binary_path}")
