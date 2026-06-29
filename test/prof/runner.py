@@ -42,10 +42,11 @@ def resolve_npu_xclbin(backend, algo):
     return path if os.path.isfile(path) else ""
 
 
-def extract_avg_watts(report_text):
+def extract_field_watts(report_text, key):
+    prefix = f"- {key}:"
     for line in report_text.splitlines():
         s = line.strip()
-        if s.startswith("- average_watts:"):
+        if s.startswith(prefix):
             try:
                 return float(s.split(":", 1)[1].strip())
             except ValueError:
@@ -53,12 +54,12 @@ def extract_avg_watts(report_text):
     return None
 
 
-def capture_baseline_watts(measure_cmd):
+def capture_baseline_report(measure_cmd):
     try:
         result = subprocess.run(measure_cmd, capture_output=True, text=True)
     except Exception:
-        return None
-    return extract_avg_watts(result.stdout)
+        return ""
+    return result.stdout
 
 
 def parse_args():
@@ -144,7 +145,9 @@ def main():
     expected_marker = "Top-k correctness vs CPU sorted reference: OK"
 
     rapl_baseline_w = None
+    rapl_core_baseline_w = None
     gpu_baseline_w = None
+    gpu_board_baseline_w = None
     if args.energy != "none":
         sleep_cmd = ["sleep", str(args.baseline_seconds)]
         modes = {resolve_energy_mode(b, args.energy) for b in backends}
@@ -153,8 +156,10 @@ def main():
             if args.rapl_path:
                 rapl_cmd += ["--path", args.rapl_path]
             rapl_cmd += ["--"] + sleep_cmd
-            rapl_baseline_w = capture_baseline_watts(rapl_cmd)
-            print(f"Idle RAPL baseline (package): {rapl_baseline_w} W")
+            rapl_report = capture_baseline_report(rapl_cmd)
+            rapl_baseline_w = extract_field_watts(rapl_report, "average_watts")
+            rapl_core_baseline_w = extract_field_watts(rapl_report, "core_average_watts")
+            print(f"Idle RAPL baseline: package={rapl_baseline_w} W core={rapl_core_baseline_w} W")
         if "gpu" in modes:
             gpu_cmd = [
                 os.path.join(ROOT_DIR, "test/prof/energy/measure_smi.sh"),
@@ -164,8 +169,10 @@ def main():
                 str(args.gpu_interval_ms),
                 "--",
             ] + sleep_cmd
-            gpu_baseline_w = capture_baseline_watts(gpu_cmd)
-            print(f"Idle GPU baseline: {gpu_baseline_w} W")
+            gpu_report = capture_baseline_report(gpu_cmd)
+            gpu_baseline_w = extract_field_watts(gpu_report, "average_watts")
+            gpu_board_baseline_w = extract_field_watts(gpu_report, "board_average_watts")
+            print(f"Idle GPU baseline: total={gpu_baseline_w} W board={gpu_board_baseline_w} W")
 
     for backend in backends:
         binary_path = resolve_binary_path(backend)
@@ -271,6 +278,10 @@ def main():
                                             ]
                                         if baseline_w is not None:
                                             run_cmd += ["--baseline-watts", str(baseline_w)]
+                                        if energy_mode == "rapl" and rapl_core_baseline_w is not None:
+                                            run_cmd += ["--core-baseline-watts", str(rapl_core_baseline_w)]
+                                        if energy_mode == "gpu" and gpu_board_baseline_w is not None:
+                                            run_cmd += ["--board-baseline-watts", str(gpu_board_baseline_w)]
                                         run_cmd += ["--", binary_path] + case_args
                                     result = subprocess.run(run_cmd, capture_output=True, text=True, env=case_env)
 

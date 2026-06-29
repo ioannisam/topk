@@ -55,6 +55,7 @@ INTERVAL_MS="100"
 LIST_ONLY="no"
 OUT_FILE=""
 BASELINE_WATTS=""
+BOARD_BASELINE_WATTS=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -74,6 +75,15 @@ while [[ $# -gt 0 ]]; do
                 exit 2
             fi
             BASELINE_WATTS="$2"
+            shift 2
+            ;;
+        --board-baseline-watts)
+            if [[ $# -lt 2 ]]; then
+                echo "error: --board-baseline-watts needs a value" >&2
+                usage
+                exit 2
+            fi
+            BOARD_BASELINE_WATTS="$2"
             shift 2
             ;;
         --gpu-index)
@@ -145,6 +155,19 @@ if ! read_gpu_power_w "${GPU_INDEX}" >/dev/null; then
     exit 1
 fi
 
+HOST_ENERGY_PATH=""
+HOST_MAX_RANGE_UJ=""
+while IFS= read -r _candidate; do
+    if [[ -r "${_candidate}" ]]; then
+        HOST_ENERGY_PATH="${_candidate}"
+        break
+    fi
+done < <(find -L /sys/class/powercap -maxdepth 6 -name energy_uj -print 2>/dev/null | sort)
+if [[ -n "${HOST_ENERGY_PATH}" ]]; then
+    _max_range_path="$(dirname "${HOST_ENERGY_PATH}")/max_energy_range_uj"
+    [[ -r "${_max_range_path}" ]] && HOST_MAX_RANGE_UJ="$(<"${_max_range_path}")"
+fi
+
 samples_file="$(mktemp)"
 trap 'rm -f "${samples_file}"' EXIT
 
@@ -155,6 +178,9 @@ sample_once() {
         printf '%s %s\n' "${ts}" "${power}" >>"${samples_file}"
     fi
 }
+
+HOST_START_UJ=""
+[[ -n "${HOST_ENERGY_PATH}" ]] && HOST_START_UJ="$(<"${HOST_ENERGY_PATH}")"
 
 start_ts="$(date +%s.%N)"
 "$@" &
@@ -172,6 +198,9 @@ wait "${cmd_pid}"
 cmd_status=$?
 end_ts="$(date +%s.%N)"
 
+HOST_END_UJ=""
+[[ -n "${HOST_ENERGY_PATH}" ]] && HOST_END_UJ="$(<"${HOST_ENERGY_PATH}")"
+
 # One last sample at end boundary to improve integration for short runs.
 sample_once
 
@@ -182,7 +211,12 @@ REPORT="$(awk \
     -v interval_ms="${INTERVAL_MS}" \
     -v cmd_status="${cmd_status}" \
     -v baseline_watts="${BASELINE_WATTS}" \
+    -v board_baseline_watts="${BOARD_BASELINE_WATTS}" \
     -v cmd_str="${CMD_STR}" \
+    -v host_path="${HOST_ENERGY_PATH}" \
+    -v host_start_uj="${HOST_START_UJ}" \
+    -v host_end_uj="${HOST_END_UJ}" \
+    -v host_max_range_uj="${HOST_MAX_RANGE_UJ}" \
 'BEGIN {
     n = 0
 }
@@ -202,18 +236,32 @@ END {
         exit 4
     }
 
-    energy = 0.0
+    board_energy = 0.0
     if (n == 1) {
-        energy = p[1] * dt_total
+        board_energy = p[1] * dt_total
     } else {
         for (i = 1; i < n; i++) {
             dt = t[i+1] - t[i]
             if (dt > 0) {
-                energy += ((p[i] + p[i+1]) / 2.0) * dt
+                board_energy += ((p[i] + p[i+1]) / 2.0) * dt
             }
         }
     }
 
+    host_energy = 0.0
+    host_available = "no"
+    if (host_path != "" && host_start_uj != "" && host_end_uj != "") {
+        host_delta_uj = host_end_uj - host_start_uj
+        if (host_delta_uj < 0 && host_max_range_uj != "" && host_max_range_uj > 0) {
+            host_delta_uj += host_max_range_uj
+        }
+        if (host_delta_uj >= 0) {
+            host_energy = host_delta_uj / 1000000.0
+            host_available = "yes"
+        }
+    }
+
+    energy = board_energy + host_energy
     avg_w = energy / dt_total
 
     print "GPU measurement"
@@ -221,9 +269,19 @@ END {
     print "- gpu_index: " gpu_index
     print "- sample_interval_ms: " interval_ms
     print "- sample_count: " n
+    print "- host_rapl_available: " host_available
     printf("- elapsed_seconds: %.6f\n", dt_total)
+    printf("- board_energy_joules: %.6f\n", board_energy)
+    printf("- board_average_watts: %.6f\n", board_energy / dt_total)
+    printf("- host_energy_joules: %.6f\n", host_energy)
     printf("- energy_joules: %.6f\n", energy)
     printf("- average_watts: %.6f\n", avg_w)
+    if (board_baseline_watts != "") {
+        net_board_j = board_energy - board_baseline_watts * dt_total
+        if (net_board_j < 0) net_board_j = 0
+        printf("- board_baseline_watts: %.6f\n", board_baseline_watts)
+        printf("- net_board_energy_joules: %.6f\n", net_board_j)
+    }
     if (baseline_watts != "") {
         net_j = energy - baseline_watts * dt_total
         net_w = avg_w - baseline_watts

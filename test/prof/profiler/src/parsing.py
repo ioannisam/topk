@@ -333,6 +333,14 @@ def parse_measurements(paths: Iterable[str]) -> list[MeasurementRecord]:
                     rec.net_energy_joules = parse_float(v)
                 elif k == "net_average_watts":
                     rec.net_average_watts = parse_float(v)
+                elif k == "core_energy_joules":
+                    rec.core_energy_joules = parse_float(v)
+                elif k == "net_core_energy_joules":
+                    rec.net_core_energy_joules = parse_float(v)
+                elif k == "board_energy_joules":
+                    rec.board_energy_joules = parse_float(v)
+                elif k == "net_board_energy_joules":
+                    rec.net_board_energy_joules = parse_float(v)
                 elif k == "command_exit_code":
                     rec.command_exit_code = parse_int(v)
 

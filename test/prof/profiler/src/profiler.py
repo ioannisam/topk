@@ -14,6 +14,7 @@ from .plotting import energy_by_backend
 from .plotting import energy_by_source
 from .plotting import energy_per_element_vs_n
 from .plotting import energy_vs_n
+from .plotting import energy_vs_n_metric_compare
 from .plotting import pass_rate
 from .plotting import power_by_backend
 from .plotting import power_by_source
@@ -69,6 +70,7 @@ def parse_args() -> argparse.Namespace:
             "energy-by-source",
             "power-by-source",
             "energy-vs-n",
+            "energy-vs-n-metric-compare",
             "power-vs-n",
             "energy-by-backend",
             "power-by-backend",
@@ -212,6 +214,7 @@ def main() -> int:
             "energy-by-source",
             "power-by-source",
             "energy-vs-n",
+            "energy-vs-n-metric-compare",
             "power-vs-n",
             "energy-by-backend",
             "power-by-backend",
@@ -505,6 +508,22 @@ def main() -> int:
                     produced = True
             if not produced:
                 print(f"Skipped energy-vs-n ({dtype_dir}): no measurement records with inferred N were found.")
+
+        if "energy-vs-n-metric-compare" in requested:
+            produced = False
+            for metric in energy_metrics:
+                out = energy_vs_n_metric_compare.plot(
+                    dtype_measurements_no_gt,
+                    metric_path(out_energy, "energy_vs_n_metric_compare.png", metric),
+                    args.agg,
+                    args.error_bars,
+                    metric,
+                )
+                if out:
+                    collect_output(out)
+                    produced = True
+            if not produced:
+                print(f"Skipped energy-vs-n-metric-compare ({dtype_dir}): no measurement records with times found.")
 
         if "power-vs-n" in requested:
             produced = False

@@ -63,6 +63,7 @@ ENERGY_PATH=""
 LIST_ONLY="no"
 OUT_FILE=""
 BASELINE_WATTS=""
+CORE_BASELINE_WATTS=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -82,6 +83,15 @@ while [[ $# -gt 0 ]]; do
                 exit 2
             fi
             BASELINE_WATTS="$2"
+            shift 2
+            ;;
+        --core-baseline-watts)
+            if [[ $# -lt 2 ]]; then
+                echo "error: --core-baseline-watts needs a value" >&2
+                usage
+                exit 2
+            fi
+            CORE_BASELINE_WATTS="$2"
             shift 2
             ;;
         --path)
@@ -146,7 +156,20 @@ if [[ -r "${MAX_RANGE_PATH}" ]]; then
     MAX_RANGE_UJ="$(<"${MAX_RANGE_PATH}")"
 fi
 
+CORE_ENERGY_PATH=""
+CORE_MAX_RANGE_UJ=""
+_pkg_dir="$(dirname "${ENERGY_PATH}")"
+for _sub in "${_pkg_dir}"/intel-rapl:*; do
+    if [[ -r "${_sub}/name" && "$(<"${_sub}/name")" == "core" && -r "${_sub}/energy_uj" ]]; then
+        CORE_ENERGY_PATH="${_sub}/energy_uj"
+        [[ -r "${_sub}/max_energy_range_uj" ]] && CORE_MAX_RANGE_UJ="$(<"${_sub}/max_energy_range_uj")"
+        break
+    fi
+done
+
 START_UJ="$(<"${ENERGY_PATH}")"
+CORE_START_UJ=""
+[[ -n "${CORE_ENERGY_PATH}" ]] && CORE_START_UJ="$(<"${CORE_ENERGY_PATH}")"
 START_TS="$(date +%s.%N)"
 
 "$@"
@@ -154,6 +177,8 @@ CMD_STATUS=$?
 
 END_TS="$(date +%s.%N)"
 END_UJ="$(<"${ENERGY_PATH}")"
+CORE_END_UJ=""
+[[ -n "${CORE_ENERGY_PATH}" ]] && CORE_END_UJ="$(<"${CORE_ENERGY_PATH}")"
 
 REPORT="$(awk \
     -v path="${ENERGY_PATH}" \
@@ -164,6 +189,11 @@ REPORT="$(awk \
     -v max_range_uj="${MAX_RANGE_UJ}" \
     -v cmd_status="${CMD_STATUS}" \
     -v baseline_watts="${BASELINE_WATTS}" \
+    -v core_baseline_watts="${CORE_BASELINE_WATTS}" \
+    -v core_path="${CORE_ENERGY_PATH}" \
+    -v core_start_uj="${CORE_START_UJ}" \
+    -v core_end_uj="${CORE_END_UJ}" \
+    -v core_max_range_uj="${CORE_MAX_RANGE_UJ}" \
     -v cmd_str="${CMD_STR}" \
 'BEGIN {
     delta_uj = end_uj - start_uj
@@ -188,13 +218,31 @@ REPORT="$(awk \
     joules = delta_uj / 1000000.0
     watts = joules / dt
 
+    core_available = "no"
+    core_joules = 0.0
+    core_watts = 0.0
+    if (core_path != "" && core_start_uj != "" && core_end_uj != "") {
+        core_delta_uj = core_end_uj - core_start_uj
+        if (core_delta_uj < 0 && core_max_range_uj != "" && core_max_range_uj > 0) {
+            core_delta_uj += core_max_range_uj
+        }
+        if (core_delta_uj >= 0) {
+            core_joules = core_delta_uj / 1000000.0
+            core_watts = core_joules / dt
+            core_available = "yes"
+        }
+    }
+
     print "RAPL measurement"
     if (cmd_str != "") print "Command: " cmd_str
     print "- energy_path: " path
     print "- wrapped: " wrapped
+    print "- core_available: " core_available
     printf("- elapsed_seconds: %.6f\n", dt)
     printf("- energy_joules: %.6f\n", joules)
     printf("- average_watts: %.6f\n", watts)
+    printf("- core_energy_joules: %.6f\n", core_joules)
+    printf("- core_average_watts: %.6f\n", core_watts)
     if (baseline_watts != "") {
         net_j = joules - baseline_watts * dt
         net_w = watts - baseline_watts
@@ -203,6 +251,12 @@ REPORT="$(awk \
         printf("- baseline_watts: %.6f\n", baseline_watts)
         printf("- net_energy_joules: %.6f\n", net_j)
         printf("- net_average_watts: %.6f\n", net_w)
+    }
+    if (core_baseline_watts != "") {
+        net_core_j = core_joules - core_baseline_watts * dt
+        if (net_core_j < 0) net_core_j = 0
+        printf("- core_baseline_watts: %.6f\n", core_baseline_watts)
+        printf("- net_core_energy_joules: %.6f\n", net_core_j)
     }
     print "- command_exit_code: " cmd_status
 }

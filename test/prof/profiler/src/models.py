@@ -50,3 +50,7 @@ class MeasurementRecord:
     net_average_watts: Optional[float] = None
     command_exit_code: Optional[int] = None
     bench_ops: int = 1
+    core_energy_joules: Optional[float] = None
+    net_core_energy_joules: Optional[float] = None
+    board_energy_joules: Optional[float] = None
+    net_board_energy_joules: Optional[float] = None

@@ -71,6 +71,20 @@ def add_time_metric_legend(
         return
 
 
+def add_energy_metric_legend(ax, *, loc: str = "lower right") -> None:
+    """Legend explaining estimated-algorithmic vs measured-end-to-end energy series."""
+    try:
+        from matplotlib.lines import Line2D
+
+        handles = [
+            Line2D([0], [0], color="black", linestyle="-", linewidth=2.2, label="End-to-end (host + backend)"),
+            Line2D([0], [0], color="black", linestyle="--", linewidth=2.2, label="Algorithmic (backend only)"),
+        ]
+        ax.legend(handles=handles, title="Energy metric", loc=loc)
+    except Exception:
+        return
+
+
 def style_axes(ax, title: str, xlabel: str, ylabel: str) -> None:
     ax.set_title(title, fontsize=14)
     ax.set_xlabel(xlabel, fontsize=12)
@@ -100,17 +114,35 @@ def select_time_ms(rec, metric: str) -> float | None:
     return rec.time_end_to_end_ms if rec.time_end_to_end_ms is not None else rec.time_algorithmic_ms
 
 
-def select_energy_joules(rec, metric: str) -> float | None:
-    # Whole-process energy is divided by the benchmark op count so the reported
-    # value is per-operation end-to-end energy (same window as the e2e time).
-    if metric == "net" and rec.net_energy_joules is not None:
-        energy = rec.net_energy_joules
-    else:
-        energy = rec.energy_joules
-    if energy is None:
-        return None
+def select_energy_joules(rec, metric: str, scope: str = "e2e") -> float | None:
+    net = metric == "net"
     ops = getattr(rec, "bench_ops", 1) or 1
-    return energy / ops
+
+    if scope != "algorithmic":
+        energy = rec.net_energy_joules if (net and rec.net_energy_joules is not None) else rec.energy_joules
+        return energy / ops if energy is not None else None
+
+    if rec.board_energy_joules is not None:
+        board = (
+            rec.net_board_energy_joules
+            if (net and rec.net_board_energy_joules is not None)
+            else rec.board_energy_joules
+        )
+        return board / ops if board is not None else None
+
+    backend = (rec.backend or "").lower()
+    if backend == "cpu":
+        energy = rec.net_energy_joules if (net and rec.net_energy_joules is not None) else rec.energy_joules
+        return energy / ops if energy is not None else None
+    if backend == "npu":
+        if net and rec.net_energy_joules is not None and rec.net_core_energy_joules is not None:
+            uncore = rec.net_energy_joules - rec.net_core_energy_joules
+        elif rec.energy_joules is not None and rec.core_energy_joules is not None:
+            uncore = rec.energy_joules - rec.core_energy_joules
+        else:
+            return None
+        return max(uncore, 0.0) / ops
+    return None
 
 
 def select_elapsed_seconds(rec) -> float | None:
