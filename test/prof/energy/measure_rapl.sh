@@ -9,12 +9,13 @@ Usage:
     sudo ./test/prof/energy/measure_rapl.sh --list-paths
 
 Options:
-    --out <file>              Also write report to file (for profiler ingestion).
-    --baseline-watts <w>     Idle power (W) to subtract; emits net_energy_joules/net_average_watts.
-    --path <energy_uj_path>  Use a specific RAPL energy counter file.
-    --list-paths             List discovered energy_uj paths and readability.
-    --help, -h               Show this help message.
-    --                       End script options; remaining args are the command to run.
+    --out <file>               Also write report to file (for profiler ingestion).
+    --baseline-watts <w>       Idle power (W) to subtract; emits net_energy_joules/net_average_watts.
+    --core-baseline-watts <w>  Idle core power (W) to subtract; emits net_core_energy_joules.
+    --path <energy_uj_path>    Use a specific RAPL energy counter file.
+    --list-paths               List discovered energy_uj paths and readability.
+    --help, -h                 Show this help message.
+    --                         End script options; remaining args are the command to run.
 
 Examples:
     sudo ./test/prof/energy/measure_rapl.sh -- ./build/CPU/topk q=20 k=256 dtype=int algo=bitonic

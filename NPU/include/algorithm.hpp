@@ -21,7 +21,7 @@ std::string query_device_bdf();
 bool is_offload_configured();
 
 template <typename T>
-RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
+RunStats run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
 
 } // namespace npu::bitonic
 
@@ -34,8 +34,8 @@ struct RunStats {
 };
 
 template <typename T>
-std::vector<T> run_topk_npu(const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers,
-							npu::map_reduce::RunStats* stats);
+std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers,
+						npu::map_reduce::RunStats* stats);
 
 } // namespace npu::map_reduce
 

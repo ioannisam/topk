@@ -403,8 +403,7 @@ std::string query_device_name() {
 }
 
 template <typename T>
-RunStats run_network_cuda(T* data, std::size_t n, std::size_t& final_n,
-						  const std::vector<common::bitonic::Layer>& layers) {
+RunStats run_topk(T* data, std::size_t n, std::size_t& final_n, const std::vector<common::bitonic::Layer>& layers) {
 	using D = typename gpu::traits::DeviceType<T>::type;
 
 	if (n == 0) {
@@ -432,17 +431,14 @@ RunStats run_network_cuda(T* data, std::size_t n, std::size_t& final_n,
 	return RunStats{elapsed_ms, launches, comparators, block_size};
 }
 
-template RunStats run_network_cuda<std::int32_t>(std::int32_t*, std::size_t, std::size_t&,
-												 const std::vector<common::bitonic::Layer>&);
-template RunStats run_network_cuda<std::uint32_t>(std::uint32_t*, std::size_t, std::size_t&,
-												  const std::vector<common::bitonic::Layer>&);
-template RunStats run_network_cuda<float>(float*, std::size_t, std::size_t&,
+template RunStats run_topk<std::int32_t>(std::int32_t*, std::size_t, std::size_t&,
+										 const std::vector<common::bitonic::Layer>&);
+template RunStats run_topk<std::uint32_t>(std::uint32_t*, std::size_t, std::size_t&,
 										  const std::vector<common::bitonic::Layer>&);
-template RunStats run_network_cuda<double>(double*, std::size_t, std::size_t&,
-										   const std::vector<common::bitonic::Layer>&);
+template RunStats run_topk<float>(float*, std::size_t, std::size_t&, const std::vector<common::bitonic::Layer>&);
+template RunStats run_topk<double>(double*, std::size_t, std::size_t&, const std::vector<common::bitonic::Layer>&);
 #if defined(__FLT16_MANT_DIG__)
-template RunStats run_network_cuda<_Float16>(_Float16*, std::size_t, std::size_t&,
-											 const std::vector<common::bitonic::Layer>&);
+template RunStats run_topk<_Float16>(_Float16*, std::size_t, std::size_t&, const std::vector<common::bitonic::Layer>&);
 #endif
 
 } // namespace gpu::bitonic

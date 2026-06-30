@@ -66,7 +66,7 @@ if [[ "${1:-}" == "--run-plots" ]]; then
     "${VENV_DIR}/bin/python" "${PROFILER}" \
         --input "${TEST_INPUT}" \
         --plot all \
-        --csv-out "${CSV_OUT}" \
-        --measurement-csv-out "${MEAS_CSV_OUT}" \
+        --timing-csv-out "${CSV_OUT}" \
+        --energy-csv-out "${MEAS_CSV_OUT}" \
         --output-dir "${OUT_DIR}"
 fi

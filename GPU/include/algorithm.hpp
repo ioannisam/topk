@@ -18,8 +18,7 @@ struct RunStats {
 std::string query_device_name();
 
 template <typename T>
-RunStats run_network_cuda(T* data, std::size_t n, std::size_t& final_n,
-						  const std::vector<common::bitonic::Layer>& layers);
+RunStats run_topk(T* data, std::size_t n, std::size_t& final_n, const std::vector<common::bitonic::Layer>& layers);
 
 } // namespace gpu::bitonic
 

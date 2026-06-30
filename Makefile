@@ -83,13 +83,13 @@ benchmark-cases:
 	@echo "=== 1. Measuring timing (all backends) ==="
 	-$(MAKE) run-cases
 	@echo "=== 2. Generating timing plots ==="
-	$(MAKE) run-profiler ARGS="--plot all --error-bars none"
+	$(MAKE) run-profiler ARGS="--plot all --error-bars none --timing-csv-out ./test/prof/results/profile_cases.csv"
 
 benchmark-energy:
 	@echo "=== 1. Measuring energy (all backends) ==="
 	-$(MAKE) run-energy
 	@echo "=== 2. Generating energy plots ==="
-	$(MAKE) run-profiler ARGS="--plot energy-by-backend power-by-backend energy-vs-n power-vs-n edp-vs-n energy-per-element-vs-n time-vs-energy --energy-metric both --error-bars none --measurement-csv-out ./test/prof/results/profile_energy.csv"
+	$(MAKE) run-profiler ARGS="--plot energy-by-backend power-by-backend energy-vs-n power-vs-n edp-vs-n energy-per-element-vs-n time-vs-energy --energy-metric both --error-bars none --energy-csv-out ./test/prof/results/profile_energy.csv"
 
 pin-show:
 	ACTION=show ./scripts/pin_conditions.sh

@@ -45,7 +45,7 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 				auto t0 = std::chrono::high_resolution_clock::now();
 
 				std::size_t final_n = temp.size();
-				stats = gpu::bitonic::run_network_cuda(temp.data(), temp.size(), final_n, layers);
+				stats = gpu::bitonic::run_topk(temp.data(), temp.size(), final_n, layers);
 				temp.resize(final_n);
 
 				auto t1 = std::chrono::high_resolution_clock::now();

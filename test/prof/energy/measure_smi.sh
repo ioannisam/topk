@@ -9,13 +9,14 @@ Usage:
     ./test/prof/energy/measure_smi.sh --list-gpus
 
 Options:
-    --out <file>          Also write report to file (for profiler ingestion).
-    --baseline-watts <w> Idle power (W) to subtract; emits net_energy_joules/net_average_watts.
-    --gpu-index <idx>    Select GPU index to sample (default: 0).
-    --interval-ms <ms>   Sampling interval in milliseconds (default: 100).
-    --list-gpus          List available GPUs and power-management info.
-    --help, -h           Show this help message.
-    --                   End script options; remaining args are the command to run.
+    --out <file>                Also write report to file (for profiler ingestion).
+    --baseline-watts <w>        Idle power (W) to subtract; emits net_energy_joules/net_average_watts.
+    --board-baseline-watts <w>  Idle GPU-board power (W) to subtract; emits net_board_energy_joules.
+    --gpu-index <idx>           Select GPU index to sample (default: 0).
+    --interval-ms <ms>          Sampling interval in milliseconds (default: 100).
+    --list-gpus                 List available GPUs and power-management info.
+    --help, -h                  Show this help message.
+    --                          End script options; remaining args are the command to run.
 
 Examples:
     ./test/prof/energy/measure_smi.sh -- ./build/GPU/topk q=20 k=256 dtype=int algo=bitonic

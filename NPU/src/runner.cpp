@@ -58,7 +58,7 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 
 				auto t0 = std::chrono::high_resolution_clock::now();
 
-				const npu::bitonic::RunStats stats = npu::bitonic::run_network_npu(temp, layers, context.ex_threads);
+				const npu::bitonic::RunStats stats = npu::bitonic::run_topk(temp, layers, context.ex_threads);
 
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -127,7 +127,7 @@ template <typename T> class NpuMapReduceRunnerHooks final : public common::topk:
 				auto t0 = std::chrono::high_resolution_clock::now();
 
 				std::vector<T> output =
-					npu::map_reduce::run_topk_npu(input, cfg.k, cfg.want_max, context.ex_threads, &run_stats);
+					npu::map_reduce::run_topk(input, cfg.k, cfg.want_max, context.ex_threads, &run_stats);
 
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();

@@ -219,8 +219,8 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 } // namespace
 
 template <typename T>
-std::vector<T> run_topk_npu(const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers,
-							npu::map_reduce::RunStats* stats) {
+std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers,
+						npu::map_reduce::RunStats* stats) {
 	(void)workers;
 
 	npu::utils::OffloadConfig offload_cfg = npu::utils::load_offload_config();
@@ -233,20 +233,20 @@ std::vector<T> run_topk_npu(const std::vector<T>& data, std::size_t k, bool want
 	return run_map_reduce_offload_xrt<false>(data, k, offload_cfg, stats);
 }
 
-template std::vector<std::int32_t> run_topk_npu<std::int32_t>(const std::vector<std::int32_t>& data, std::size_t k,
-															  bool want_max, std::size_t workers,
-															  npu::map_reduce::RunStats* stats);
-template std::vector<std::uint32_t> run_topk_npu<std::uint32_t>(const std::vector<std::uint32_t>& data, std::size_t k,
-																bool want_max, std::size_t workers,
-																npu::map_reduce::RunStats* stats);
-template std::vector<float> run_topk_npu<float>(const std::vector<float>& data, std::size_t k, bool want_max,
-												std::size_t workers, npu::map_reduce::RunStats* stats);
-template std::vector<double> run_topk_npu<double>(const std::vector<double>& data, std::size_t k, bool want_max,
-												  std::size_t workers, npu::map_reduce::RunStats* stats);
+template std::vector<std::int32_t> run_topk<std::int32_t>(const std::vector<std::int32_t>& data, std::size_t k,
+														  bool want_max, std::size_t workers,
+														  npu::map_reduce::RunStats* stats);
+template std::vector<std::uint32_t> run_topk<std::uint32_t>(const std::vector<std::uint32_t>& data, std::size_t k,
+															bool want_max, std::size_t workers,
+															npu::map_reduce::RunStats* stats);
+template std::vector<float> run_topk<float>(const std::vector<float>& data, std::size_t k, bool want_max,
+											std::size_t workers, npu::map_reduce::RunStats* stats);
+template std::vector<double> run_topk<double>(const std::vector<double>& data, std::size_t k, bool want_max,
+											  std::size_t workers, npu::map_reduce::RunStats* stats);
 
 #if defined(__FLT16_MANT_DIG__)
-template std::vector<_Float16> run_topk_npu<_Float16>(const std::vector<_Float16>& data, std::size_t k, bool want_max,
-													  std::size_t workers, npu::map_reduce::RunStats* stats);
+template std::vector<_Float16> run_topk<_Float16>(const std::vector<_Float16>& data, std::size_t k, bool want_max,
+												  std::size_t workers, npu::map_reduce::RunStats* stats);
 #endif
 
 } // namespace npu::map_reduce

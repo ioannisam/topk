@@ -111,7 +111,7 @@ def parse_args() -> argparse.Namespace:
         help="Optional backend filter(s), e.g. cpu gt gpu npu.",
     )
     parser.add_argument(
-        "--csv-out",
+        "--timing-csv-out",
         default="",
         help="Optional CSV export path for parsed case records.",
     )
@@ -127,7 +127,7 @@ def parse_args() -> argparse.Namespace:
         help="Glob for auto-discovered measurement files.",
     )
     parser.add_argument(
-        "--measurement-csv-out",
+        "--energy-csv-out",
         default="",
         help="Optional CSV export path for parsed measurement records.",
     )
@@ -301,17 +301,17 @@ def main() -> int:
             print(f"No measurement records for dtype '{dtype_dir}' matched the selected filters.")
 
         # CSVs keep all records (including GT) for raw data completeness
-        if args.csv_out:
-            base, ext = os.path.splitext(args.csv_out)
+        if args.timing_csv_out:
+            base, ext = os.path.splitext(args.timing_csv_out)
             ext = ext or ".csv"
-            csv_path = f"{base}_{dtype_dir}{ext}" if len(dtypes_to_plot) > 1 else args.csv_out
+            csv_path = f"{base}_{dtype_dir}{ext}" if len(dtypes_to_plot) > 1 else args.timing_csv_out
             write_case_csv(records, csv_path)
             print(f"Wrote CSV: {csv_path}")
 
-        if args.measurement_csv_out:
-            base, ext = os.path.splitext(args.measurement_csv_out)
+        if args.energy_csv_out:
+            base, ext = os.path.splitext(args.energy_csv_out)
             ext = ext or ".csv"
-            csv_path = f"{base}_{dtype_dir}{ext}" if len(dtypes_to_plot) > 1 else args.measurement_csv_out
+            csv_path = f"{base}_{dtype_dir}{ext}" if len(dtypes_to_plot) > 1 else args.energy_csv_out
             write_measurement_csv(dtype_measurements, csv_path)
             print(f"Wrote measurement CSV: {csv_path}")
 
@@ -635,7 +635,7 @@ def main() -> int:
 
         plt.show()
 
-    if not generated and not args.csv_out and not args.measurement_csv_out:
+    if not generated and not args.timing_csv_out and not args.energy_csv_out:
         return 2
     return 0
 

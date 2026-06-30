@@ -187,7 +187,7 @@ bool is_offload_configured() {
 }
 
 template <typename T>
-RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers) {
+RunStats run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers) {
 	(void)workers;
 	if (data.empty())
 		return RunStats{0.0, 0, 0, 1, true};
@@ -201,19 +201,18 @@ RunStats run_network_npu(std::vector<T>& data, const std::vector<common::bitonic
 	return run_network_offload_xrt(data, layers, offload_cfg);
 }
 
-template RunStats run_network_npu<std::int32_t>(std::vector<std::int32_t>& data,
-												const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
-template RunStats run_network_npu<std::uint32_t>(std::vector<std::uint32_t>& data,
-												 const std::vector<common::bitonic::Layer>& layers,
-												 std::size_t workers);
-template RunStats run_network_npu<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
-										 std::size_t workers);
-template RunStats run_network_npu<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers,
-										  std::size_t workers);
+template RunStats run_topk<std::int32_t>(std::vector<std::int32_t>& data,
+										 const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
+template RunStats run_topk<std::uint32_t>(std::vector<std::uint32_t>& data,
+										  const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
+template RunStats run_topk<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
+								  std::size_t workers);
+template RunStats run_topk<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers,
+								   std::size_t workers);
 
 #if defined(__FLT16_MANT_DIG__)
-template RunStats run_network_npu<_Float16>(std::vector<_Float16>& data,
-											const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
+template RunStats run_topk<_Float16>(std::vector<_Float16>& data, const std::vector<common::bitonic::Layer>& layers,
+									 std::size_t workers);
 #endif
 
 } // namespace npu::bitonic
