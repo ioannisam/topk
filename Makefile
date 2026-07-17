@@ -1,11 +1,13 @@
 BUILD_DIR := build
+THESIS_DIR := doc/thesis
 
 ARGS ?=
 
 .PHONY: all help build-all build-cpu build-gpu build-npu clean \
 	run-cpu run-gpu run-npu run-cases run-energy run-profiler \
 	benchmark benchmark-cases benchmark-energy profiler-bootstrap profiler-clean \
-	pin pin-show unpin lint specs a-test ab-test
+	pin pin-show unpin lint specs a-test ab-test \
+	thesis
 
 all: build-all
 
@@ -23,6 +25,9 @@ help:
 	@echo "    benchmark-cases               - timing: run-cases + run-profiler"
 	@echo "    benchmark-energy              - energy: run-energy + run-profiler"
 	@echo "    benchmark                     - everything: benchmark-cases + benchmark-energy"
+	@echo ""
+	@echo "  Thesis:"
+	@echo "    thesis                        - compile the LaTeX thesis document"
 	@echo ""
 	@echo "  Conditions (sudo): pin | pin-show | unpin  - set/show/restore governor + GPU power (pin ARGS=watts)"
 	@echo ""
@@ -112,5 +117,11 @@ a-test:
 ab-test:
 	./scripts/ab_test.sh $(ARGS)
 
+thesis:
+	@echo "=== Compiling Thesis ==="
+	cd $(THESIS_DIR) && latexmk -pdf -interaction=nonstopmode -file-line-error -outdir=build main.tex
+	cd $(THESIS_DIR) && cp build/main.pdf .
+
 clean:
 	rm -rf $(BUILD_DIR)
+	-cd $(THESIS_DIR) && rm -rf build main.pdf
