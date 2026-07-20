@@ -217,7 +217,8 @@ template <typename T> class NpuGroundTruthHooks final : public common::topk::Gro
 		return std::move(best.sample.value);
 	}
 
-	void print_debug_metrics(const Config& cfg, const common::topk::GroundTruthRunStats& stats) override {
+	void print_debug_metrics(const Config&, const common::topk::GroundTruthRunStats&) override {
+		// no specific GT metrics to output
 	}
 
   private:

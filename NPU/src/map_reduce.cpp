@@ -40,8 +40,7 @@ template <bool WantMax> static void sift_down(std::vector<std::int32_t>& heap, s
 
 template <bool WantMax, typename T>
 std::size_t prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_ptr, std::size_t current_batch,
-							  std::size_t batch_size, std::size_t batch_chunks, std::int32_t threshold_key,
-							  std::int32_t sentinel_key) {
+							  std::size_t batch_chunks, std::int32_t threshold_key, std::int32_t sentinel_key) {
 
 	std::int32_t* src_map = src_bo.map<std::int32_t*>();
 	int32_t* cfg_map = cfg_bo.map<int32_t*>();
@@ -168,8 +167,8 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 	if (offset < n) {
 		std::size_t current_batch = std::min(batch_size, n - offset);
 		valid_chunks[active_idx] = prepare_npu_batch<WantMax, T>(
-			state.mr_src_bo[active_idx], state.mr_cfg_bo[active_idx], data.data() + offset, current_batch, batch_size,
-			BATCH_CHUNKS, heap.front(), sentinel_key);
+			state.mr_src_bo[active_idx], state.mr_cfg_bo[active_idx], data.data() + offset, current_batch, BATCH_CHUNKS,
+			heap.front(), sentinel_key);
 		rl[active_idx].execute();
 		total_dispatches++;
 		offset += batch_size;
@@ -180,7 +179,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 
 		valid_chunks[next_idx] =
 			prepare_npu_batch<WantMax, T>(state.mr_src_bo[next_idx], state.mr_cfg_bo[next_idx], data.data() + offset,
-										  current_batch, batch_size, BATCH_CHUNKS, heap.front(), sentinel_key);
+										  current_batch, BATCH_CHUNKS, heap.front(), sentinel_key);
 
 		npu::utils::wait_for_runlist_or_throw(rl[active_idx], npu::utils::read_wait_timeout_ms());
 

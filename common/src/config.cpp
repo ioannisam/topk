@@ -1,6 +1,5 @@
 #include "common/config.hpp"
 
-#include <cctype>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -24,13 +23,6 @@ Distribution parse_distribution(const std::string& token);
 
 bool starts_with(const std::string& text, const std::string& prefix) {
 	return text.rfind(prefix, 0) == 0;
-}
-
-bool ends_with(const std::string& text, const std::string& suffix) {
-	if (suffix.size() > text.size()) {
-		return false;
-	}
-	return text.compare(text.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
 bool is_dtype_token(const std::string& token) {
@@ -62,75 +54,6 @@ bool parse_bool_value(const std::string& value, const char* field_name) {
 		return false;
 	}
 	throw std::invalid_argument(std::string(field_name) + " must be true/false");
-}
-
-bool is_integer_token(const std::string& token) {
-	if (token.empty()) {
-		return false;
-	}
-
-	std::size_t pos = 0;
-	if (token[0] == '+' || token[0] == '-') {
-		if (token.size() == 1) {
-			return false;
-		}
-		pos = 1;
-	}
-
-	for (; pos < token.size(); ++pos) {
-		if (!std::isdigit(static_cast<unsigned char>(token[pos]))) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
-std::string to_lower(std::string text) {
-	for (char& c : text) {
-		c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-	}
-	return text;
-}
-
-std::string trim(const std::string& text) {
-	std::size_t begin = 0;
-	while (begin < text.size() && std::isspace(static_cast<unsigned char>(text[begin]))) {
-		++begin;
-	}
-
-	if (begin == text.size()) {
-		return "";
-	}
-
-	std::size_t end = text.size();
-	while (end > begin && std::isspace(static_cast<unsigned char>(text[end - 1]))) {
-		--end;
-	}
-
-	return text.substr(begin, end - begin);
-}
-
-std::vector<std::string> split_ws(const std::string& text) {
-	std::vector<std::string> out;
-	std::string current;
-
-	for (char c : text) {
-		if (std::isspace(static_cast<unsigned char>(c))) {
-			if (!current.empty()) {
-				out.push_back(current);
-				current.clear();
-			}
-		} else {
-			current.push_back(c);
-		}
-	}
-
-	if (!current.empty()) {
-		out.push_back(current);
-	}
-
-	return out;
 }
 
 Config parse_tokens(const std::vector<std::string>& tokens) {
