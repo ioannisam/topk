@@ -66,13 +66,7 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 
 		data = std::move(best.sample.value);
 		common::topk::BasicRunStats stats{};
-		stats.end_to_end_ms = best.e2e.mean;
-		stats.algorithm_ms = best.algo.mean;
-		stats.end_to_end_stdev_ms = best.e2e.stdev;
-		stats.algorithm_stdev_ms = best.algo.stdev;
-		stats.end_to_end_min_ms = best.e2e.min;
-		stats.algorithm_min_ms = best.algo.min;
-		stats.energy = best.energy;
+		common::topk::fill_timing_stats(stats, best);
 
 		return stats;
 	}
@@ -118,13 +112,7 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 			});
 
 		if (stats != nullptr) {
-			stats->end_to_end_ms = best.e2e.mean;
-			stats->algorithm_ms = best.algo.mean;
-			stats->end_to_end_stdev_ms = best.e2e.stdev;
-			stats->algorithm_stdev_ms = best.algo.stdev;
-			stats->end_to_end_min_ms = best.e2e.min;
-			stats->algorithm_min_ms = best.algo.min;
-			stats->energy = best.energy;
+			common::topk::fill_timing_stats(*stats, best);
 			stats->tiles_used = best.sample.stats.tiles_used;
 			stats->aggregated_candidates = best.sample.stats.aggregated_candidates;
 		}
@@ -177,13 +165,7 @@ template <typename T> class CpuGroundTruthHooks final : public common::topk::Gro
 		});
 
 		if (stats != nullptr) {
-			stats->end_to_end_ms = best.e2e.mean;
-			stats->algorithm_ms = best.algo.mean;
-			stats->end_to_end_stdev_ms = best.e2e.stdev;
-			stats->algorithm_stdev_ms = best.algo.stdev;
-			stats->end_to_end_min_ms = best.e2e.min;
-			stats->algorithm_min_ms = best.algo.min;
-			stats->energy = best.energy;
+			common::topk::fill_timing_stats(*stats, best);
 		}
 
 		return std::move(best.sample.value);

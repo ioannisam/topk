@@ -46,4 +46,14 @@ struct GroundTruthRunStats {
 	common::energy::Summary energy;
 };
 
+template <typename StatsT, typename ResultT> void fill_timing_stats(StatsT& stats, const ResultT& best) {
+	stats.end_to_end_ms = best.e2e.mean;
+	stats.algorithm_ms = best.algo.mean;
+	stats.end_to_end_stdev_ms = best.e2e.stdev;
+	stats.algorithm_stdev_ms = best.algo.stdev;
+	stats.end_to_end_min_ms = best.e2e.min;
+	stats.algorithm_min_ms = best.algo.min;
+	stats.energy = best.energy;
+}
+
 } // namespace common::topk

@@ -90,13 +90,7 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 			last_full_stats = best_stats;
 		}
 		common::topk::BasicRunStats stats{};
-		stats.end_to_end_ms = best.e2e.mean;
-		stats.algorithm_ms = best.algo.mean;
-		stats.end_to_end_stdev_ms = best.e2e.stdev;
-		stats.algorithm_stdev_ms = best.algo.stdev;
-		stats.end_to_end_min_ms = best.e2e.min;
-		stats.algorithm_min_ms = best.algo.min;
-		stats.energy = best.energy;
+		common::topk::fill_timing_stats(stats, best);
 		return stats;
 	}
 
@@ -147,13 +141,7 @@ template <typename T> class NpuMapReduceRunnerHooks final : public common::topk:
 
 		last_run_stats = best.sample.stats;
 		if (stats != nullptr) {
-			stats->end_to_end_ms = best.e2e.mean;
-			stats->algorithm_ms = best.algo.mean;
-			stats->end_to_end_stdev_ms = best.e2e.stdev;
-			stats->algorithm_stdev_ms = best.algo.stdev;
-			stats->end_to_end_min_ms = best.e2e.min;
-			stats->algorithm_min_ms = best.algo.min;
-			stats->energy = best.energy;
+			common::topk::fill_timing_stats(*stats, best);
 			stats->tiles_used = 0;
 			stats->aggregated_candidates = 0;
 		}
@@ -205,13 +193,7 @@ template <typename T> class NpuGroundTruthHooks final : public common::topk::Gro
 		});
 
 		if (stats != nullptr) {
-			stats->end_to_end_ms = best.e2e.mean;
-			stats->algorithm_ms = best.algo.mean;
-			stats->end_to_end_stdev_ms = best.e2e.stdev;
-			stats->algorithm_stdev_ms = best.algo.stdev;
-			stats->end_to_end_min_ms = best.e2e.min;
-			stats->algorithm_min_ms = best.algo.min;
-			stats->energy = best.energy;
+			common::topk::fill_timing_stats(*stats, best);
 		}
 
 		return std::move(best.sample.value);
