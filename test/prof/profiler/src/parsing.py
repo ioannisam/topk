@@ -5,7 +5,7 @@ import os
 import re
 from typing import Iterable, Optional
 
-from .models import CaseRecord, MeasurementRecord
+from .models import CaseRecord, MeasurementRecord, RooflinePoint
 
 
 BACKEND_HEADER_RE = re.compile(r"^== Backend:\s*(?P<backend>[^=]+?)\s*==$")
@@ -418,3 +418,36 @@ def parse_measurements(paths: Iterable[str]) -> list[MeasurementRecord]:
 
         records.append(rec)
     return records
+
+
+def parse_roofline(paths: Iterable[str]) -> list[RooflinePoint]:
+    points: list[RooflinePoint] = []
+    for path in paths:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            continue
+
+        for entry in payload.get("points", []):
+            try:
+                points.append(
+                    RooflinePoint(
+                        backend=str(entry["backend"]).lower(),
+                        kernel=str(entry["kernel"]).lower(),
+                        ops_per_elem=int(entry["ops_per_elem"]),
+                        elements=int(entry["elements"]),
+                        bytes_moved=float(entry["bytes_moved"]),
+                        flops=float(entry["flops"]),
+                        ms_mean=float(entry["ms_mean"]),
+                        ms_stdev=float(entry["ms_stdev"]),
+                        ms_min=float(entry["ms_min"]),
+                        gbytes_per_s=float(entry["gbytes_per_s"]),
+                        gflops_per_s=float(entry["gflops_per_s"]),
+                        arithmetic_intensity=float(entry["arithmetic_intensity"]),
+                        joules_per_iter=float(entry["joules_per_iter"]),
+                    )
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+    return points

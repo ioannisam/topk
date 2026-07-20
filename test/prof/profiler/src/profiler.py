@@ -7,7 +7,7 @@ import os
 
 from .csv_io import write_case_csv, write_measurement_csv
 from .filtering import filter_measurements, filter_records
-from .parsing import attach_inprocess_energy, parse_measurements, parse_test_output
+from .parsing import attach_inprocess_energy, parse_measurements, parse_roofline, parse_test_output
 from .plotting.common import MATPLOTLIB_AVAILABLE
 from .plotting import edp_vs_n
 from .plotting import energy_by_backend
@@ -30,6 +30,7 @@ from .plotting import time_vs_k_backend_compare
 from .plotting import time_vs_n_k_colored
 from .plotting import heatmap_time
 from .plotting import memory_bandwidth_vs_n
+from .plotting import roofline
 
 
 def metric_path(out_dir: str, name: str, metric: str) -> str:
@@ -79,6 +80,7 @@ def parse_args() -> argparse.Namespace:
             "energy-per-element-vs-n",
             "time-per-element-vs-n",
             "memory-bandwidth-vs-n",
+            "roofline",
             # "time-vs-k-backend-compare",
             "time-vs-n-k-colored",
             "heatmap-time",
@@ -155,6 +157,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional fixed N for backend comparison bars and Pareto plot.",
     )
+    parser.add_argument(
+        "--roofline-input",
+        nargs="*",
+        default=["test/prof/results/roofline.json"],
+        help="Roofline measurement JSON from test/prof/roofline.py.",
+    )
     parser.add_argument("--show", action="store_true", help="Show figures interactively.")
     return parser.parse_args()
 
@@ -179,6 +187,8 @@ def main() -> int:
     measurement_paths = list(dict.fromkeys(measurement_paths))
 
     measurement_records = parse_measurements(measurement_paths)
+    roofline_points = parse_roofline([p for p in args.roofline_input if os.path.isfile(p)])
+    roofline_ceilings = roofline.backend_ceilings(roofline_points)
 
     bench_ops_by_key: dict = {}
     global_bench_ops = None
@@ -229,6 +239,7 @@ def main() -> int:
             "energy-per-element-vs-n",
             "time-per-element-vs-n",
             "memory-bandwidth-vs-n",
+            "roofline",
             # "time-vs-k-backend-compare",
             "time-vs-n-k-colored",
             "heatmap-time",
@@ -439,6 +450,7 @@ def main() -> int:
                         args.agg,
                         args.error_bars,
                         title=f"Effective Memory Bandwidth vs. N (All Backends, K={current_k})",
+                        ceilings=roofline_ceilings,
                     )
                     if out_main:
                         collect_output(out_main)
@@ -456,6 +468,7 @@ def main() -> int:
                         args.agg,
                         args.error_bars,
                         title=f"{b.upper()} Effective Memory Bandwidth vs. N (with GT, K={current_k})",
+                        ceilings=roofline_ceilings,
                     )
                     if out_b:
                         collect_output(out_b)
@@ -631,6 +644,14 @@ def main() -> int:
                     f"Skipped energy-per-element-vs-n ({dtype_dir}): "
                     "no measurement records with N and energy were found."
                 )
+
+    # The roofline characterizes the machine, not a dtype, so it is emitted once.
+    if "roofline" in requested:
+        out = roofline.plot(roofline_points, os.path.join(args.output_dir, "memory", "roofline.png"))
+        if out:
+            collect_output(out)
+        else:
+            print("Skipped roofline: no sweep points found. Run 'make run-roofline' first.")
 
     if generated:
         print("Generated plot files:")

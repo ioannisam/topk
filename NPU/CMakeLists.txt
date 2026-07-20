@@ -23,3 +23,14 @@ target_compile_options(npu_topk PRIVATE -O3 -march=native -DNDEBUG -Wall -Wextra
 target_link_libraries(npu_topk PRIVATE common xrt_coreutil uuid)
 
 add_dependencies(npu_topk npu_hardware)
+
+add_executable(npu_roofline
+    src/roofline_main.cpp
+    src/roofline.cpp
+)
+
+set_target_properties(npu_roofline PROPERTIES OUTPUT_NAME "roofline")
+
+target_include_directories(npu_roofline PRIVATE include src)
+target_compile_options(npu_roofline PRIVATE -O3 -march=native -DNDEBUG -Wall -Wextra)
+target_link_libraries(npu_roofline PRIVATE common xrt_coreutil uuid)

@@ -5,7 +5,7 @@ ARGS ?=
 
 .PHONY: all help build-all build-cpu build-gpu build-npu clean \
 	run-cpu run-gpu run-npu run-cases run-energy run-profiler \
-	benchmark benchmark-cases benchmark-energy profiler-bootstrap profiler-clean \
+	benchmark benchmark-cases benchmark-energy benchmark-roofline profiler-bootstrap profiler-clean \
 	pin pin-show unpin lint specs a-test ab-test \
 	thesis
 
@@ -19,12 +19,14 @@ help:
 	@echo "  Measure (write test/prof/results/):"
 	@echo "    run-cases                     - measure timing data via runner.py (ARGS=...)"
 	@echo "    run-energy                    - measure energy data, all backends; sudo for RAPL (ARGS=...)"
+	@echo "    run-roofline                  - measure bandwidth ceilings + AI sweeps (ARGS=...)"
 	@echo "  Plot:"
 	@echo "    run-profiler                  - plot results from measured data (ARGS=...)"
 	@echo "  Pipelines (measure + plot):"
 	@echo "    benchmark-cases               - timing: run-cases + run-profiler"
 	@echo "    benchmark-energy              - energy: run-energy + run-profiler"
-	@echo "    benchmark                     - everything: benchmark-cases + benchmark-energy"
+	@echo "    benchmark-roofline            - roofline: run-roofline + run-profiler"
+	@echo "    benchmark                     - everything: benchmark-cases + benchmark-energy + benchmark-roofline"
 	@echo ""
 	@echo "  Thesis:"
 	@echo "    thesis                        - compile the LaTeX thesis document"
@@ -71,6 +73,9 @@ run-cases:
 run-energy:
 	./test/prof/energy/run_energy.sh $(ARGS)
 
+run-roofline:
+	./test/prof/run_roofline.sh $(ARGS)
+
 run-profiler:
 	./test/prof/profiler/run_profiler.sh $(ARGS)
 
@@ -83,6 +88,13 @@ profiler-clean:
 benchmark:
 	$(MAKE) benchmark-cases
 	$(MAKE) benchmark-energy
+	$(MAKE) benchmark-roofline
+
+benchmark-roofline:
+	@echo "=== 1. Measuring bandwidth ceilings and AI sweeps ==="
+	-$(MAKE) run-roofline
+	@echo "=== 2. Generating roofline plots ==="
+	$(MAKE) run-profiler ARGS="--plot roofline memory-bandwidth-vs-n --error-bars none"
 
 benchmark-cases:
 	@echo "=== 1. Measuring timing (all backends) ==="

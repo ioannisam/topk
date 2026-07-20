@@ -51,6 +51,23 @@ class CaseRecord:
 
 
 @dataclass
+class RooflinePoint:
+    backend: str
+    kernel: str
+    ops_per_elem: int
+    elements: int
+    bytes_moved: float
+    flops: float
+    ms_mean: float
+    ms_stdev: float
+    ms_min: float
+    gbytes_per_s: float
+    gflops_per_s: float
+    arithmetic_intensity: float
+    joules_per_iter: float
+
+
+@dataclass
 class MeasurementRecord:
     source: str
     file_path: str

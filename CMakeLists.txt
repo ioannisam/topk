@@ -28,6 +28,7 @@ add_library(common STATIC
 	common/src/energy.cpp
 	common/src/random.cpp
 	common/src/reporting.cpp
+	common/src/roofline.cpp
 )
 target_include_directories(common PUBLIC common/include)
 target_compile_features(common PUBLIC cxx_std_20)

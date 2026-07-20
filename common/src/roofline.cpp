@@ -1,0 +1,217 @@
+#include "common/roofline.hpp"
+
+#include <cctype>
+#include <cstdio>
+#include <stdexcept>
+
+#include "common/reporting.hpp"
+
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+
+namespace common::roofline {
+namespace {
+
+constexpr const char* kUsage = "Usage: ./roofline [exp=stream|sweep|both] [bytes=<size>[K|M|G]] "
+							   "[ops=<csv>] [threads=<num>] [seed=<seed>] [debug=true|false]";
+
+bool starts_with(const std::string& text, const std::string& prefix) {
+	return text.rfind(prefix, 0) == 0;
+}
+
+bool parse_bool_value(const std::string& value, const char* field_name) {
+	if (value == "true" || value == "1" || value == "yes" || value == "on") {
+		return true;
+	}
+	if (value == "false" || value == "0" || value == "no" || value == "off") {
+		return false;
+	}
+	throw std::invalid_argument(std::string(field_name) + " must be true/false");
+}
+
+long long parse_signed_long(const std::string& text, const char* field_name) {
+	try {
+		std::size_t pos = 0;
+		const long long value = std::stoll(text, &pos);
+		if (pos != text.size()) {
+			throw std::invalid_argument("");
+		}
+		return value;
+	} catch (const std::exception&) {
+		throw std::invalid_argument(std::string(field_name) + " must be an integer");
+	}
+}
+
+std::size_t parse_bytes(const std::string& text) {
+	if (text.empty()) {
+		throw std::invalid_argument("bytes must not be empty");
+	}
+
+	std::size_t multiplier = 1;
+	std::string digits = text;
+	const char suffix = static_cast<char>(std::toupper(static_cast<unsigned char>(text.back())));
+	if (suffix == 'K' || suffix == 'M' || suffix == 'G') {
+		multiplier =
+			suffix == 'K' ? (std::size_t{1} << 10) : (suffix == 'M' ? (std::size_t{1} << 20) : (std::size_t{1} << 30));
+		digits = text.substr(0, text.size() - 1);
+	}
+
+	const long long value = parse_signed_long(digits, "bytes");
+	if (value <= 0) {
+		throw std::invalid_argument("bytes must be positive");
+	}
+	return static_cast<std::size_t>(value) * multiplier;
+}
+
+std::vector<int> parse_ops(const std::string& text) {
+	std::vector<int> out;
+	std::string current;
+	for (const char c : text) {
+		if (c == ',') {
+			if (!current.empty()) {
+				out.push_back(static_cast<int>(parse_signed_long(current, "ops")));
+				current.clear();
+			}
+		} else {
+			current.push_back(c);
+		}
+	}
+	if (!current.empty()) {
+		out.push_back(static_cast<int>(parse_signed_long(current, "ops")));
+	}
+
+	for (const int value : out) {
+		if (value < 0) {
+			throw std::invalid_argument("ops must be non-negative");
+		}
+	}
+	if (out.empty()) {
+		throw std::invalid_argument("ops must list at least one value");
+	}
+	return out;
+}
+
+Experiment parse_experiment(const std::string& value) {
+	if (value == "stream") {
+		return Experiment::Stream;
+	}
+	if (value == "sweep") {
+		return Experiment::Sweep;
+	}
+	if (value == "both") {
+		return Experiment::Both;
+	}
+	throw std::invalid_argument("Unsupported experiment. Use one of: stream, sweep, both");
+}
+
+} // namespace
+
+Config parse_args(int argc, char** argv) {
+	Config cfg{};
+	cfg.experiment = Experiment::Both;
+	cfg.bytes = std::size_t{512} << 20;
+	cfg.ops = {0, 1, 2, 4, 8, 16, 32, 64, 128, 256};
+	cfg.ex_threads = 0;
+	cfg.seed = 42;
+	cfg.debug_output = DEBUG != 0;
+
+	for (int i = 1; i < argc; ++i) {
+		const std::string token = argv[i];
+		if (token.find('=') == std::string::npos) {
+			throw std::invalid_argument(kUsage);
+		}
+
+		if (starts_with(token, "exp=")) {
+			cfg.experiment = parse_experiment(token.substr(4));
+			continue;
+		}
+		if (starts_with(token, "bytes=")) {
+			cfg.bytes = parse_bytes(token.substr(6));
+			continue;
+		}
+		if (starts_with(token, "ops=")) {
+			cfg.ops = parse_ops(token.substr(4));
+			continue;
+		}
+		if (starts_with(token, "threads=")) {
+			const long long parsed = parse_signed_long(token.substr(8), "threads");
+			if (parsed <= 0) {
+				throw std::invalid_argument("threads must be positive");
+			}
+			cfg.ex_threads = static_cast<std::size_t>(parsed);
+			continue;
+		}
+		if (starts_with(token, "seed=")) {
+			const long long parsed = parse_signed_long(token.substr(5), "seed");
+			if (parsed < 0) {
+				throw std::invalid_argument("seed must be non-negative");
+			}
+			cfg.seed = static_cast<std::uint64_t>(parsed);
+			continue;
+		}
+		if (starts_with(token, "debug=")) {
+			cfg.debug_output = parse_bool_value(token.substr(6), "debug");
+			continue;
+		}
+
+		throw std::invalid_argument("Unknown key token: " + token);
+	}
+
+	return cfg;
+}
+
+double gbytes_per_second(const Point& point) {
+	if (point.ms_min <= 0.0) {
+		return 0.0;
+	}
+	return point.bytes_moved / (point.ms_min * 1e6);
+}
+
+double gflops_per_second(const Point& point) {
+	if (point.ms_min <= 0.0) {
+		return 0.0;
+	}
+	return point.flops / (point.ms_min * 1e6);
+}
+
+double arithmetic_intensity(const Point& point) {
+	if (point.bytes_moved <= 0.0) {
+		return 0.0;
+	}
+	return point.flops / point.bytes_moved;
+}
+
+void report(const Config& cfg, const char* backend, const std::vector<Point>& points) {
+	if (cfg.debug_output) {
+		common::reporting::print_section_header("Roofline Configuration");
+		common::reporting::print_key_value("Backend", backend);
+		common::reporting::print_key_value("Working set (MiB)", static_cast<double>(cfg.bytes) / (1024.0 * 1024.0), 1);
+		common::reporting::print_key_value("Threads", cfg.ex_threads);
+		common::reporting::print_section_header("Roofline Points");
+	}
+
+	std::printf("ROOFLINE_SCHEMA,backend,kernel,ops_per_elem,elements,bytes_moved,flops,ms_mean,ms_stdev,ms_min,"
+				"gbytes_per_s,gflops_per_s,arithmetic_intensity,joules_per_iter\n");
+
+	for (const Point& point : points) {
+		const int iterations = point.energy.iterations > 0 ? point.energy.iterations : 1;
+		const double joules =
+			point.energy.available ? point.energy.algo_total.total() / static_cast<double>(iterations) : 0.0;
+
+		std::printf("ROOFLINE,%s,%s,%d,%zu,%.0f,%.0f,%.6f,%.6f,%.6f,%.4f,%.4f,%.6f,%.6f\n", backend,
+					point.kernel.c_str(), point.ops_per_elem, point.elements, point.bytes_moved, point.flops,
+					point.ms_mean, point.ms_stdev, point.ms_min, gbytes_per_second(point), gflops_per_second(point),
+					arithmetic_intensity(point), joules);
+	}
+
+	if (cfg.debug_output) {
+		for (const Point& point : points) {
+			const std::string label = point.kernel + " (ops/elem=" + std::to_string(point.ops_per_elem) + ")";
+			common::reporting::print_key_value(label.c_str(),
+											   common::reporting::format_fixed(gbytes_per_second(point), 2, " GB/s"));
+		}
+	}
+}
+
+} // namespace common::roofline
