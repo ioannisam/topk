@@ -4,9 +4,9 @@ set -euo pipefail
 usage() {
     cat <<'EOF'
 Usage:
-    sudo ./test/prof/energy/measure_rapl.sh [--path <energy_uj_path>] -- <command> [args...]
-    sudo ./test/prof/energy/measure_rapl.sh [--out <file>] [--path <energy_uj_path>] -- <command> [args...]
-    sudo ./test/prof/energy/measure_rapl.sh --list-paths
+    sudo ./bench/lib/measure_rapl.sh [--path <energy_uj_path>] -- <command> [args...]
+    sudo ./bench/lib/measure_rapl.sh [--out <file>] [--path <energy_uj_path>] -- <command> [args...]
+    sudo ./bench/lib/measure_rapl.sh --list-paths
 
 Options:
     --out <file>               Also write report to file (for profiler ingestion).
@@ -18,9 +18,9 @@ Options:
     --                         End script options; remaining args are the command to run.
 
 Examples:
-    sudo ./test/prof/energy/measure_rapl.sh -- ./build/CPU/topk q=20 k=256 dtype=int algo=bitonic
-    sudo ./test/prof/energy/measure_rapl.sh --out ./test/prof/results/energy/cpu_run1.txt -- ./build/CPU/topk q=20 k=256 dtype=int algo=bitonic
-    sudo ./test/prof/energy/measure_rapl.sh --path /sys/class/powercap/intel-rapl:0/energy_uj -- sleep 1
+    sudo ./bench/lib/measure_rapl.sh -- ./build/CPU/topk q=20 k=256 dtype=int algo=bitonic
+    sudo ./bench/lib/measure_rapl.sh --out ./bench/results/raw/energy/measurements/cpu_run1.txt -- ./build/CPU/topk q=20 k=256 dtype=int algo=bitonic
+    sudo ./bench/lib/measure_rapl.sh --path /sys/class/powercap/intel-rapl:0/energy_uj -- sleep 1
 
 Notes:
     - Uses Linux RAPL energy_uj counters (microjoules) (may need sudo).
@@ -140,7 +140,7 @@ CMD_STR="$*"
 if [[ -z "${ENERGY_PATH}" ]]; then
     if ! ENERGY_PATH="$(find_default_energy_path)"; then
         echo "error: could not find a readable energy_uj path under /sys/class/powercap" >&2
-        echo "hint: run ./test/prof/energy/measure_rapl.sh --list-paths to inspect availability" >&2
+        echo "hint: run ./bench/lib/measure_rapl.sh --list-paths to inspect availability" >&2
         echo "hint: pass --path explicitly, or run with sufficient permissions (for example with sudo)" >&2
         exit 1
     fi

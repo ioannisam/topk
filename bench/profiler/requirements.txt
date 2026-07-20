@@ -1,0 +1,2 @@
+# Dependencies for bench/profiler.py
+matplotlib>=3.10

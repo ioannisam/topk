@@ -4,9 +4,9 @@ set -euo pipefail
 usage() {
     cat <<'EOF'
 Usage:
-    ./test/prof/energy/measure_smi.sh [--gpu-index <idx>] [--interval-ms <ms>] -- <command> [args...]
-    ./test/prof/energy/measure_smi.sh [--out <file>] [--gpu-index <idx>] [--interval-ms <ms>] -- <command> [args...]
-    ./test/prof/energy/measure_smi.sh --list-gpus
+    ./bench/lib/measure_smi.sh [--gpu-index <idx>] [--interval-ms <ms>] -- <command> [args...]
+    ./bench/lib/measure_smi.sh [--out <file>] [--gpu-index <idx>] [--interval-ms <ms>] -- <command> [args...]
+    ./bench/lib/measure_smi.sh --list-gpus
 
 Options:
     --out <file>                Also write report to file (for profiler ingestion).
@@ -19,9 +19,9 @@ Options:
     --                          End script options; remaining args are the command to run.
 
 Examples:
-    ./test/prof/energy/measure_smi.sh -- ./build/GPU/topk q=20 k=256 dtype=int algo=bitonic
-    ./test/prof/energy/measure_smi.sh --out ./test/prof/results/energy/gpu_run1.txt -- ./build/GPU/topk q=20 k=256 dtype=int algo=bitonic
-    ./test/prof/energy/measure_smi.sh --gpu-index 0 --interval-ms 100 -- sleep 1
+    ./bench/lib/measure_smi.sh -- ./build/GPU/topk q=20 k=256 dtype=int algo=bitonic
+    ./bench/lib/measure_smi.sh --out ./bench/results/raw/energy/measurements/gpu_run1.txt -- ./build/GPU/topk q=20 k=256 dtype=int algo=bitonic
+    ./bench/lib/measure_smi.sh --gpu-index 0 --interval-ms 100 -- sleep 1
 
 Notes:
     - Uses nvidia-smi power.draw telemetry (Watts).

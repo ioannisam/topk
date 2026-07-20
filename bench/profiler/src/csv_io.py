@@ -113,3 +113,44 @@ def write_measurement_csv(records: Iterable[MeasurementRecord], out_path: str) -
                     "" if rec.inproc_loop_seconds is None else f"{rec.inproc_loop_seconds:.12g}",
                 ]
             )
+
+
+def write_roofline_csv(points: Iterable, out_path: str) -> None:
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    with open(out_path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "backend",
+                "kernel",
+                "ops_per_elem",
+                "elements",
+                "bytes_moved",
+                "flops",
+                "ms_mean",
+                "ms_stdev",
+                "ms_min",
+                "gbytes_per_s",
+                "gflops_per_s",
+                "arithmetic_intensity",
+                "joules_per_iter",
+            ]
+        )
+        for p in points:
+            writer.writerow(
+                [
+                    p.backend,
+                    p.kernel,
+                    p.ops_per_elem,
+                    p.elements,
+                    f"{p.bytes_moved:.12g}",
+                    f"{p.flops:.12g}",
+                    f"{p.ms_mean:.12g}",
+                    f"{p.ms_stdev:.12g}",
+                    f"{p.ms_min:.12g}",
+                    f"{p.gbytes_per_s:.12g}",
+                    f"{p.gflops_per_s:.12g}",
+                    f"{p.arithmetic_intensity:.12g}",
+                    f"{p.joules_per_iter:.12g}",
+                ]
+            )

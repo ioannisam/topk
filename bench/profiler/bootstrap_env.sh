@@ -11,13 +11,13 @@ if [[ ! -f "${ROOT_DIR}/CMakeLists.txt" ]]; then
     exit 1
 fi
 
-VENV_DIR="${ROOT_DIR}/test/prof/profiler/.venv"
-REQ_FILE="${ROOT_DIR}/test/prof/profiler/requirements.txt"
-PROFILER="${ROOT_DIR}/test/prof/profiler/profiler.py"
-TEST_INPUT="${ROOT_DIR}/test/prof/results/cases_output.txt"
-OUT_DIR="${ROOT_DIR}/test/prof/results/plots"
-CSV_OUT="${ROOT_DIR}/test/prof/results/profile_cases.csv"
-MEAS_CSV_OUT="${ROOT_DIR}/test/prof/results/profile_energy.csv"
+VENV_DIR="${ROOT_DIR}/bench/profiler/.venv"
+REQ_FILE="${ROOT_DIR}/bench/profiler/requirements.txt"
+PROFILER="${ROOT_DIR}/bench/profiler/profiler.py"
+TEST_INPUT="${ROOT_DIR}/bench/results/raw/cases/output.txt"
+OUT_DIR="${ROOT_DIR}/bench/results/plots"
+CSV_OUT="${ROOT_DIR}/bench/results/derived/cases.csv"
+MEAS_CSV_OUT="${ROOT_DIR}/bench/results/derived/energy.csv"
 
 pick_python() {
     if [[ -x "${ROOT_DIR}/NPU/npu_env/bin/python" ]]; then

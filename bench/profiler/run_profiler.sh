@@ -11,9 +11,9 @@ if [[ ! -f "${ROOT_DIR}/CMakeLists.txt" ]]; then
     exit 1
 fi
 
-VENV_PY="${ROOT_DIR}/test/prof/profiler/.venv/bin/python"
-PROFILER="${ROOT_DIR}/test/prof/profiler/profiler.py"
-BOOTSTRAP="${ROOT_DIR}/test/prof/profiler/bootstrap_env.sh"
+VENV_PY="${ROOT_DIR}/bench/profiler/.venv/bin/python"
+PROFILER="${ROOT_DIR}/bench/profiler/profiler.py"
+BOOTSTRAP="${ROOT_DIR}/bench/profiler/bootstrap_env.sh"
 
 if [[ ! -x "${VENV_PY}" ]]; then
     echo "Profiler venv not found. Bootstrapping..."

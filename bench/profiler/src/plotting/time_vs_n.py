@@ -5,7 +5,7 @@ from collections import defaultdict
 from typing import Optional
 
 from ..models import CaseRecord
-from .common import aggregate_value, error_bounds, label_with_algorithm, plt, select_time_ms, style_axes
+from .common import aggregate_value, error_bounds, label_with_algorithm, plt, select_time_ms, style_axes, save_k_figure
 
 
 def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) -> Optional[list[str]]:
@@ -63,11 +63,6 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
         ax.legend(title="Configuration", loc="upper left")
         fig.tight_layout()
 
-        os.makedirs(base_dir, exist_ok=True)
-        # Suffix the filename with _k<value>
-        out_file = os.path.join(base_dir, f"{base_name}_k{k}{ext}")
-        fig.savefig(out_file, dpi=160, bbox_inches="tight")
-        plt.close(fig)
-        outputs.append(out_file)
+        outputs.append(save_k_figure(fig, base_dir, base_name, k, ext, bbox_inches="tight"))
 
     return outputs

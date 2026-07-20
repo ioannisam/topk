@@ -73,5 +73,5 @@ Use the dynamic profiler runner (no static `.case` files):
 
 ```bash
 cd /home/ioannis/Development/Thesis
-./test/prof/cases/run_testcases.sh gpu float --q-min 1 --q-max 16 --verify true --min 0 --max 1000
+python3 ./bench/lib/runner.py gpu --types float --q-min 1 --q-max 16 --verify true --min 0 --max 1000
 ```

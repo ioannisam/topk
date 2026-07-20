@@ -3,9 +3,9 @@ THESIS_DIR := doc/thesis
 
 ARGS ?=
 
-.PHONY: all help build-all build-cpu build-gpu build-npu clean \
-	run-cpu run-gpu run-npu run-cases run-energy run-profiler \
-	benchmark benchmark-cases benchmark-energy benchmark-roofline profiler-bootstrap profiler-clean \
+.PHONY: all help build-all build-cpu build-gpu build-npu clean clean-build clean-results \
+	run-cpu run-gpu run-npu measure-cases measure-energy measure-roofline plot \
+	benchmark benchmark-cases benchmark-energy benchmark-roofline profiler-bootstrap \
 	pin pin-show unpin lint specs a-test ab-test \
 	thesis
 
@@ -16,16 +16,16 @@ help:
 	@echo "  build-all | build-cpu | build-gpu | build-npu"
 	@echo "  run-cpu | run-gpu | run-npu       - run a backend binary (ARGS=...)"
 	@echo ""
-	@echo "  Measure (write test/prof/results/):"
-	@echo "    run-cases                     - measure timing data via runner.py (ARGS=...)"
-	@echo "    run-energy                    - measure energy data, all backends; sudo for RAPL (ARGS=...)"
-	@echo "    run-roofline                  - measure bandwidth ceilings + AI sweeps (ARGS=...)"
+	@echo "  Measure (write bench/results/):"
+	@echo "    measure-cases                 - measure timing data via runner.py (ARGS=...)"
+	@echo "    measure-energy                - measure energy data, all backends; sudo for RAPL (ARGS=...)"
+	@echo "    measure-roofline              - measure bandwidth ceilings + AI sweeps (ARGS=...)"
 	@echo "  Plot:"
-	@echo "    run-profiler                  - plot results from measured data (ARGS=...)"
+	@echo "    plot                          - plot results from measured data (ARGS=...)"
 	@echo "  Pipelines (measure + plot):"
-	@echo "    benchmark-cases               - timing: run-cases + run-profiler"
-	@echo "    benchmark-energy              - energy: run-energy + run-profiler"
-	@echo "    benchmark-roofline            - roofline: run-roofline + run-profiler"
+	@echo "    benchmark-cases               - timing: measure-cases + plot"
+	@echo "    benchmark-energy              - energy: measure-energy + plot"
+	@echo "    benchmark-roofline            - roofline: measure-roofline + plot"
 	@echo "    benchmark                     - everything: benchmark-cases + benchmark-energy + benchmark-roofline"
 	@echo ""
 	@echo "  Thesis:"
@@ -33,7 +33,12 @@ help:
 	@echo ""
 	@echo "  Conditions (sudo): pin | pin-show | unpin  - set/show/restore governor + GPU power (pin ARGS=watts)"
 	@echo ""
-	@echo "  profiler-bootstrap | profiler-clean | lint | specs | a-test | ab-test"
+	@echo "  profiler-bootstrap | lint | specs | a-test | ab-test"
+	@echo ""
+	@echo "  Clean:"
+	@echo "    clean-build                   - remove build/ and thesis build artifacts"
+	@echo "    clean-results                 - remove bench/results/{raw,derived,plots} (measurement data!)"
+	@echo "    clean                         - clean-build + clean-results"
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -67,23 +72,20 @@ run-npu: build-npu
 	fi; \
 	./$(BUILD_DIR)/NPU/topk $(ARGS)
 
-run-cases:
-	./test/prof/run_cases.sh $(ARGS)
+measure-cases:
+	./bench/run_cases.sh $(ARGS)
 
-run-energy:
-	./test/prof/energy/run_energy.sh $(ARGS)
+measure-energy:
+	./bench/run_energy.sh $(ARGS)
 
-run-roofline:
-	./test/prof/run_roofline.sh $(ARGS)
+measure-roofline:
+	./bench/run_roofline.sh $(ARGS)
 
-run-profiler:
-	./test/prof/profiler/run_profiler.sh $(ARGS)
+plot:
+	./bench/profiler/run_profiler.sh $(ARGS)
 
 profiler-bootstrap:
-	./test/prof/profiler/bootstrap_env.sh
-
-profiler-clean:
-	./test/prof/clean_prof.sh
+	./bench/profiler/bootstrap_env.sh
 
 benchmark:
 	$(MAKE) benchmark-cases
@@ -92,21 +94,21 @@ benchmark:
 
 benchmark-roofline:
 	@echo "=== 1. Measuring bandwidth ceilings and AI sweeps ==="
-	-$(MAKE) run-roofline
+	-$(MAKE) measure-roofline
 	@echo "=== 2. Generating roofline plots ==="
-	$(MAKE) run-profiler ARGS="--plot roofline memory-bandwidth-vs-n --error-bars none"
+	$(MAKE) plot ARGS="--plot roofline memory-bandwidth-vs-n --error-bars none --roofline-csv-out ./bench/results/derived/roofline.csv"
 
 benchmark-cases:
 	@echo "=== 1. Measuring timing (all backends) ==="
-	-$(MAKE) run-cases
+	-$(MAKE) measure-cases
 	@echo "=== 2. Generating timing plots ==="
-	$(MAKE) run-profiler ARGS="--plot all --error-bars none --timing-csv-out ./test/prof/results/profile_cases.csv"
+	$(MAKE) plot ARGS="--plot all --error-bars none --timing-csv-out ./bench/results/derived/cases.csv"
 
 benchmark-energy:
 	@echo "=== 1. Measuring energy (all backends) ==="
-	-$(MAKE) run-energy
+	-$(MAKE) measure-energy
 	@echo "=== 2. Generating energy plots ==="
-	$(MAKE) run-profiler ARGS="--input ./test/prof/results/energy_output.json --plot energy-by-backend power-by-backend energy-vs-n power-vs-n edp-vs-n energy-per-element-vs-n time-vs-energy --energy-metric both --error-bars none --energy-csv-out ./test/prof/results/profile_energy.csv"
+	$(MAKE) plot ARGS="--input ./bench/results/raw/energy/output.json --plot energy-by-backend power-by-backend energy-vs-n power-vs-n edp-vs-n energy-per-element-vs-n time-vs-energy --energy-metric both --error-bars none --energy-csv-out ./bench/results/derived/energy.csv"
 
 pin-show:
 	ACTION=show ./scripts/pin_conditions.sh
@@ -134,6 +136,18 @@ thesis:
 	cd $(THESIS_DIR) && latexmk -pdf -interaction=nonstopmode -file-line-error -outdir=build main.tex
 	cd $(THESIS_DIR) && cp build/main.pdf .
 
-clean:
+clean-build:
 	rm -rf $(BUILD_DIR)
 	-cd $(THESIS_DIR) && rm -rf build main.pdf
+
+clean-results:
+	@if [ "$(FORCE)" = "1" ]; then \
+		./bench/clean.sh; \
+	else \
+		printf "This deletes bench/results/{raw,derived,plots} - measurement data, not in git.\n"; \
+		printf "Continue? [y/N] "; \
+		read ans; \
+		case "$$ans" in [yY]|[yY][eE][sS]) ./bench/clean.sh ;; *) echo "Aborted." ;; esac; \
+	fi
+
+clean: clean-build clean-results

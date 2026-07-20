@@ -6,12 +6,13 @@ from typing import Optional
 
 from ..models import MeasurementRecord
 from .common import (
+    save_k_figure,
     aggregate_value,
     error_bounds,
     label_with_algorithm,
     metric_title_suffix,
     plt,
-    select_energy_joules,
+    select_power_watts,
     style_axes,
 )
 
@@ -23,14 +24,14 @@ def plot(
     algorithms = {rec.algorithm for rec in records if rec.algorithm}
     include_algorithm = len(algorithms) > 1
     for rec in records:
-        if rec.k is None or rec.n is None or rec.n <= 0:
+        if rec.k is None or rec.n is None:
             continue
-        energy = select_energy_joules(rec, metric)
-        if energy is None or energy < 0:
+        watts = select_power_watts(rec, metric)
+        if watts is None or watts <= 0:
             continue
         base_label = rec.backend if rec.backend else rec.source
         label = label_with_algorithm(base_label, rec.algorithm, include_algorithm)
-        grouped[rec.k][label][rec.n].append(energy / float(rec.n))
+        grouped[rec.k][label][rec.n].append(watts)
 
     if not grouped:
         return None
@@ -58,17 +59,13 @@ def plot(
         ax.set_yscale("log")
         style_axes(
             ax,
-            f"End-to-end Energy per Element vs Input Size (K = {k})" + metric_title_suffix(metric),
+            f"Power vs Input Size (K = {k})" + metric_title_suffix(metric),
             "N (log2 scale)",
-            "Energy / element per op (J)",
+            "Power (W, log scale)",
         )
         ax.legend()
         fig.tight_layout()
 
-        os.makedirs(base_dir, exist_ok=True)
-        out_file = os.path.join(base_dir, f"{base_name}_k{k}{ext}")
-        fig.savefig(out_file, dpi=160)
-        plt.close(fig)
-        outputs.append(out_file)
+        outputs.append(save_k_figure(fig, base_dir, base_name, k, ext))
 
     return outputs

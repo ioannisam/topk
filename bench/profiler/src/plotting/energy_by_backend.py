@@ -6,12 +6,13 @@ from typing import Optional
 
 from ..models import MeasurementRecord
 from .common import (
+    save_k_figure,
     aggregate_value,
     error_bounds,
     label_with_algorithm,
     metric_title_suffix,
     plt,
-    select_power_watts,
+    select_energy_joules,
     style_axes,
 )
 
@@ -30,12 +31,12 @@ def plot(
     for rec in records:
         if rec.k is None or rec.n is None:
             continue
-        watts = select_power_watts(rec, metric)
-        if watts is None or watts < 0:
+        energy = select_energy_joules(rec, metric)
+        if energy is None or energy < 0:
             continue
         base_label = rec.backend if rec.backend else rec.source
         label = label_with_algorithm(base_label, rec.algorithm, include_algorithm)
-        grouped[rec.k][label][rec.n].append(watts)
+        grouped[rec.k][label][rec.n].append(energy)
 
     if not grouped:
         return None
@@ -68,12 +69,13 @@ def plot(
         for bar, y in zip(bars, ys):
             ax.text(bar.get_x() + bar.get_width() / 2, y, f"{y:.3f}", ha="center", va="bottom")
 
-        style_axes(ax, f"Power by Backend (K={k}, N={target_n})" + metric_title_suffix(metric), "Backend", "Power (W)")
+        style_axes(
+            ax,
+            f"End-to-end Energy per op by Backend (K={k}, N={target_n})" + metric_title_suffix(metric),
+            "Backend",
+            "Energy per op (J)",
+        )
         fig.tight_layout()
-        os.makedirs(base_dir, exist_ok=True)
-        out_file = os.path.join(base_dir, f"{base_name}_k{k}{ext}")
-        fig.savefig(out_file, dpi=160)
-        plt.close(fig)
-        outputs.append(out_file)
+        outputs.append(save_k_figure(fig, base_dir, base_name, k, ext))
 
     return outputs

@@ -72,7 +72,7 @@ def parse_args():
     parser.add_argument(
         "--energy", choices=["none", "auto", "rapl", "gpu"], default="none", help="Energy measurement wrapper"
     )
-    parser.add_argument("--energy-out-dir", default=os.path.join(ROOT_DIR, "test/prof/results/energy"))
+    parser.add_argument("--energy-out-dir", default=os.path.join(ROOT_DIR, "bench/results/raw/energy/measurements"))
     parser.add_argument("--rapl-path", default="")
     parser.add_argument("--repeats", type=int, default=1, help="Repeats per (case, dist, seed) (for averaging)")
     parser.add_argument(
@@ -98,8 +98,8 @@ def parse_args():
     parser.add_argument("--min", type=int, default=0)
     parser.add_argument("--max", type=int, default=1000)
     parser.add_argument("--verify", choices=["true", "false"], default="true")
-    parser.add_argument("--output-raw", default=os.path.join(ROOT_DIR, "test/prof/results/cases_output.txt"))
-    parser.add_argument("--output-json", default=os.path.join(ROOT_DIR, "test/prof/results/cases_output.json"))
+    parser.add_argument("--output-raw", default=os.path.join(ROOT_DIR, "bench/results/raw/cases/output.txt"))
+    parser.add_argument("--output-json", default=os.path.join(ROOT_DIR, "bench/results/raw/cases/output.json"))
     return parser.parse_args()
 
 
@@ -159,7 +159,7 @@ def main():
         sleep_cmd = ["sleep", str(args.baseline_seconds)]
         modes = {resolve_energy_mode(b, args.energy) for b in backends}
         if "rapl" in modes:
-            rapl_cmd = [os.path.join(ROOT_DIR, "test/prof/energy/measure_rapl.sh")]
+            rapl_cmd = [os.path.join(ROOT_DIR, "bench/lib/measure_rapl.sh")]
             if args.rapl_path:
                 rapl_cmd += ["--path", args.rapl_path]
             rapl_cmd += ["--"] + sleep_cmd
@@ -169,7 +169,7 @@ def main():
             print(f"Idle RAPL baseline: package={rapl_baseline_w} W core={rapl_core_baseline_w} W")
         if "gpu" in modes:
             gpu_cmd = [
-                os.path.join(ROOT_DIR, "test/prof/energy/measure_smi.sh"),
+                os.path.join(ROOT_DIR, "bench/lib/measure_smi.sh"),
                 "--gpu-index",
                 str(args.gpu_index),
                 "--interval-ms",
@@ -274,7 +274,7 @@ def main():
                                         )
                                         if energy_mode == "rapl":
                                             run_cmd = [
-                                                os.path.join(ROOT_DIR, "test/prof/energy/measure_rapl.sh"),
+                                                os.path.join(ROOT_DIR, "bench/lib/measure_rapl.sh"),
                                                 "--out",
                                                 energy_case_file,
                                             ]
@@ -282,7 +282,7 @@ def main():
                                                 run_cmd += ["--path", args.rapl_path]
                                         else:
                                             run_cmd = [
-                                                os.path.join(ROOT_DIR, "test/prof/energy/measure_smi.sh"),
+                                                os.path.join(ROOT_DIR, "bench/lib/measure_smi.sh"),
                                                 "--out",
                                                 energy_case_file,
                                                 "--gpu-index",

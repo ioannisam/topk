@@ -28,26 +28,26 @@ Build outputs are placed under [build](build).
 1) Run testcase sweeps to generate profiler inputs:
 
 ```bash
-make run-cases ARGS="cpu gpu npu --types int float --q-max 16 --run trunc --verify true"
+make measure-cases ARGS="cpu gpu npu --types int float --q-max 16 --run trunc --verify true"
 ```
 
 To sweep input distributions and seeds (each `(dist, seed)` is an independent
 sample that feeds the error bands):
 
 ```bash
-make run-cases ARGS="cpu gpu npu --types int float --q-max 16 \
+make measure-cases ARGS="cpu gpu npu --types int float --q-max 16 \
   --dists uniform normal sorted reverse --seeds 5 --verify true"
 ```
 
 2) Generate plots from the latest run:
 
 ```bash
-make run-profiler ARGS="--plot all"
+make plot ARGS="--plot all"
 ```
 
 Notes:
 - The profiler auto-bootstraps its Python venv the first time it runs.
-- Testcase outputs and plots are stored under [test/prof/results](test/prof/results).
+- Testcase outputs and plots are stored under [bench/results](bench/results).
 
 ## Benchmark Methodology
 
@@ -150,9 +150,9 @@ Notes:
 - Use the **net** (idle-subtracted) metric, especially for the NPU (removes the static
   uncore) and GPU (cancels the power sampler's own host overhead). True per-component
   cross-device parity (isolating the NPU tile) would still need a wall-socket meter.
-- **Roofline (`make run-roofline`, plotted by `roofline` / `memory-bandwidth-vs-n`).**
+- **Roofline (`make measure-roofline`, plotted by `roofline` / `memory-bandwidth-vs-n`).**
   Measures each backend's achievable bandwidth and compute ceilings by sweeping
-  arithmetic intensity, writing `test/prof/results/roofline.json`. Measured here:
+  arithmetic intensity, writing `bench/results/raw/roofline/roofline.json`. Measured here:
   **CPU 57.5 GB/s / 905 GFLOP/s** (ridge AI 15.7, observed turnover at AI 16.25) and
   **GPU 346.0 GB/s / 10207 GFLOP/s** (ridge AI 29.5). The predicted ridge matching the
   observed turnover is the internal check that the sweep is well formed.

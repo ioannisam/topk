@@ -82,8 +82,8 @@ def parse_args():
     parser.add_argument("--threads", type=int, default=0, help="CPU worker threads (0 = hardware concurrency).")
     parser.add_argument("--seed", type=int, default=42, help="Input generation seed.")
     parser.add_argument("--cooldown", type=int, default=10, help="Seconds to idle between backends.")
-    parser.add_argument("--output-json", default=os.path.join(ROOT_DIR, "test/prof/results/roofline.json"))
-    parser.add_argument("--output-raw", default=os.path.join(ROOT_DIR, "test/prof/results/roofline.txt"))
+    parser.add_argument("--output-json", default=os.path.join(ROOT_DIR, "bench/results/raw/roofline/roofline.json"))
+    parser.add_argument("--output-raw", default=os.path.join(ROOT_DIR, "bench/results/raw/roofline/roofline.txt"))
     return parser.parse_args()
 
 

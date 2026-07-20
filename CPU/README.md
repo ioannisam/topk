@@ -85,5 +85,5 @@ The old static `.case` workflow has been removed. Use dynamic generation instead
 
 ```bash
 cd /home/ioannis/Development/Thesis
-./test/prof/cases/run_testcases.sh cpu int --q-min 1 --q-max 16 --verify true --min 0 --max 1000
+python3 ./bench/lib/runner.py cpu --types int --q-min 1 --q-max 16 --verify true --min 0 --max 1000
 ```

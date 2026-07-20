@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 import sys
 from statistics import mean, median, pstdev
 from typing import Any, Literal
@@ -177,3 +178,12 @@ def error_bounds(values: list[float], center: float, error_bars: str) -> tuple[f
         s = pstdev(values)
         return center - s, center + s
     return percentile(values, 0.10), percentile(values, 0.90)
+
+
+def save_k_figure(fig, base_dir: str, base_name: str, k, ext: str, **savefig_kwargs) -> str:
+    """Write <base_dir>/<base_name>_k<k><ext> and close the figure."""
+    os.makedirs(base_dir, exist_ok=True)
+    out_file = os.path.join(base_dir, f"{base_name}_k{k}{ext}")
+    fig.savefig(out_file, dpi=160, **savefig_kwargs)
+    plt.close(fig)
+    return out_file

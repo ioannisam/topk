@@ -5,7 +5,7 @@ import argparse
 import glob
 import os
 
-from .csv_io import write_case_csv, write_measurement_csv
+from .csv_io import write_case_csv, write_measurement_csv, write_roofline_csv
 from .filtering import filter_measurements, filter_records
 from .parsing import attach_inprocess_energy, parse_measurements, parse_roofline, parse_test_output
 from .plotting.common import MATPLOTLIB_AVAILABLE
@@ -44,12 +44,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--input",
         nargs="+",
-        default=["test/prof/results/cases_output.json"],
+        default=["bench/results/raw/cases/output.json"],
         help="Path(s) to testcase output file(s) (.json or .txt).",
     )
     parser.add_argument(
         "--output-dir",
-        default="test/prof/results/plots",
+        default="bench/results/plots",
         help=(
             "Root directory where plots are written "
             "(plots are placed under <output-dir>/<dtype>/{time,correctness,energy,memory}/)."
@@ -125,7 +125,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--measurement-glob",
-        default="test/prof/results/energy/*.txt",
+        default="bench/results/raw/energy/measurements/*.txt",
         help="Glob for auto-discovered measurement files.",
     )
     parser.add_argument(
@@ -160,8 +160,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--roofline-input",
         nargs="*",
-        default=["test/prof/results/roofline.json"],
-        help="Roofline measurement JSON from test/prof/roofline.py.",
+        default=["bench/results/raw/roofline/roofline.json"],
+        help="Roofline measurement JSON from bench/lib/roofline.py.",
+    )
+    parser.add_argument(
+        "--roofline-csv-out",
+        default="",
+        help="Optional CSV export path for roofline sweep points (machine-level, not per dtype).",
     )
     parser.add_argument("--show", action="store_true", help="Show figures interactively.")
     return parser.parse_args()
@@ -251,7 +256,7 @@ def main() -> int:
         if not all_records and not measurement_records:
             print("No data available.")
             return 2
-        if not args.timing_csv_out and not args.energy_csv_out:
+        if not args.timing_csv_out and not args.energy_csv_out and not args.roofline_csv_out:
             return 0
 
     if requested and not MATPLOTLIB_AVAILABLE:
@@ -645,13 +650,20 @@ def main() -> int:
                     "no measurement records with N and energy were found."
                 )
 
+    if args.roofline_csv_out:
+        if roofline_points:
+            write_roofline_csv(roofline_points, args.roofline_csv_out)
+            print(f"Wrote roofline CSV: {args.roofline_csv_out}")
+        else:
+            print("Skipped roofline CSV: no sweep points found. Run 'make measure-roofline' first.")
+
     # The roofline characterizes the machine, not a dtype, so it is emitted once.
     if "roofline" in requested:
-        out = roofline.plot(roofline_points, os.path.join(args.output_dir, "memory", "roofline.png"))
+        out = roofline.plot(roofline_points, os.path.join(args.output_dir, "machine", "roofline.png"))
         if out:
             collect_output(out)
         else:
-            print("Skipped roofline: no sweep points found. Run 'make run-roofline' first.")
+            print("Skipped roofline: no sweep points found. Run 'make measure-roofline' first.")
 
     if generated:
         print("Generated plot files:")

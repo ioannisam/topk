@@ -1,4 +1,4 @@
-test/prof/results
+bench/results
 
 npu_venv
 .venv
@@ -9,3 +9,4 @@ build
 .ruff_cache
 tmp*
 *.pdf
+doc/notes
