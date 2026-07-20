@@ -73,6 +73,15 @@ def write_measurement_csv(records: Iterable[MeasurementRecord], out_path: str) -
                 "net_energy_joules",
                 "net_average_watts",
                 "command_exit_code",
+                "inproc_counters",
+                "inproc_e2e_joules",
+                "inproc_algo_joules",
+                "inproc_e2e_seconds",
+                "inproc_algo_seconds",
+                "inproc_net_e2e_joules",
+                "inproc_net_algo_joules",
+                "inproc_loop_joules",
+                "inproc_loop_seconds",
             ]
         )
         for rec in records:
@@ -93,5 +102,14 @@ def write_measurement_csv(records: Iterable[MeasurementRecord], out_path: str) -
                     "" if rec.net_energy_joules is None else f"{rec.net_energy_joules:.12g}",
                     "" if rec.net_average_watts is None else f"{rec.net_average_watts:.12g}",
                     "" if rec.command_exit_code is None else rec.command_exit_code,
+                    rec.inproc_counters,
+                    "" if rec.inproc_e2e_joules is None else f"{rec.inproc_e2e_joules:.12g}",
+                    "" if rec.inproc_algo_joules is None else f"{rec.inproc_algo_joules:.12g}",
+                    "" if rec.inproc_e2e_seconds is None else f"{rec.inproc_e2e_seconds:.12g}",
+                    "" if rec.inproc_algo_seconds is None else f"{rec.inproc_algo_seconds:.12g}",
+                    "" if rec.inproc_net_e2e_joules is None else f"{rec.inproc_net_e2e_joules:.12g}",
+                    "" if rec.inproc_net_algo_joules is None else f"{rec.inproc_net_algo_joules:.12g}",
+                    "" if rec.inproc_loop_joules is None else f"{rec.inproc_loop_joules:.12g}",
+                    "" if rec.inproc_loop_seconds is None else f"{rec.inproc_loop_seconds:.12g}",
                 ]
             )

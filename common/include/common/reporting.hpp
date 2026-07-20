@@ -28,6 +28,8 @@ void print_configuration(const common::config::Config& cfg, std::size_t n, std::
 
 void print_timing_lines(const std::vector<std::pair<std::string, std::optional<double>>>& lines);
 
+void print_energy_lines(const common::energy::Summary& energy);
+
 void print_bitonic_common_metrics(const common::config::Config& cfg, const common::topk::BitonicRunStats& stats);
 
 void print_check_result(const char* label, bool enabled, bool ok);

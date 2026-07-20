@@ -43,11 +43,13 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 				gpu::bitonic::RunStats stats{0.0, 0, 0, 0};
 
 				auto t0 = std::chrono::high_resolution_clock::now();
+				common::energy::Scope energy_scope(common::energy::Channel::E2e);
 
 				std::size_t final_n = temp.size();
 				stats = gpu::bitonic::run_topk(temp.data(), temp.size(), final_n, layers);
 				temp.resize(final_n);
 
+				energy_scope.close();
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
@@ -79,6 +81,7 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 		stats.algorithm_stdev_ms = best.algo.stdev;
 		stats.end_to_end_min_ms = best.e2e.min;
 		stats.algorithm_min_ms = best.algo.min;
+		stats.energy = best.energy;
 
 		return stats;
 	}
@@ -115,10 +118,12 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 				gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
 				std::vector<T> output(cfg.k);
 				auto t0 = std::chrono::high_resolution_clock::now();
+				common::energy::Scope energy_scope(common::energy::Channel::E2e);
 
 				std::size_t count = gpu::map_reduce::run_topk(input.data(), input.size(), cfg.k, cfg.want_max,
 															  cfg.ex_threads, output.data(), &map_stats);
 
+				energy_scope.close();
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
@@ -134,6 +139,7 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 			stats->algorithm_stdev_ms = best.algo.stdev;
 			stats->end_to_end_min_ms = best.e2e.min;
 			stats->algorithm_min_ms = best.algo.min;
+			stats->energy = best.energy;
 			stats->tiles_used = best.sample.stats.tiles_used;
 			stats->aggregated_candidates = best.sample.stats.aggregated_candidates;
 		}
@@ -172,9 +178,11 @@ template <typename T> class GpuGroundTruthHooks final : public common::topk::Gro
 			common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, double> {
 				std::vector<T> temp = input;
 				auto t0 = std::chrono::high_resolution_clock::now();
+				common::energy::Scope energy_scope(common::energy::Channel::E2e);
 
 				double algo_ms = gpu::ground_truth::run_topk(temp.data(), temp.size(), k, cfg.want_max);
 
+				energy_scope.close();
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
@@ -194,6 +202,7 @@ template <typename T> class GpuGroundTruthHooks final : public common::topk::Gro
 			stats->algorithm_stdev_ms = best.algo.stdev;
 			stats->end_to_end_min_ms = best.e2e.min;
 			stats->algorithm_min_ms = best.algo.min;
+			stats->energy = best.energy;
 		}
 
 		return std::move(best.sample.value);

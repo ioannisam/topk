@@ -72,25 +72,81 @@ Notes:
   the mid-range), `sorted` (ascending), `reverse` (descending). Bitonic is
   data-oblivious, so its timing is a control; `map_reduce` and the library baselines
   are data-dependent.
-- **Energy:** reported as **per-operation, end-to-end** Joules. The wrapper integrates
-  power over the whole process (the binary reports `Benchmark iterations`, warmup +
-  measured), and the profiler divides by that count so energy shares the same window as
-  the e2e time. Trust the larger `q` points, where the measured loop dominates and fixed
-  process overhead is amortized away.
-- **Symmetric e2e scope (host + backend):** every backend counts the host RAPL **package**
-  (`measure_rapl.sh`/`measure_smi.sh`), and the GPU adds its **board** (`measure_smi.sh`
-  reads RAPL alongside `nvidia-smi`). So e2e is the whole cost-to-solution for all three,
-  and the GPU no longer hides its host transfer/launch cost.
-- **Two energy channels** (mirroring the two time channels, plotted by
-  `energy-vs-n-metric-compare`): **end-to-end** = host + backend (above); **algorithmic**
-  = the backend silicon only, from **measured** components per backend:
-  - **GPU** → the measured `board` energy.
-  - **CPU** → equals e2e (the CPU *is* the accelerator; no host to strip).
-  - **NPU** → `package − core`: the package counter covers the whole chip and the `core`
-    domain is the host cores, so the remainder is the NPU subsystem. This is a measured
-    *difference* — verified that `package − core` rises ~4→18 W during NPU offload — but
-    it also carries the memory-controller/fabric traffic feeding the NPU, so read it as
-    "NPU subsystem," not the tile alone.
+- **Energy: in-process counters are the primary source.** The binary reads the energy
+  counters itself, bracketing the *same* regions its timers bracket
+  (`common/src/energy.cpp`, wired into `run_benchmark`). Reported under `== Energy ==`
+  as a **sum over the 50 measured iterations**, not a per-iteration mean: RAPL
+  quantises each individual delta, but the counters free-run, so the sum stays accurate.
+  The profiler divides by `Benchmark iterations` for per-operation figures.
+  - Reading `energy_uj` needs root, so energy sweeps run under `sudo` (as they already
+    did for `measure_rapl.sh`). Without it the binary prints `rapl:unavailable` and
+    reports **no** energy rather than reporting zeros as data.
+  - **Why in-process:** the external wrapper measures the *whole process*, but the
+    benchmark loop is only 1.6%–92% of that window and the fraction varies
+    systematically **by backend** — so wrapper energy *biases* cross-backend comparison
+    rather than merely adding noise. The wrapper is retained as a cross-check
+    (process total must be ≥ the in-process total), not as the primary number.
+  - Three windows are reported per run: `e2e` (sum of per-iteration end-to-end
+    brackets), `algo` (sum of per-iteration algorithmic brackets) and `loop` (one
+    bracket around the entire measured loop). **`e2e` and `algo` are the reported
+    numbers** — they match the two time channels exactly. `loop` is strictly larger
+    because it also contains the harness scaffolding between iterations (each iteration
+    restores its input from a backup copy, outside the timed region); for CPU bitonic at
+    q=20 it spans ~1.9x the e2e time. Use `loop` only as an upper-bound cross-check and
+    as the measure of how much of the process is scaffolding.
+- **Symmetric e2e scope (host + backend):** every backend counts the host RAPL
+  **package** and the GPU adds its **board**. So e2e is the whole cost-to-solution for
+  all three and the GPU does not hide its host transfer/launch cost.
+- **Channel semantics per backend:**
+  - **CPU** → algorithmic ≡ e2e (the CPU *is* the accelerator; no host to strip). Both
+    channels share a single counter read, so they are exactly equal by construction.
+  - **NPU** → e2e brackets the host-side call; algorithmic brackets the offload region
+    inside `npu::*::run_topk`. The difference is XRT dispatch and host marshalling.
+  - **GPU** → e2e brackets the host-side call (including H2D/D2H); algorithmic brackets
+    the CUDA-event region. The difference is transfer and allocation cost.
+- **GPU board power is integrated in-process, not read as an energy counter.**
+  `nvmlDeviceGetTotalEnergyConsumption` is unusable on this part: it advances in ~20 J
+  steps every ~96 ms, so bracketing a millisecond kernel returns a random multiple of
+  the quantum. Three identical q=24 runs gave 40.5 / 18.6 / 8.4 J of "algorithmic"
+  energy while the *time* channel varied by 0.2%; at idle it reports 13.1 W against
+  10.8 W of integrated power. Instead a background thread samples
+  `nvmlDeviceGetPowerUsage` every 2 ms and integrates it, which reproduces the measured
+  idle board baseline (10.64 W) and yields 20.5–26.1 W under load across repeat runs.
+  Enabled for the GPU backend via `TOPK_ENERGY_DEVICE=1` (set by `runner.py`).
+  - The underlying power reading only changes every ~231 ms, so a single 7 ms
+    algorithmic window is a stale-power estimate. Summed over 50 iterations the
+    staleness averages out, but **GPU algorithmic energy is lower-confidence than
+    CPU/NPU**, where RAPL updates at ~1 ms. Treat the GPU algo/e2e *split* as
+    approximate; the `loop` total is solid.
+- **The RAPL `core` domain is unusable on this part — do not build claims on it.**
+  Measured directly: under a pure 8-thread spin loop, package rises 6.66 -> 59.55 W
+  (+52.9 W) while `core` rises only 0.51 -> 6.53 W (+6.0 W). The `core` domain captures
+  ~11% of real core energy. It is still recorded, but `package - core` is **not** a valid
+  way to isolate the NPU subsystem from the host cores on this SoC and any earlier
+  result derived that way should be discarded.
+- **The `wait` channel measures time reliably, energy *not at all*.** A scope inside
+  `wait_for_runlist_or_throw` brackets every NPU dispatch wait. The **wait seconds** and
+  **wait count** are trustworthy (steady_clock, ns resolution) and are the useful output:
+  at q=22/k=256 the host waits ~6.5 ms of a ~151 ms offload region across 200 dispatches,
+  i.e. **only ~4-5% of the offload is spent waiting for the NPU**. The **wait joules**
+  are *not* usable: RAPL updates every ~1208 us in ~21.7 mJ steps, while each wait is
+  ~34 us — 39x shorter. Five identical runs gave 17.9 / 21.4 / 14.7 / 16.8 / 46.0 W,
+  resting on 4.6-14.7 counter ticks. Do not derive an NPU power figure from it.
+  Resolving NPU-only draw needs a **sustained probe**: prepare one batch, then loop
+  execute+wait for >= 1 s with the host otherwise idle, so the wait window exceeds the
+  counter period.
+- **What the NPU numbers can and cannot show.** RAPL package covers the whole SoC: host
+  cores, NPU tiles, uncore and memory controller share one counter. So an NPU run is
+  measured as "total SoC energy while the NPU is working," including host-side XRT
+  dispatch and marshalling. This is a fair **cost-to-solution** comparison and it is
+  symmetric across backends — but it cannot on its own demonstrate that the NPU performs
+  the computation with less energy, because the NPU's own draw is never separable from
+  the host's. Isolating the NPU tile would need external instrumentation.
+- **Net (idle-subtracted) energy** is computed by the profiler as
+  `gross - baseline_watts x window_seconds`, using the per-window durations the binary
+  reports. `baseline_watts` is already the **combined** idle figure for that backend's
+  counter set (for the GPU, host package + board), so it is not added to the board
+  baseline again.
 - Use the **net** (idle-subtracted) metric, especially for the NPU (removes the static
   uncore) and GPU (cancels the power sampler's own host overhead). True per-component
   cross-device parity (isolating the NPU tile) would still need a wall-socket meter.

@@ -1,6 +1,8 @@
 #include "../include/algorithm.hpp"
 #include "device_traits.cuh"
 
+#include "common/energy.hpp"
+
 #include <cstdint>
 #include <stdexcept>
 #include <string>
@@ -375,11 +377,13 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 	CUDA_CHECK(cudaGraphInstantiate(&instance, graph, nullptr, nullptr, 0));
 #endif
 
+	common::energy::Scope energy_scope(common::energy::Channel::Algo);
 	CUDA_CHECK(cudaEventRecord(start, stream));
 	CUDA_CHECK(cudaGraphLaunch(instance, stream));
 	CUDA_CHECK(cudaEventRecord(stop, stream));
 
 	CUDA_CHECK(cudaEventSynchronize(stop));
+	energy_scope.close();
 
 	float elapsed_ms_f = 0.0f;
 	CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms_f, start, stop));

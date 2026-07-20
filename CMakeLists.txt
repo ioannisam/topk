@@ -25,11 +25,20 @@ endif()
 add_library(common STATIC
 	common/src/config.cpp
 	common/src/bitonic.cpp
+	common/src/energy.cpp
 	common/src/random.cpp
 	common/src/reporting.cpp
 )
 target_include_directories(common PUBLIC common/include)
 target_compile_features(common PUBLIC cxx_std_20)
+
+if (TOPK_BUILD_GPU)
+	find_package(CUDAToolkit)
+	if (CUDAToolkit_FOUND AND TARGET CUDA::nvml)
+		target_compile_definitions(common PRIVATE TOPK_WITH_NVML=1)
+		target_link_libraries(common PUBLIC CUDA::nvml)
+	endif()
+endif()
 target_compile_options(common PRIVATE -O3 -march=native -DNDEBUG -Wall -Wextra)
 if(DEBUG)
 	target_compile_definitions(common PRIVATE DEBUG=1)

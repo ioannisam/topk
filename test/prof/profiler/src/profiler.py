@@ -7,7 +7,7 @@ import os
 
 from .csv_io import write_case_csv, write_measurement_csv
 from .filtering import filter_measurements, filter_records
-from .parsing import parse_measurements, parse_test_output
+from .parsing import attach_inprocess_energy, parse_measurements, parse_test_output
 from .plotting.common import MATPLOTLIB_AVAILABLE
 from .plotting import edp_vs_n
 from .plotting import energy_by_backend
@@ -191,6 +191,12 @@ def main() -> int:
         if ops:
             rec.bench_ops = ops
 
+    inproc_by_key: dict = {}
+    for rec in all_records:
+        if getattr(rec, "energy_status", "") == "ok":
+            inproc_by_key[(rec.backend, rec.dtype, rec.algorithm, rec.n, rec.k, rec.dist, rec.seed, rec.rep)] = rec
+    attach_inprocess_energy(measurement_records, inproc_by_key)
+
     # Dtype selection
     discovered_dtypes = sorted(
         {
@@ -234,9 +240,10 @@ def main() -> int:
         if not all_records and not measurement_records:
             print("No data available.")
             return 2
-        return 0
+        if not args.timing_csv_out and not args.energy_csv_out:
+            return 0
 
-    if not MATPLOTLIB_AVAILABLE:
+    if requested and not MATPLOTLIB_AVAILABLE:
         print("matplotlib is not available. Run with --plot none for CSV-only mode.")
         return 1
 

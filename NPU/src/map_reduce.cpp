@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <chrono>
+
+#include "common/energy.hpp"
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
@@ -118,6 +120,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 
 	npu::utils::SharedXrtState& state = npu::utils::get_shared_xrt_state(offload_cfg);
 	auto t0 = std::chrono::high_resolution_clock::now();
+	common::energy::Scope energy_scope(common::energy::Channel::Algo);
 
 	constexpr double SAMPLE_FRACTION = 0.02;
 	std::size_t sample_size = std::max(k, static_cast<std::size_t>(n * SAMPLE_FRACTION));
@@ -205,6 +208,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 	std::sort(result.begin(), result.end(),
 			  [](const T& lhs, const T& rhs) { return WantMax ? (lhs > rhs) : (lhs < rhs); });
 
+	energy_scope.close();
 	auto t1 = std::chrono::high_resolution_clock::now();
 
 	if (stats != nullptr) {

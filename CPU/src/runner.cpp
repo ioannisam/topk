@@ -54,9 +54,11 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 		auto best = common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValue<std::vector<T>> {
 			std::vector<T> temp = data_backup;
 			auto t0 = std::chrono::high_resolution_clock::now();
+			common::energy::FullScope energy_scope;
 
 			cpu::bitonic::run_topk(temp, layers, context.ex_threads);
 
+			energy_scope.close();
 			auto t1 = std::chrono::high_resolution_clock::now();
 			double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
 			return common::benchmark::TimedValue<std::vector<T>>{elapsed, elapsed, std::move(temp)};
@@ -70,6 +72,7 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 		stats.algorithm_stdev_ms = best.algo.stdev;
 		stats.end_to_end_min_ms = best.e2e.min;
 		stats.algorithm_min_ms = best.algo.min;
+		stats.energy = best.energy;
 
 		return stats;
 	}
@@ -101,10 +104,12 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 			[&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, cpu::map_reduce::RunStats> {
 				cpu::map_reduce::RunStats run_stats{};
 				auto t0 = std::chrono::high_resolution_clock::now();
+				common::energy::FullScope energy_scope;
 
 				std::vector<T> output =
 					cpu::map_reduce::run_topk(input, cfg.k, cfg.want_max, context.ex_threads, &run_stats);
 
+				energy_scope.close();
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
@@ -119,6 +124,7 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 			stats->algorithm_stdev_ms = best.algo.stdev;
 			stats->end_to_end_min_ms = best.e2e.min;
 			stats->algorithm_min_ms = best.algo.min;
+			stats->energy = best.energy;
 			stats->tiles_used = best.sample.stats.tiles_used;
 			stats->aggregated_candidates = best.sample.stats.aggregated_candidates;
 		}
@@ -154,9 +160,11 @@ template <typename T> class CpuGroundTruthHooks final : public common::topk::Gro
 		auto best = common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValue<std::vector<T>> {
 			std::vector<T> temp = input;
 			auto t0 = std::chrono::high_resolution_clock::now();
+			common::energy::FullScope energy_scope;
 
 			cpu::ground_truth::run_topk(temp, k, cfg.want_max);
 
+			energy_scope.close();
 			auto t1 = std::chrono::high_resolution_clock::now();
 			double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
@@ -175,6 +183,7 @@ template <typename T> class CpuGroundTruthHooks final : public common::topk::Gro
 			stats->algorithm_stdev_ms = best.algo.stdev;
 			stats->end_to_end_min_ms = best.e2e.min;
 			stats->algorithm_min_ms = best.algo.min;
+			stats->energy = best.energy;
 		}
 
 		return std::move(best.sample.value);

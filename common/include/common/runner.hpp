@@ -187,6 +187,8 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 		common::reporting::print_key_value("Trunc bitonic algorithmic time (ms)", "skipped");
 	}
 
+	common::reporting::print_energy_lines(run_trunc ? trunc_stats.energy : full_stats.energy);
+
 	if (run_trunc) {
 		const std::size_t skipped = full_cmp >= trunc_cmp ? (full_cmp - trunc_cmp) : 0;
 		const double skipped_pct =
@@ -245,6 +247,8 @@ template <typename T> int execute_map_reduce(const common::config::Config& cfg, 
 		{"Map-reduce top-k algorithmic min (ms)", std::optional<double>(run_stats.algorithm_min_ms)},
 	});
 
+	common::reporting::print_energy_lines(run_stats.energy);
+
 	const bool check_vs_reference = cfg.verify_output || cfg.run_mode == common::config::RunMode::Both;
 	bool reference_ok = true;
 	if (check_vs_reference) {
@@ -280,6 +284,8 @@ template <typename T> int execute_ground_truth(const common::config::Config& cfg
 		{"Ground truth algorithmic stdev (ms)", std::optional<double>(run_stats.algorithm_stdev_ms)},
 		{"Ground truth algorithmic min (ms)", std::optional<double>(run_stats.algorithm_min_ms)},
 	});
+
+	common::reporting::print_energy_lines(run_stats.energy);
 
 	const bool check_vs_reference = cfg.verify_output;
 	bool reference_ok = true;

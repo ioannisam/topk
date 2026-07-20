@@ -57,9 +57,11 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 				std::vector<T> temp = data_backup;
 
 				auto t0 = std::chrono::high_resolution_clock::now();
+				common::energy::Scope energy_scope(common::energy::Channel::E2e);
 
 				const npu::bitonic::RunStats stats = npu::bitonic::run_topk(temp, layers, context.ex_threads);
 
+				energy_scope.close();
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
@@ -94,6 +96,7 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 		stats.algorithm_stdev_ms = best.algo.stdev;
 		stats.end_to_end_min_ms = best.e2e.min;
 		stats.algorithm_min_ms = best.algo.min;
+		stats.energy = best.energy;
 		return stats;
 	}
 
@@ -125,10 +128,12 @@ template <typename T> class NpuMapReduceRunnerHooks final : public common::topk:
 			[&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, npu::map_reduce::RunStats> {
 				npu::map_reduce::RunStats run_stats{0.0, 0, false};
 				auto t0 = std::chrono::high_resolution_clock::now();
+				common::energy::Scope energy_scope(common::energy::Channel::E2e);
 
 				std::vector<T> output =
 					npu::map_reduce::run_topk(input, cfg.k, cfg.want_max, context.ex_threads, &run_stats);
 
+				energy_scope.close();
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
@@ -148,6 +153,7 @@ template <typename T> class NpuMapReduceRunnerHooks final : public common::topk:
 			stats->algorithm_stdev_ms = best.algo.stdev;
 			stats->end_to_end_min_ms = best.e2e.min;
 			stats->algorithm_min_ms = best.algo.min;
+			stats->energy = best.energy;
 			stats->tiles_used = 0;
 			stats->aggregated_candidates = 0;
 		}
@@ -182,9 +188,11 @@ template <typename T> class NpuGroundTruthHooks final : public common::topk::Gro
 		auto best = common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValue<std::vector<T>> {
 			std::vector<T> temp = input;
 			auto t0 = std::chrono::high_resolution_clock::now();
+			common::energy::FullScope energy_scope;
 
 			npu::ground_truth::run_topk(temp, k, cfg.want_max);
 
+			energy_scope.close();
 			auto t1 = std::chrono::high_resolution_clock::now();
 			double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
@@ -203,6 +211,7 @@ template <typename T> class NpuGroundTruthHooks final : public common::topk::Gro
 			stats->algorithm_stdev_ms = best.algo.stdev;
 			stats->end_to_end_min_ms = best.e2e.min;
 			stats->algorithm_min_ms = best.algo.min;
+			stats->energy = best.energy;
 		}
 
 		return std::move(best.sample.value);

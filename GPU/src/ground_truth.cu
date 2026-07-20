@@ -1,6 +1,8 @@
 #include "../include/algorithm.hpp"
 #include "device_traits.cuh"
 
+#include "common/energy.hpp"
+
 #include <algorithm>
 #include <cstdint>
 #include <stdexcept>
@@ -91,6 +93,7 @@ template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, boo
 	CUDA_CHECK(cudaEventCreate(&start));
 	CUDA_CHECK(cudaEventCreate(&stop));
 
+	common::energy::Scope energy_scope(common::energy::Channel::Algo);
 	CUDA_CHECK(cudaEventRecord(start));
 
 	if (want_max) {
@@ -101,6 +104,7 @@ template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, boo
 
 	CUDA_CHECK(cudaEventRecord(stop));
 	CUDA_CHECK(cudaEventSynchronize(stop));
+	energy_scope.close();
 
 	float algo_ms = 0.0f;
 	CUDA_CHECK(cudaEventElapsedTime(&algo_ms, start, stop));

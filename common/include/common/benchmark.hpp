@@ -1,11 +1,14 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#include "common/energy.hpp"
 
 namespace common::benchmark {
 
@@ -61,6 +64,7 @@ inline ChannelSummary summarize(std::vector<double> samples) {
 template <typename SampleT> struct BenchmarkResult {
 	ChannelSummary e2e;
 	ChannelSummary algo;
+	common::energy::Summary energy;
 	SampleT sample;
 };
 
@@ -81,6 +85,11 @@ template <typename Fn> auto run_benchmark(Fn&& timed_run_once) {
 	e2e_samples.reserve(static_cast<std::size_t>(runs));
 	algo_samples.reserve(static_cast<std::size_t>(runs));
 
+	common::energy::reset_accumulators();
+	auto& energy_counter = common::energy::counter();
+	const common::energy::Sample loop_start = energy_counter.read();
+	const auto loop_t0 = std::chrono::steady_clock::now();
+
 	SampleT representative = timed_run_once();
 	e2e_samples.push_back(representative.e2e_ms);
 	algo_samples.push_back(representative.algo_ms);
@@ -94,7 +103,20 @@ template <typename Fn> auto run_benchmark(Fn&& timed_run_once) {
 		}
 	}
 
+	const auto loop_t1 = std::chrono::steady_clock::now();
+
 	BenchmarkResult<SampleT> result;
+	result.energy.loop_total = energy_counter.read() - loop_start;
+	result.energy.loop_seconds = std::chrono::duration<double>(loop_t1 - loop_t0).count();
+	result.energy.e2e_total = common::energy::take_accumulator(common::energy::Channel::E2e);
+	result.energy.algo_total = common::energy::take_accumulator(common::energy::Channel::Algo);
+	result.energy.e2e_seconds = common::energy::take_seconds(common::energy::Channel::E2e);
+	result.energy.algo_seconds = common::energy::take_seconds(common::energy::Channel::Algo);
+	result.energy.wait_total = common::energy::take_accumulator(common::energy::Channel::Wait);
+	result.energy.wait_seconds = common::energy::take_seconds(common::energy::Channel::Wait);
+	result.energy.wait_count = common::energy::take_count(common::energy::Channel::Wait);
+	result.energy.iterations = runs;
+	result.energy.available = energy_counter.available();
 	result.e2e = summarize(std::move(e2e_samples));
 	result.algo = summarize(std::move(algo_samples));
 	result.sample = std::move(representative);

@@ -1,6 +1,8 @@
 #include "../include/algorithm.hpp"
 #include "device_traits.cuh"
 
+#include "common/energy.hpp"
+
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -306,6 +308,7 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 	cudaEvent_t start, stop;
 	CUDA_CHECK(cudaEventCreate(&start));
 	CUDA_CHECK(cudaEventCreate(&stop));
+	common::energy::Scope energy_scope(common::energy::Channel::Algo);
 	CUDA_CHECK(cudaEventRecord(start));
 
 	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(d_input.get(), n, static_cast<int>(k), want_max,
@@ -314,6 +317,7 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 
 	CUDA_CHECK(cudaEventRecord(stop));
 	CUDA_CHECK(cudaEventSynchronize(stop));
+	energy_scope.close();
 
 	float elapsed_ms;
 	CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms, start, stop));

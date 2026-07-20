@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <chrono>
+
+#include "common/energy.hpp"
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -128,6 +130,7 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 	std::size_t valid_tiles[2] = {0, 0};
 
 	auto t0 = std::chrono::high_resolution_clock::now();
+	common::energy::Scope energy_scope(common::energy::Channel::Algo);
 
 	if (offset < n) {
 		const std::size_t batch = std::min(kBatchElems, n - offset);
@@ -165,6 +168,7 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 		data[i] = from_key<T>(heap[i]);
 	}
 
+	energy_scope.close();
 	auto t1 = std::chrono::high_resolution_clock::now();
 
 	return RunStats{std::chrono::duration<double, std::milli>(t1 - t0).count(), total_dispatches, 0, 1, true};

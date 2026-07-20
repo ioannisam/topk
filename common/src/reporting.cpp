@@ -138,6 +138,35 @@ void print_timing_lines(const std::vector<std::pair<std::string, std::optional<d
 	}
 }
 
+void print_energy_lines(const common::energy::Summary& energy) {
+	print_section_header("Energy");
+	print_key_value("Energy counters", common::energy::counter().describe());
+	if (!energy.available) {
+		print_key_value("Energy status", "unavailable");
+		return;
+	}
+
+	print_key_value("Energy status", "ok");
+	print_key_value("Energy iterations", static_cast<std::size_t>(energy.iterations));
+	print_key_value("Energy e2e joules", energy.e2e_total.total(), 6);
+	print_key_value("Energy algo joules", energy.algo_total.total(), 6);
+	print_key_value("Energy loop joules", energy.loop_total.total(), 6);
+	print_key_value("Energy e2e package joules", energy.e2e_total.package_j, 6);
+	print_key_value("Energy algo package joules", energy.algo_total.package_j, 6);
+	print_key_value("Energy loop package joules", energy.loop_total.package_j, 6);
+	print_key_value("Energy e2e core joules", energy.e2e_total.core_j, 6);
+	print_key_value("Energy algo core joules", energy.algo_total.core_j, 6);
+	print_key_value("Energy e2e device joules", energy.e2e_total.device_j, 6);
+	print_key_value("Energy algo device joules", energy.algo_total.device_j, 6);
+	print_key_value("Energy loop device joules", energy.loop_total.device_j, 6);
+	print_key_value("Energy e2e seconds", energy.e2e_seconds, 6);
+	print_key_value("Energy algo seconds", energy.algo_seconds, 6);
+	print_key_value("Energy loop seconds", energy.loop_seconds, 6);
+	print_key_value("Energy wait joules", energy.wait_total.total(), 6);
+	print_key_value("Energy wait seconds", energy.wait_seconds, 6);
+	print_key_value("Energy wait count", static_cast<std::size_t>(energy.wait_count));
+}
+
 void print_bitonic_common_metrics(const common::config::Config& cfg, const common::topk::BitonicRunStats& stats) {
 	const std::size_t full_cmp = stats.full_comparators;
 	const std::size_t trunc_cmp = stats.trunc_comparators;

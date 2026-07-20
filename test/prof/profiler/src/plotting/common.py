@@ -118,31 +118,16 @@ def select_energy_joules(rec, metric: str, scope: str = "e2e") -> float | None:
     net = metric == "net"
     ops = getattr(rec, "bench_ops", 1) or 1
 
-    if scope != "algorithmic":
-        energy = rec.net_energy_joules if (net and rec.net_energy_joules is not None) else rec.energy_joules
-        return energy / ops if energy is not None else None
-
-    if rec.board_energy_joules is not None:
-        board = (
-            rec.net_board_energy_joules
-            if (net and rec.net_board_energy_joules is not None)
-            else rec.board_energy_joules
-        )
-        return board / ops if board is not None else None
-
-    backend = (rec.backend or "").lower()
-    if backend == "cpu":
-        energy = rec.net_energy_joules if (net and rec.net_energy_joules is not None) else rec.energy_joules
-        return energy / ops if energy is not None else None
-    if backend == "npu":
-        if net and rec.net_energy_joules is not None and rec.net_core_energy_joules is not None:
-            uncore = rec.net_energy_joules - rec.net_core_energy_joules
-        elif rec.energy_joules is not None and rec.core_energy_joules is not None:
-            uncore = rec.energy_joules - rec.core_energy_joules
+    if getattr(rec, "inproc_available", False):
+        if scope == "algorithmic":
+            energy = rec.inproc_net_algo_joules if net else rec.inproc_algo_joules
         else:
-            return None
-        return max(uncore, 0.0) / ops
-    return None
+            energy = rec.inproc_net_e2e_joules if net else rec.inproc_e2e_joules
+        if energy is not None:
+            return energy / ops
+
+    energy = rec.net_energy_joules if (net and rec.net_energy_joules is not None) else rec.energy_joules
+    return energy / ops if energy is not None else None
 
 
 def select_elapsed_seconds(rec) -> float | None:

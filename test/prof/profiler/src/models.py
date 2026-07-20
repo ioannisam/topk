@@ -17,6 +17,7 @@ class CaseRecord:
     n: Optional[int] = None
     dist: str = ""
     seed: Optional[int] = None
+    rep: Optional[int] = None
     bench_ops: Optional[int] = None
     timing_label: str = ""
     time_ms: Optional[float] = None
@@ -26,6 +27,23 @@ class CaseRecord:
     time_algorithmic_ms: Optional[float] = None
     time_end_to_end_stdev_ms: Optional[float] = None
     time_algorithmic_stdev_ms: Optional[float] = None
+    energy_status: str = ""
+    energy_counters: str = ""
+    energy_iterations: Optional[int] = None
+    energy_e2e_joules: Optional[float] = None
+    energy_algo_joules: Optional[float] = None
+    energy_loop_joules: Optional[float] = None
+    energy_e2e_package_joules: Optional[float] = None
+    energy_algo_package_joules: Optional[float] = None
+    energy_loop_package_joules: Optional[float] = None
+    energy_e2e_core_joules: Optional[float] = None
+    energy_algo_core_joules: Optional[float] = None
+    energy_e2e_device_joules: Optional[float] = None
+    energy_algo_device_joules: Optional[float] = None
+    energy_loop_device_joules: Optional[float] = None
+    energy_e2e_seconds: Optional[float] = None
+    energy_algo_seconds: Optional[float] = None
+    energy_loop_seconds: Optional[float] = None
 
     @property
     def pass_bool(self) -> bool:
@@ -50,6 +68,20 @@ class MeasurementRecord:
     net_average_watts: Optional[float] = None
     command_exit_code: Optional[int] = None
     bench_ops: int = 1
+    dist: str = ""
+    seed: Optional[int] = None
+    rep: Optional[int] = None
+    board_baseline_watts: Optional[float] = None
+    inproc_available: bool = False
+    inproc_counters: str = ""
+    inproc_e2e_joules: Optional[float] = None
+    inproc_algo_joules: Optional[float] = None
+    inproc_e2e_seconds: Optional[float] = None
+    inproc_algo_seconds: Optional[float] = None
+    inproc_net_e2e_joules: Optional[float] = None
+    inproc_net_algo_joules: Optional[float] = None
+    inproc_loop_joules: Optional[float] = None
+    inproc_loop_seconds: Optional[float] = None
     core_energy_joules: Optional[float] = None
     net_core_energy_joules: Optional[float] = None
     board_energy_joules: Optional[float] = None

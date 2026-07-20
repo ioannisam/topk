@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common/energy.hpp"
+
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -64,7 +66,10 @@ inline unsigned int read_wait_timeout_ms() {
 }
 
 inline void wait_for_runlist_or_throw(const xrt::runlist& rl, unsigned int timeout_ms) {
-	if (rl.wait(std::chrono::milliseconds(timeout_ms)) == std::cv_status::timeout) {
+	common::energy::Scope energy_scope(common::energy::Channel::Wait);
+	const auto status = rl.wait(std::chrono::milliseconds(timeout_ms));
+	energy_scope.close();
+	if (status == std::cv_status::timeout) {
 		throw std::runtime_error("NPU command timed out");
 	}
 }

@@ -13,6 +13,7 @@ CASE_HEADER_RE = re.compile(r"^### Case:\s*(?P<name>.+)$")
 KV_RE = re.compile(r"^\s{2}(?P<key>[^:]+):\s*(?P<value>.+)$")
 MEASURE_KV_RE = re.compile(r"^-\s+(?P<key>[a-zA-Z0-9_]+):\s*(?P<value>.+)$")
 COMMAND_RE = re.compile(r"^Command:\s*(?P<cmd>.+)$")
+VARIANT_RE = re.compile(r"_(?P<dist>uniform|normal|sorted|reverse)_s(?P<seed>\d+)_rep(?P<rep>\d+)_(?P<src>[a-z]+)$")
 
 
 def infer_backend_from_command(cmd: str) -> str:
@@ -75,6 +76,41 @@ def select_stdev_fields(stdevs: dict[str, float]) -> tuple[Optional[float], Opti
     return e2e_std, algo_std
 
 
+ENERGY_FIELD_MAP = {
+    "Energy e2e joules": "energy_e2e_joules",
+    "Energy algo joules": "energy_algo_joules",
+    "Energy loop joules": "energy_loop_joules",
+    "Energy e2e package joules": "energy_e2e_package_joules",
+    "Energy algo package joules": "energy_algo_package_joules",
+    "Energy loop package joules": "energy_loop_package_joules",
+    "Energy e2e core joules": "energy_e2e_core_joules",
+    "Energy algo core joules": "energy_algo_core_joules",
+    "Energy e2e device joules": "energy_e2e_device_joules",
+    "Energy algo device joules": "energy_algo_device_joules",
+    "Energy loop device joules": "energy_loop_device_joules",
+    "Energy e2e seconds": "energy_e2e_seconds",
+    "Energy algo seconds": "energy_algo_seconds",
+    "Energy loop seconds": "energy_loop_seconds",
+}
+
+
+def apply_energy_kv(rec, key: str, val: str) -> bool:
+    if key == "Energy status":
+        rec.energy_status = val
+        return True
+    if key == "Energy counters":
+        rec.energy_counters = val
+        return True
+    if key == "Energy iterations":
+        rec.energy_iterations = parse_int(val)
+        return True
+    field = ENERGY_FIELD_MAP.get(key)
+    if field is not None:
+        setattr(rec, field, parse_float(val))
+        return True
+    return False
+
+
 def parse_int(val: str) -> Optional[int]:
     try:
         return int(val)
@@ -125,6 +161,7 @@ def _parse_test_output_json(path: str) -> list[CaseRecord]:
 
         rec.dist = result.get("dist", "")
         rec.seed = result.get("seed")
+        rec.rep = result.get("rep")
 
         stdout = result.get("stdout", "")
         timings: dict[str, float] = {}
@@ -146,6 +183,8 @@ def _parse_test_output_json(path: str) -> list[CaseRecord]:
                         stdevs[key] = s
                 elif key == "Benchmark iterations":
                     rec.bench_ops = parse_int(val)
+                else:
+                    apply_energy_kv(rec, key, val)
 
         e2e_label, e2e_ms, algo_label, algo_ms = select_time_fields(timings)
         rec.timing_label_e2e = e2e_label
@@ -254,6 +293,8 @@ def _parse_test_output_text(path: str) -> list[CaseRecord]:
                     s = parse_float(value)
                     if s is not None:
                         current_stdevs[key] = s
+                else:
+                    apply_energy_kv(current, key, value)
 
     if current is not None:
         finalize(current, current_timings, current_stdevs)
@@ -266,6 +307,30 @@ def parse_test_output(path: str) -> list[CaseRecord]:
     if path.endswith(".json"):
         return _parse_test_output_json(path)
     return _parse_test_output_text(path)
+
+
+def attach_inprocess_energy(measurements, inproc_by_key) -> None:
+    for rec in measurements:
+        case = inproc_by_key.get((rec.backend, rec.dtype, rec.algorithm, rec.n, rec.k, rec.dist, rec.seed, rec.rep))
+        if case is None:
+            continue
+
+        rec.inproc_available = True
+        rec.inproc_counters = case.energy_counters
+        rec.inproc_e2e_joules = case.energy_e2e_joules
+        rec.inproc_algo_joules = case.energy_algo_joules
+        rec.inproc_e2e_seconds = case.energy_e2e_seconds
+        rec.inproc_algo_seconds = case.energy_algo_seconds
+        rec.inproc_loop_joules = case.energy_loop_joules
+        rec.inproc_loop_seconds = case.energy_loop_seconds
+
+        idle_w = rec.baseline_watts
+
+        if idle_w is not None:
+            if rec.inproc_e2e_joules is not None and rec.inproc_e2e_seconds is not None:
+                rec.inproc_net_e2e_joules = max(rec.inproc_e2e_joules - idle_w * rec.inproc_e2e_seconds, 0.0)
+            if rec.inproc_algo_joules is not None and rec.inproc_algo_seconds is not None:
+                rec.inproc_net_algo_joules = max(rec.inproc_algo_joules - idle_w * rec.inproc_algo_seconds, 0.0)
 
 
 def parse_measurements(paths: Iterable[str]) -> list[MeasurementRecord]:
@@ -290,6 +355,11 @@ def parse_measurements(paths: Iterable[str]) -> list[MeasurementRecord]:
             algo = parts[4]
 
         rec = MeasurementRecord(source=parts[-1] if parts else "unknown", file_path=path)
+        v = VARIANT_RE.search(base.replace(".txt", ""))
+        if v is not None:
+            rec.dist = v.group("dist")
+            rec.seed = parse_int(v.group("seed"))
+            rec.rep = parse_int(v.group("rep"))
         rec.backend = backend.lower()
         rec.dtype = dtype.lower()
         rec.algorithm = "map_reduce" if algo.lower() == "mapreduce" else algo.lower()
@@ -329,6 +399,8 @@ def parse_measurements(paths: Iterable[str]) -> list[MeasurementRecord]:
                     rec.average_watts = parse_float(v)
                 elif k == "baseline_watts":
                     rec.baseline_watts = parse_float(v)
+                elif k == "board_baseline_watts":
+                    rec.board_baseline_watts = parse_float(v)
                 elif k == "net_energy_joules":
                     rec.net_energy_joules = parse_float(v)
                 elif k == "net_average_watts":

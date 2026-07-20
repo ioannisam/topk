@@ -254,6 +254,9 @@ def main():
                                 )
 
                                 case_env = os.environ.copy()
+                                if backend == "gpu":
+                                    case_env["TOPK_ENERGY_DEVICE"] = "1"
+                                    case_env["TOPK_GPU_INDEX"] = str(args.gpu_index)
                                 npu_xclbin = resolve_npu_xclbin(backend, algo)
                                 if npu_xclbin:
                                     case_env["NPU_OFFLOAD_XCLBIN"] = npu_xclbin

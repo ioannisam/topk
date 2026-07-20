@@ -2,6 +2,8 @@
 
 #include <cstddef>
 
+#include "common/energy.hpp"
+
 namespace common::topk {
 
 struct BasicRunStats {
@@ -11,6 +13,7 @@ struct BasicRunStats {
 	double algorithm_stdev_ms = 0.0;
 	double end_to_end_min_ms = 0.0;
 	double algorithm_min_ms = 0.0;
+	common::energy::Summary energy;
 };
 
 struct BitonicRunStats {
@@ -30,6 +33,7 @@ struct MapReduceRunStats {
 	double algorithm_min_ms = 0.0;
 	std::size_t tiles_used = 0;
 	std::size_t aggregated_candidates = 0;
+	common::energy::Summary energy;
 };
 
 struct GroundTruthRunStats {
@@ -39,6 +43,7 @@ struct GroundTruthRunStats {
 	double algorithm_stdev_ms = 0.0;
 	double end_to_end_min_ms = 0.0;
 	double algorithm_min_ms = 0.0;
+	common::energy::Summary energy;
 };
 
 } // namespace common::topk

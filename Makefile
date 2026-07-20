@@ -94,7 +94,7 @@ benchmark-energy:
 	@echo "=== 1. Measuring energy (all backends) ==="
 	-$(MAKE) run-energy
 	@echo "=== 2. Generating energy plots ==="
-	$(MAKE) run-profiler ARGS="--plot energy-by-backend power-by-backend energy-vs-n power-vs-n edp-vs-n energy-per-element-vs-n time-vs-energy --energy-metric both --error-bars none --energy-csv-out ./test/prof/results/profile_energy.csv"
+	$(MAKE) run-profiler ARGS="--input ./test/prof/results/energy_output.json --plot energy-by-backend power-by-backend energy-vs-n power-vs-n edp-vs-n energy-per-element-vs-n time-vs-energy --energy-metric both --error-bars none --energy-csv-out ./test/prof/results/profile_energy.csv"
 
 pin-show:
 	ACTION=show ./scripts/pin_conditions.sh
