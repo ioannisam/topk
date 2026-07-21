@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -103,6 +104,21 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 
 	npu::utils::SharedXrtState& state = npu::utils::get_shared_xrt_state(offload_cfg);
 
+	std::vector<std::int32_t> heap;
+	heap.reserve(kept);
+
+	int active = 0;
+	int next = 1;
+	std::size_t offset = 0;
+	std::size_t total_dispatches = 0;
+	std::size_t valid_tiles[2] = {0, 0};
+
+	auto t0 = std::chrono::high_resolution_clock::now();
+	common::energy::Scope energy_scope(common::energy::Channel::Algo);
+
+	npu::PhaseTimers phases;
+	auto setup_timer = std::make_unique<npu::PhaseTimer>(phases.setup_ms);
+
 	const std::size_t batch_bytes = kBatchElems * sizeof(std::int32_t);
 	state.allocate_bit_buffers(batch_bytes);
 
@@ -120,58 +136,74 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 		rl[i].add(run[i]);
 	}
 
-	std::vector<std::int32_t> heap;
-	heap.reserve(kept);
-
-	int active = 0;
-	int next = 1;
-	std::size_t offset = 0;
-	std::size_t total_dispatches = 0;
-	std::size_t valid_tiles[2] = {0, 0};
-
-	auto t0 = std::chrono::high_resolution_clock::now();
-	common::energy::Scope energy_scope(common::energy::Channel::Algo);
+	setup_timer.reset();
 
 	if (offset < n) {
 		const std::size_t batch = std::min(kBatchElems, n - offset);
-		valid_tiles[active] = prepare_batch<T>(state.bit_src_bo[active], data.data() + offset, batch, pad_key);
-		rl[active].execute();
+		{
+			npu::PhaseTimer timer(phases.stage_ms);
+			valid_tiles[active] = prepare_batch<T>(state.bit_src_bo[active], data.data() + offset, batch, pad_key);
+		}
+		{
+			npu::PhaseTimer timer(phases.dispatch_ms);
+			rl[active].execute();
+		}
 		total_dispatches++;
 		offset += batch;
 	}
 
 	while (offset < n) {
 		const std::size_t batch = std::min(kBatchElems, n - offset);
-		valid_tiles[next] = prepare_batch<T>(state.bit_src_bo[next], data.data() + offset, batch, pad_key);
-
-		npu::utils::wait_for_runlist_or_throw(rl[active], npu::utils::read_wait_timeout_ms());
-		rl[next].execute();
+		{
+			npu::PhaseTimer timer(phases.stage_ms);
+			valid_tiles[next] = prepare_batch<T>(state.bit_src_bo[next], data.data() + offset, batch, pad_key);
+		}
+		{
+			npu::PhaseTimer timer(phases.wait_ms);
+			npu::utils::wait_for_runlist_or_throw(rl[active], npu::utils::read_wait_timeout_ms());
+		}
+		{
+			npu::PhaseTimer timer(phases.dispatch_ms);
+			rl[next].execute();
+		}
 		total_dispatches++;
 
-		state.bit_dst_bo[active].sync(XCL_BO_SYNC_BO_FROM_DEVICE, valid_tiles[active] * kTile * sizeof(std::int32_t),
-									  0);
-		reduce_batch(state.bit_dst_bo[active], heap, valid_tiles[active], kept, pad_key);
+		{
+			npu::PhaseTimer timer(phases.merge_ms);
+			state.bit_dst_bo[active].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
+										  valid_tiles[active] * kTile * sizeof(std::int32_t), 0);
+			reduce_batch(state.bit_dst_bo[active], heap, valid_tiles[active], kept, pad_key);
+		}
 
 		std::swap(active, next);
 		offset += batch;
 	}
 
 	if (total_dispatches > 0) {
-		npu::utils::wait_for_runlist_or_throw(rl[active], npu::utils::read_wait_timeout_ms());
-		state.bit_dst_bo[active].sync(XCL_BO_SYNC_BO_FROM_DEVICE, valid_tiles[active] * kTile * sizeof(std::int32_t),
-									  0);
-		reduce_batch(state.bit_dst_bo[active], heap, valid_tiles[active], kept, pad_key);
+		{
+			npu::PhaseTimer timer(phases.wait_ms);
+			npu::utils::wait_for_runlist_or_throw(rl[active], npu::utils::read_wait_timeout_ms());
+		}
+		{
+			npu::PhaseTimer timer(phases.merge_ms);
+			state.bit_dst_bo[active].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
+										  valid_tiles[active] * kTile * sizeof(std::int32_t), 0);
+			reduce_batch(state.bit_dst_bo[active], heap, valid_tiles[active], kept, pad_key);
+		}
 	}
 
-	std::sort(heap.begin(), heap.end());
-	for (std::size_t i = 0; i < heap.size(); ++i) {
-		data[i] = from_key<T>(heap[i]);
+	{
+		npu::PhaseTimer timer(phases.finalize_ms);
+		std::sort(heap.begin(), heap.end());
+		for (std::size_t i = 0; i < heap.size(); ++i) {
+			data[i] = from_key<T>(heap[i]);
+		}
 	}
 
 	energy_scope.close();
 	auto t1 = std::chrono::high_resolution_clock::now();
 
-	return RunStats{std::chrono::duration<double, std::milli>(t1 - t0).count(), total_dispatches, 0, 1, true};
+	return RunStats{std::chrono::duration<double, std::milli>(t1 - t0).count(), total_dispatches, 0, 1, true, phases};
 }
 
 } // namespace

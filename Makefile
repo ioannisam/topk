@@ -100,19 +100,19 @@ benchmark-roofline:
 	@echo "=== 1. Measuring bandwidth ceilings and AI sweeps ==="
 	-$(MAKE) measure-roofline
 	@echo "=== 2. Generating roofline plots ==="
-	$(MAKE) plot ARGS="--plot roofline memory-bandwidth-vs-n --error-bars none --roofline-csv-out ./bench/results/derived/roofline.csv"
+	$(MAKE) plot ARGS="--plot roofline memory-bandwidth-vs-n --error-bars none"
 
 benchmark-cases:
 	@echo "=== 1. Measuring timing (all backends) ==="
 	-$(MAKE) measure-cases
 	@echo "=== 2. Generating timing plots ==="
-	$(MAKE) plot ARGS="--plot all --error-bars none --timing-csv-out ./bench/results/derived/cases.csv"
+	$(MAKE) plot ARGS="--plot all --error-bars none"
 
 benchmark-energy:
 	@echo "=== 1. Measuring energy (all backends) ==="
 	-$(MAKE) measure-energy
 	@echo "=== 2. Generating energy plots ==="
-	$(MAKE) plot ARGS="--input ./bench/results/raw/energy/output.json --plot energy-by-backend power-by-backend energy-vs-n power-vs-n edp-vs-n energy-per-element-vs-n time-vs-energy --energy-metric both --error-bars none --energy-csv-out ./bench/results/derived/energy.csv"
+	$(MAKE) plot ARGS="--input ./bench/results/raw/energy/output.json --plot energy-by-backend power-by-backend energy-vs-n power-vs-n edp-vs-n energy-per-element-vs-n time-vs-energy --energy-metric both --error-bars none"
 
 pin-show:
 	ACTION=show ./scripts/pin_conditions.sh

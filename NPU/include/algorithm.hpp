@@ -1,10 +1,42 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <string>
 #include <vector>
 
 #include "common/bitonic.hpp"
+
+namespace npu {
+
+struct PhaseTimers {
+	double sample_ms = 0.0;
+	double setup_ms = 0.0;
+	double stage_ms = 0.0;
+	double dispatch_ms = 0.0;
+	double wait_ms = 0.0;
+	double merge_ms = 0.0;
+	double finalize_ms = 0.0;
+};
+
+class PhaseTimer {
+  public:
+	explicit PhaseTimer(double& sink) : target(sink), mark(std::chrono::high_resolution_clock::now()) {
+	}
+
+	~PhaseTimer() {
+		target += std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - mark).count();
+	}
+
+	PhaseTimer(const PhaseTimer&) = delete;
+	PhaseTimer& operator=(const PhaseTimer&) = delete;
+
+  private:
+	double& target;
+	std::chrono::high_resolution_clock::time_point mark;
+};
+
+} // namespace npu
 
 namespace npu::bitonic {
 
@@ -14,6 +46,7 @@ struct RunStats {
 	std::size_t active_comparators;
 	std::size_t workers;
 	bool used_offload;
+	npu::PhaseTimers phases{};
 };
 
 std::string query_device_name();
@@ -29,15 +62,9 @@ namespace npu::map_reduce {
 
 struct RunStats {
 	double elapsed_ms;
-	double sample_ms;
-	double setup_ms;
-	double stage_ms;
-	double dispatch_ms;
-	double wait_ms;
-	double merge_ms;
-	double finalize_ms;
 	std::size_t layer_dispatches;
 	bool used_offload;
+	npu::PhaseTimers phases{};
 };
 
 template <typename T>

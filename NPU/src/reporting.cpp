@@ -12,6 +12,21 @@ void print_configuration(const common::config::Config& cfg, std::size_t n, std::
 	common::reporting::print_key_value("Offload configured", (offload_enabled ? "yes" : "no"));
 }
 
+namespace {
+
+void print_phase_lines(const char* prefix, const npu::PhaseTimers& phases) {
+	const std::string label = prefix;
+	common::reporting::print_key_value((label + " phase sample (ms)").c_str(), phases.sample_ms, 3);
+	common::reporting::print_key_value((label + " phase setup (ms)").c_str(), phases.setup_ms, 3);
+	common::reporting::print_key_value((label + " phase stage (ms)").c_str(), phases.stage_ms, 3);
+	common::reporting::print_key_value((label + " phase dispatch (ms)").c_str(), phases.dispatch_ms, 3);
+	common::reporting::print_key_value((label + " phase wait (ms)").c_str(), phases.wait_ms, 3);
+	common::reporting::print_key_value((label + " phase merge (ms)").c_str(), phases.merge_ms, 3);
+	common::reporting::print_key_value((label + " phase finalize (ms)").c_str(), phases.finalize_ms, 3);
+}
+
+} // namespace
+
 void print_bitonic_debug_metrics(const common::config::Config& cfg, const std::string& device_name,
 								 const common::topk::BitonicRunStats& stats, const npu::bitonic::RunStats* full_stats,
 								 const npu::bitonic::RunStats* trunc_stats) {
@@ -27,12 +42,14 @@ void print_bitonic_debug_metrics(const common::config::Config& cfg, const std::s
 		common::reporting::print_key_value("Full execution path",
 										   (full_stats->used_offload ? "xrt offload" : "not executed"));
 		common::reporting::print_key_value("Execution workers", full_stats->workers);
+		print_phase_lines("Full", full_stats->phases);
 	}
 	if (trunc_stats != nullptr) {
 		common::reporting::print_key_value("Trunc NPU dispatches", trunc_stats->layer_dispatches);
 		common::reporting::print_key_value("Trunc execution path",
 										   (trunc_stats->used_offload ? "xrt offload" : "not executed"));
 		common::reporting::print_key_value("Trunc active comparators", trunc_stats->active_comparators);
+		print_phase_lines("Trunc", trunc_stats->phases);
 	}
 }
 
@@ -51,13 +68,7 @@ void print_map_reduce_debug_metrics(const common::config::Config& cfg, const std
 	common::reporting::print_key_value("Tiles used", stats.tiles_used);
 	common::reporting::print_key_value("Aggregated candidates", stats.aggregated_candidates);
 	common::reporting::print_key_value("NPU dispatches", npu_stats.layer_dispatches);
-	common::reporting::print_key_value("Phase sample (ms)", npu_stats.sample_ms, 3);
-	common::reporting::print_key_value("Phase setup (ms)", npu_stats.setup_ms, 3);
-	common::reporting::print_key_value("Phase stage (ms)", npu_stats.stage_ms, 3);
-	common::reporting::print_key_value("Phase dispatch (ms)", npu_stats.dispatch_ms, 3);
-	common::reporting::print_key_value("Phase wait (ms)", npu_stats.wait_ms, 3);
-	common::reporting::print_key_value("Phase merge (ms)", npu_stats.merge_ms, 3);
-	common::reporting::print_key_value("Phase finalize (ms)", npu_stats.finalize_ms, 3);
+	print_phase_lines("Map-reduce", npu_stats.phases);
 }
 
 } // namespace npu::reporting

@@ -114,8 +114,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--timing-csv-out",
-        default="",
-        help="Optional CSV export path for parsed case records.",
+        default="bench/results/derived/cases.csv",
+        help="CSV export path for parsed case records. Pass '' to skip.",
     )
     parser.add_argument(
         "--measurement-input",
@@ -130,8 +130,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--energy-csv-out",
-        default="",
-        help="Optional CSV export path for parsed measurement records.",
+        default="bench/results/derived/energy.csv",
+        help="CSV export path for parsed measurement records. Pass '' to skip.",
     )
     parser.add_argument(
         "--agg",
@@ -165,8 +165,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--roofline-csv-out",
-        default="",
-        help="Optional CSV export path for roofline sweep points (machine-level, not per dtype).",
+        default="bench/results/derived/roofline.csv",
+        help="CSV export path for roofline sweep points (machine-level, not per dtype). Pass '' to skip.",
     )
     parser.add_argument("--show", action="store_true", help="Show figures interactively.")
     return parser.parse_args()
@@ -324,14 +324,14 @@ def main() -> int:
             print(f"No measurement records for dtype '{dtype_dir}' matched the selected filters.")
 
         # CSVs keep all records (including GT) for raw data completeness
-        if args.timing_csv_out:
+        if args.timing_csv_out and records:
             base, ext = os.path.splitext(args.timing_csv_out)
             ext = ext or ".csv"
             csv_path = f"{base}_{dtype_dir}{ext}" if len(dtypes_to_plot) > 1 else args.timing_csv_out
             write_case_csv(records, csv_path)
             print(f"Wrote CSV: {csv_path}")
 
-        if args.energy_csv_out:
+        if args.energy_csv_out and dtype_measurements:
             base, ext = os.path.splitext(args.energy_csv_out)
             ext = ext or ".csv"
             csv_path = f"{base}_{dtype_dir}{ext}" if len(dtypes_to_plot) > 1 else args.energy_csv_out

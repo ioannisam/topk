@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <memory>
 
 #include "common/energy.hpp"
 #include <cstdint>
@@ -121,7 +122,9 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 	auto t0 = std::chrono::high_resolution_clock::now();
 	common::energy::Scope energy_scope(common::energy::Channel::Algo);
 
-	const auto sample_mark = t0;
+	npu::PhaseTimers phases;
+	auto sample_timer = std::make_unique<npu::PhaseTimer>(phases.sample_ms);
+
 	constexpr double SAMPLE_FRACTION = 0.02;
 	std::size_t sample_size = std::max(k, static_cast<std::size_t>(n * SAMPLE_FRACTION));
 	sample_size = std::min(sample_size, n);
@@ -133,10 +136,9 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 	heap.resize(k);
 	std::make_heap(heap.begin(), heap.end(), Cmp{});
 
-	const double sample_ms =
-		std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - sample_mark).count();
+	sample_timer.reset();
 
-	const auto setup_mark = std::chrono::high_resolution_clock::now();
+	auto setup_timer = std::make_unique<npu::PhaseTimer>(phases.setup_ms);
 	const std::size_t BATCH_CHUNKS = 1024;
 	const std::size_t chunk_size = 1024;
 	const std::size_t batch_size = BATCH_CHUNKS * chunk_size;
@@ -159,8 +161,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 		rl[i].add(run[i]);
 	}
 
-	const double setup_ms =
-		std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - setup_mark).count();
+	setup_timer.reset();
 
 	const T pad_val = WantMax ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
 	const std::int32_t sentinel_key = to_key<T>(pad_val);
@@ -172,25 +173,18 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 	std::size_t total_dispatches = 0;
 	std::size_t valid_chunks[2] = {0, 0};
 
-	using Clock = std::chrono::high_resolution_clock;
-	double stage_ms = 0.0;
-	double dispatch_ms = 0.0;
-	double wait_ms = 0.0;
-	double merge_ms = 0.0;
-	const auto elapsed_since = [](const Clock::time_point& mark) {
-		return std::chrono::duration<double, std::milli>(Clock::now() - mark).count();
-	};
-
 	if (offset < n) {
 		std::size_t current_batch = std::min(batch_size, n - offset);
-		const auto mark = Clock::now();
-		valid_chunks[active_idx] = prepare_npu_batch<WantMax, T>(
-			state.mr_src_bo[active_idx], state.mr_cfg_bo[active_idx], data.data() + offset, current_batch, BATCH_CHUNKS,
-			heap.front(), sentinel_key);
-		stage_ms += elapsed_since(mark);
-		const auto dispatch_mark = Clock::now();
-		rl[active_idx].execute();
-		dispatch_ms += elapsed_since(dispatch_mark);
+		{
+			npu::PhaseTimer timer(phases.stage_ms);
+			valid_chunks[active_idx] = prepare_npu_batch<WantMax, T>(
+				state.mr_src_bo[active_idx], state.mr_cfg_bo[active_idx], data.data() + offset, current_batch,
+				BATCH_CHUNKS, heap.front(), sentinel_key);
+		}
+		{
+			npu::PhaseTimer timer(phases.dispatch_ms);
+			rl[active_idx].execute();
+		}
 		total_dispatches++;
 		offset += batch_size;
 	}
@@ -198,63 +192,61 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 	while (offset < n) {
 		std::size_t current_batch = std::min(batch_size, n - offset);
 
-		auto mark = Clock::now();
-		valid_chunks[next_idx] =
-			prepare_npu_batch<WantMax, T>(state.mr_src_bo[next_idx], state.mr_cfg_bo[next_idx], data.data() + offset,
-										  current_batch, BATCH_CHUNKS, heap.front(), sentinel_key);
-		stage_ms += elapsed_since(mark);
-
-		mark = Clock::now();
-		npu::utils::wait_for_runlist_or_throw(rl[active_idx], npu::utils::read_wait_timeout_ms());
-		wait_ms += elapsed_since(mark);
-
-		mark = Clock::now();
-		rl[next_idx].execute();
-		dispatch_ms += elapsed_since(mark);
+		{
+			npu::PhaseTimer timer(phases.stage_ms);
+			valid_chunks[next_idx] = prepare_npu_batch<WantMax, T>(state.mr_src_bo[next_idx], state.mr_cfg_bo[next_idx],
+																   data.data() + offset, current_batch, BATCH_CHUNKS,
+																   heap.front(), sentinel_key);
+		}
+		{
+			npu::PhaseTimer timer(phases.wait_ms);
+			npu::utils::wait_for_runlist_or_throw(rl[active_idx], npu::utils::read_wait_timeout_ms());
+		}
+		{
+			npu::PhaseTimer timer(phases.dispatch_ms);
+			rl[next_idx].execute();
+		}
 		total_dispatches++;
 
-		mark = Clock::now();
-		state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
-										 valid_chunks[active_idx] * chunk_size * sizeof(std::int32_t), 0);
-		process_npu_results<WantMax>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx], sentinel_key);
-		merge_ms += elapsed_since(mark);
+		{
+			npu::PhaseTimer timer(phases.merge_ms);
+			state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
+											 valid_chunks[active_idx] * chunk_size * sizeof(std::int32_t), 0);
+			process_npu_results<WantMax>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx], sentinel_key);
+		}
 
 		std::swap(active_idx, next_idx);
 		offset += batch_size;
 	}
 
 	if (total_dispatches > 0) {
-		auto mark = Clock::now();
-		npu::utils::wait_for_runlist_or_throw(rl[active_idx], npu::utils::read_wait_timeout_ms());
-		wait_ms += elapsed_since(mark);
-
-		mark = Clock::now();
-		state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
-										 valid_chunks[active_idx] * chunk_size * sizeof(std::int32_t), 0);
-		process_npu_results<WantMax>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx], sentinel_key);
-		merge_ms += elapsed_since(mark);
+		{
+			npu::PhaseTimer timer(phases.wait_ms);
+			npu::utils::wait_for_runlist_or_throw(rl[active_idx], npu::utils::read_wait_timeout_ms());
+		}
+		{
+			npu::PhaseTimer timer(phases.merge_ms);
+			state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
+											 valid_chunks[active_idx] * chunk_size * sizeof(std::int32_t), 0);
+			process_npu_results<WantMax>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx], sentinel_key);
+		}
 	}
 
-	const auto finalize_mark = Clock::now();
 	std::vector<T> result(heap.size());
-	for (std::size_t i = 0; i < heap.size(); ++i)
-		result[i] = from_key<T>(heap[i]);
-	std::sort(result.begin(), result.end(),
-			  [](const T& lhs, const T& rhs) { return WantMax ? (lhs > rhs) : (lhs < rhs); });
-	const double finalize_ms = elapsed_since(finalize_mark);
+	{
+		npu::PhaseTimer timer(phases.finalize_ms);
+		for (std::size_t i = 0; i < heap.size(); ++i)
+			result[i] = from_key<T>(heap[i]);
+		std::sort(result.begin(), result.end(),
+				  [](const T& lhs, const T& rhs) { return WantMax ? (lhs > rhs) : (lhs < rhs); });
+	}
 
 	energy_scope.close();
 	auto t1 = std::chrono::high_resolution_clock::now();
 
 	if (stats != nullptr) {
 		stats->elapsed_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-		stats->sample_ms = sample_ms;
-		stats->setup_ms = setup_ms;
-		stats->stage_ms = stage_ms;
-		stats->dispatch_ms = dispatch_ms;
-		stats->wait_ms = wait_ms;
-		stats->merge_ms = merge_ms;
-		stats->finalize_ms = finalize_ms;
+		stats->phases = phases;
 		stats->layer_dispatches = total_dispatches;
 		stats->used_offload = true;
 	}

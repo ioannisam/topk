@@ -189,7 +189,7 @@ int execute(const Config& cfg) {
 			}));
 		}
 
-		points.push_back(measure("launch", 0, 1, 0.0, 0.0, [&]() {
+		points.push_back(measure("latency_launch", 0, 1, 0.0, 0.0, [&]() {
 			fma_kernel<<<1, kBlockSize>>>(d_src, d_out, 0, 0);
 			CUDA_CHECK(cudaDeviceSynchronize());
 			return 0.0;

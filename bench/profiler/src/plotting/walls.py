@@ -23,6 +23,11 @@ CACHE_MARKERS = {
     "gpu": [(32 * 1024 * 1024, "L2 32 MiB")],
 }
 
+# Below this working set there are too few elements to keep every thread busy, so the
+# point measures available parallelism rather than a bandwidth ceiling. Plotting those
+# reads as a "roof" is misleading, so they are excluded.
+CACHE_LADDER_MIN_BYTES = 1024 * 1024
+
 
 def _bytes_axis(ax) -> None:
     ax.set_xscale("log", base=2)
@@ -37,7 +42,10 @@ def plot_cache_ladder(points: Iterable[RooflinePoint], out_path: str) -> Optiona
     for p in points:
         if p.kernel != "cache_read" or p.gbytes_per_s <= 0 or p.elements <= 0:
             continue
-        grouped[p.backend].append((p.elements * 4.0, p.gbytes_per_s))
+        working_set = p.elements * 4.0
+        if working_set < CACHE_LADDER_MIN_BYTES:
+            continue
+        grouped[p.backend].append((working_set, p.gbytes_per_s))
 
     if not grouped:
         return None
@@ -103,6 +111,24 @@ def plot_transfer_walls(points: Iterable[RooflinePoint], out_path: str) -> Optio
             linewidth=2,
             color=backend_color(backend),
             label=label,
+        )
+
+    # Latency floors are fixed per-call costs, not rates, so they cannot be drawn as a
+    # roof. They are reported as microseconds in a corner annotation instead.
+    floors = [
+        f"{p.backend.upper()} {p.kernel.removeprefix('latency_')}: {p.ms_min * 1000:.1f} us"
+        for p in points
+        if p.kernel.startswith("latency_") and p.ms_min > 0
+    ]
+    if floors:
+        ax.annotate(
+            "Latency floors (fixed per call)\n" + "\n".join(sorted(floors)),
+            xy=(0.02, 0.02),
+            xycoords="axes fraction",
+            fontsize=8,
+            color="#374151",
+            va="bottom",
+            bbox={"boxstyle": "round", "facecolor": "white", "edgecolor": "#D1D5DB", "alpha": 0.9},
         )
 
     _bytes_axis(ax)
