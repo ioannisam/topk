@@ -29,6 +29,13 @@ namespace npu::map_reduce {
 
 struct RunStats {
 	double elapsed_ms;
+	double sample_ms;
+	double setup_ms;
+	double stage_ms;
+	double dispatch_ms;
+	double wait_ms;
+	double merge_ms;
+	double finalize_ms;
 	std::size_t layer_dispatches;
 	bool used_offload;
 };

@@ -13,8 +13,8 @@
 namespace common::roofline {
 namespace {
 
-constexpr const char* kUsage = "Usage: ./roofline [exp=stream|sweep|both] [bytes=<size>[K|M|G]] "
-							   "[ops=<csv>] [threads=<num>] [seed=<seed>] [debug=true|false]";
+constexpr const char* kUsage = "Usage: ./roofline [exp=stream|sweep|cache|transfer|both|all] [bytes=<size>[K|M|G]] "
+							   "[ops=<csv>] [sizes=<csv of sizes>] [threads=<num>] [seed=<seed>] [debug=true|false]";
 
 bool starts_with(const std::string& text, const std::string& prefix) {
 	return text.rfind(prefix, 0) == 0;
@@ -92,6 +92,37 @@ std::vector<int> parse_ops(const std::string& text) {
 	return out;
 }
 
+std::vector<std::size_t> parse_sizes(const std::string& text) {
+	std::vector<std::size_t> out;
+	std::string current;
+	for (const char c : text) {
+		if (c == ',') {
+			if (!current.empty()) {
+				out.push_back(parse_bytes(current));
+				current.clear();
+			}
+		} else {
+			current.push_back(c);
+		}
+	}
+	if (!current.empty()) {
+		out.push_back(parse_bytes(current));
+	}
+	if (out.empty()) {
+		throw std::invalid_argument("sizes must list at least one value");
+	}
+	return out;
+}
+
+std::vector<std::size_t> default_sizes(std::size_t bytes) {
+	std::vector<std::size_t> out;
+	for (std::size_t size = std::size_t{32} << 10; size < bytes; size *= 2) {
+		out.push_back(size);
+	}
+	out.push_back(bytes);
+	return out;
+}
+
 Experiment parse_experiment(const std::string& value) {
 	if (value == "stream") {
 		return Experiment::Stream;
@@ -99,10 +130,19 @@ Experiment parse_experiment(const std::string& value) {
 	if (value == "sweep") {
 		return Experiment::Sweep;
 	}
+	if (value == "cache") {
+		return Experiment::Cache;
+	}
+	if (value == "transfer") {
+		return Experiment::Transfer;
+	}
 	if (value == "both") {
 		return Experiment::Both;
 	}
-	throw std::invalid_argument("Unsupported experiment. Use one of: stream, sweep, both");
+	if (value == "all") {
+		return Experiment::All;
+	}
+	throw std::invalid_argument("Unsupported experiment. Use one of: stream, sweep, cache, transfer, both, all");
 }
 
 } // namespace
@@ -134,6 +174,10 @@ Config parse_args(int argc, char** argv) {
 			cfg.ops = parse_ops(token.substr(4));
 			continue;
 		}
+		if (starts_with(token, "sizes=")) {
+			cfg.sizes = parse_sizes(token.substr(6));
+			continue;
+		}
 		if (starts_with(token, "threads=")) {
 			const long long parsed = parse_signed_long(token.substr(8), "threads");
 			if (parsed <= 0) {
@@ -156,6 +200,10 @@ Config parse_args(int argc, char** argv) {
 		}
 
 		throw std::invalid_argument("Unknown key token: " + token);
+	}
+
+	if (cfg.sizes.empty()) {
+		cfg.sizes = default_sizes(cfg.bytes);
 	}
 
 	return cfg;

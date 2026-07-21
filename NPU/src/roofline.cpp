@@ -63,7 +63,7 @@ int execute(const Config& cfg) {
 
 	std::vector<Point> points;
 
-	if (cfg.experiment == Experiment::Stream || cfg.experiment == Experiment::Both) {
+	if (common::roofline::includes(cfg.experiment, Experiment::Stream)) {
 		points.push_back(
 			measure("read", 0, n, bytes, static_cast<double>(n), [&]() { return read_buffer(src_map, n); }));
 		points.push_back(measure("copy", 0, n, 2.0 * bytes, 0.0, [&]() { return copy_buffer(src_map, dst_map, n); }));
@@ -75,6 +75,56 @@ int execute(const Config& cfg) {
 			dst_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
 			return 0.0;
 		}));
+	}
+
+	if (common::roofline::includes(cfg.experiment, Experiment::Cache)) {
+		for (const std::size_t size : cfg.sizes) {
+			const std::size_t elems = std::max<std::size_t>(1024, size / sizeof(Elem));
+			if (elems > n) {
+				continue;
+			}
+			const std::size_t repeats = std::max<std::size_t>(1, n / elems);
+			const double moved = static_cast<double>(elems) * sizeof(Elem) * static_cast<double>(repeats);
+			points.push_back(measure("cache_read", 0, elems, moved, 0.0, [&]() {
+				double acc = 0.0;
+				for (std::size_t r = 0; r < repeats; ++r) {
+					acc += read_buffer(src_map, elems);
+				}
+				return acc;
+			}));
+		}
+	}
+
+	if (common::roofline::includes(cfg.experiment, Experiment::Transfer)) {
+		for (const std::size_t size : cfg.sizes) {
+			const std::size_t elems = std::max<std::size_t>(1024, size / sizeof(Elem));
+			if (elems > n) {
+				continue;
+			}
+			const std::size_t batches = std::max<std::size_t>(1, n / elems);
+			const std::size_t chunk_bytes = elems * sizeof(Elem);
+			const double moved = static_cast<double>(chunk_bytes) * static_cast<double>(batches);
+
+			points.push_back(measure("stage_write", 0, elems, moved, 0.0, [&]() {
+				for (std::size_t b = 0; b < batches; ++b) {
+					std::memcpy(src_map, host.data() + b * elems, chunk_bytes);
+				}
+				return 0.0;
+			}));
+			points.push_back(measure("stage_write_sync", 0, elems, moved, 0.0, [&]() {
+				for (std::size_t b = 0; b < batches; ++b) {
+					std::memcpy(src_map, host.data() + b * elems, chunk_bytes);
+					src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE, chunk_bytes, 0);
+				}
+				return 0.0;
+			}));
+			points.push_back(measure("sync_only", 0, elems, moved, 0.0, [&]() {
+				for (std::size_t b = 0; b < batches; ++b) {
+					src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE, chunk_bytes, 0);
+				}
+				return 0.0;
+			}));
+		}
 	}
 
 	common::roofline::report(cfg, "npu", points);

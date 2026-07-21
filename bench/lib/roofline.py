@@ -76,9 +76,15 @@ def parse_args():
         description="Measure per-backend bandwidth ceilings and arithmetic-intensity sweeps."
     )
     parser.add_argument("backends", nargs="*", default=["cpu", "gpu"], help="Backends to measure (cpu gpu npu).")
-    parser.add_argument("--exp", default="both", choices=["stream", "sweep", "both"], help="Experiment to run.")
+    parser.add_argument(
+        "--exp",
+        default="all",
+        choices=["stream", "sweep", "cache", "transfer", "both", "all"],
+        help="Experiment to run.",
+    )
     parser.add_argument("--bytes", default="256M", help="Working set per backend, e.g. 256M or 1G.")
     parser.add_argument("--ops", default="0,1,2,4,8,16,32,64,128,256", help="Comma-separated ops/element sweep points.")
+    parser.add_argument("--sizes", default="", help="Comma-separated working-set/transfer sizes, e.g. 32K,1M,64M.")
     parser.add_argument("--threads", type=int, default=0, help="CPU worker threads (0 = hardware concurrency).")
     parser.add_argument("--seed", type=int, default=42, help="Input generation seed.")
     parser.add_argument("--cooldown", type=int, default=10, help="Seconds to idle between backends.")
@@ -95,6 +101,7 @@ def main():
         "experiment": args.exp,
         "bytes": args.bytes,
         "ops": args.ops,
+        "sizes": args.sizes,
         "seed": args.seed,
         "points": [],
         "failures": [],
@@ -118,6 +125,8 @@ def main():
         ]
         if args.threads > 0:
             cmd.append(f"threads={args.threads}")
+        if args.sizes:
+            cmd.append(f"sizes={args.sizes}")
 
         env = dict(os.environ)
         if backend == "gpu":
@@ -144,7 +153,7 @@ def main():
         json_data["points"].extend(points)
         for point in points:
             print(
-                f"  {point['kernel']:<5} ops={point['ops_per_elem']:<4} "
+                f"  {point['kernel']:<18} ops={point['ops_per_elem']:<4} "
                 f"{point['gbytes_per_s']:>8.2f} GB/s  {point['gflops_per_s']:>10.2f} GFLOP/s"
             )
 

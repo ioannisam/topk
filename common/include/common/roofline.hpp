@@ -15,17 +15,31 @@ namespace common::roofline {
 enum class Experiment {
 	Stream,
 	Sweep,
+	Cache,
+	Transfer,
 	Both,
+	All,
 };
 
 struct Config {
 	Experiment experiment;
 	std::size_t bytes;
 	std::vector<int> ops;
+	std::vector<std::size_t> sizes;
 	std::size_t ex_threads;
 	std::uint64_t seed;
 	bool debug_output;
 };
+
+inline bool includes(Experiment selected, Experiment part) {
+	if (selected == Experiment::All) {
+		return true;
+	}
+	if (selected == Experiment::Both) {
+		return part == Experiment::Stream || part == Experiment::Sweep;
+	}
+	return selected == part;
+}
 
 struct Point {
 	std::string kernel;

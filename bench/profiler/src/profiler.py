@@ -30,7 +30,7 @@ from .plotting import time_vs_k_backend_compare
 from .plotting import time_vs_n_k_colored
 from .plotting import heatmap_time
 from .plotting import memory_bandwidth_vs_n
-from .plotting import roofline
+from .plotting import roofline, walls
 
 
 def metric_path(out_dir: str, name: str, metric: str) -> str:
@@ -664,6 +664,16 @@ def main() -> int:
             collect_output(out)
         else:
             print("Skipped roofline: no sweep points found. Run 'make measure-roofline' first.")
+
+        for producer, name in (
+            (walls.plot_cache_ladder, "cache_ladder.png"),
+            (walls.plot_transfer_walls, "transfer_walls.png"),
+        ):
+            out = producer(roofline_points, os.path.join(args.output_dir, "machine", name))
+            if out:
+                collect_output(out)
+            else:
+                print(f"Skipped {name}: run 'make measure-roofline' with exp=all first.")
 
     if generated:
         print("Generated plot files:")

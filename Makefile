@@ -4,7 +4,7 @@ THESIS_DIR := doc/thesis
 ARGS ?=
 
 .PHONY: all help build-all build-cpu build-gpu build-npu clean clean-build clean-results \
-	run-cpu run-gpu run-npu measure-cases measure-energy measure-roofline plot \
+	run-cpu run-gpu run-npu measure-cases measure-energy measure-roofline measure-ncu plot \
 	benchmark benchmark-cases benchmark-energy benchmark-roofline profiler-bootstrap \
 	pin pin-show unpin lint specs a-test ab-test \
 	thesis
@@ -19,7 +19,8 @@ help:
 	@echo "  Measure (write bench/results/):"
 	@echo "    measure-cases                 - measure timing data via runner.py (ARGS=...)"
 	@echo "    measure-energy                - measure energy data, all backends; sudo for RAPL (ARGS=...)"
-	@echo "    measure-roofline              - measure bandwidth ceilings + AI sweeps (ARGS=...)"
+	@echo "    measure-roofline              - measure bandwidth ceilings, cache + transfer walls (ARGS=...)"
+	@echo "    measure-ncu                   - GPU hardware counters via Nsight Compute (ARGS=...)"
 	@echo "  Plot:"
 	@echo "    plot                          - plot results from measured data (ARGS=...)"
 	@echo "  Pipelines (measure + plot):"
@@ -80,6 +81,9 @@ measure-energy:
 
 measure-roofline:
 	./bench/run_roofline.sh $(ARGS)
+
+measure-ncu:
+	./bench/lib/measure_ncu.sh --out bench/results/raw/ncu/report.txt -- ./build/GPU/topk $(ARGS)
 
 plot:
 	./bench/profiler/run_profiler.sh $(ARGS)

@@ -67,8 +67,7 @@ void copy_chunk(const float* src, float* dst, std::size_t begin, std::size_t end
 	}
 }
 
-double run_fma(const std::vector<float>& src, std::size_t workers, int ops) {
-	const std::size_t n = src.size();
+double run_fma(const float* src, std::size_t n, std::size_t workers, int ops, std::size_t repeats = 1) {
 	std::vector<float> partial(workers, 0.0f);
 	std::vector<std::thread> pool;
 	pool.reserve(workers > 0 ? workers - 1 : 0);
@@ -77,11 +76,16 @@ double run_fma(const std::vector<float>& src, std::size_t workers, int ops) {
 		pool.emplace_back([&, tid]() {
 			const std::size_t begin = (n * tid) / workers;
 			const std::size_t end = (n * (tid + 1)) / workers;
-			partial[tid] = fma_chunk(src.data(), begin, end, ops);
+			for (std::size_t r = 0; r < repeats; ++r) {
+				partial[tid] += fma_chunk(src, begin, end, ops);
+			}
 		});
 	}
 	const std::size_t last_tid = workers - 1;
-	partial[last_tid] = fma_chunk(src.data(), (n * last_tid) / workers, n, ops);
+	const std::size_t last_begin = (n * last_tid) / workers;
+	for (std::size_t r = 0; r < repeats; ++r) {
+		partial[last_tid] += fma_chunk(src, last_begin, n, ops);
+	}
 
 	for (auto& t : pool) {
 		t.join();
@@ -128,16 +132,31 @@ int execute(const Config& cfg) {
 
 	std::vector<Point> points;
 
-	if (cfg.experiment == Experiment::Stream || cfg.experiment == Experiment::Both) {
-		points.push_back(
-			measure("read", 0, n, read_bytes, static_cast<double>(n), [&]() { return run_fma(src, workers, 0); }));
+	if (common::roofline::includes(cfg.experiment, Experiment::Stream)) {
+		points.push_back(measure("read", 0, n, read_bytes, static_cast<double>(n),
+								 [&]() { return run_fma(src.data(), n, workers, 0); }));
 		points.push_back(measure("copy", 0, n, 2.0 * read_bytes, 0.0, [&]() { return run_copy(src, dst, workers); }));
 	}
 
-	if (cfg.experiment == Experiment::Sweep || cfg.experiment == Experiment::Both) {
+	if (common::roofline::includes(cfg.experiment, Experiment::Sweep)) {
 		for (const int ops : cfg.ops) {
 			const double flops = static_cast<double>(n) * (2.0 * static_cast<double>(ops) + 1.0);
-			points.push_back(measure("fma", ops, n, read_bytes, flops, [&]() { return run_fma(src, workers, ops); }));
+			points.push_back(
+				measure("fma", ops, n, read_bytes, flops, [&]() { return run_fma(src.data(), n, workers, ops); }));
+		}
+	}
+
+	if (common::roofline::includes(cfg.experiment, Experiment::Cache)) {
+		for (const std::size_t size : cfg.sizes) {
+			const std::size_t elems = std::max<std::size_t>(kLane, size / sizeof(float));
+			if (elems > n) {
+				continue;
+			}
+			const std::size_t threads = worker_count(cfg, elems);
+			const std::size_t repeats = std::max<std::size_t>(1, n / elems);
+			const double moved = static_cast<double>(elems) * sizeof(float) * static_cast<double>(repeats);
+			points.push_back(measure("cache_read", 0, elems, moved, 0.0,
+									 [&]() { return run_fma(src.data(), elems, threads, 0, repeats); }));
 		}
 	}
 

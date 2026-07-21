@@ -51,6 +51,13 @@ void print_map_reduce_debug_metrics(const common::config::Config& cfg, const std
 	common::reporting::print_key_value("Tiles used", stats.tiles_used);
 	common::reporting::print_key_value("Aggregated candidates", stats.aggregated_candidates);
 	common::reporting::print_key_value("NPU dispatches", npu_stats.layer_dispatches);
+	common::reporting::print_key_value("Phase sample (ms)", npu_stats.sample_ms, 3);
+	common::reporting::print_key_value("Phase setup (ms)", npu_stats.setup_ms, 3);
+	common::reporting::print_key_value("Phase stage (ms)", npu_stats.stage_ms, 3);
+	common::reporting::print_key_value("Phase dispatch (ms)", npu_stats.dispatch_ms, 3);
+	common::reporting::print_key_value("Phase wait (ms)", npu_stats.wait_ms, 3);
+	common::reporting::print_key_value("Phase merge (ms)", npu_stats.merge_ms, 3);
+	common::reporting::print_key_value("Phase finalize (ms)", npu_stats.finalize_ms, 3);
 }
 
 } // namespace npu::reporting
