@@ -52,7 +52,7 @@ Notes:
 - random range defaults to min=0 and max=1000
 - threads is accepted by shared CLI for parity across backends, but GPU launch geometry is selected internally by the CUDA backend
 - dtype supports int, uint, float, double, fp16 (fp16 uses float input with CUDA half compute path)
-- algo chooses bitonic (default), map_reduce, or gt (Thrust full-sort reference baseline)
+- algo chooses bitonic (default), map_reduce, or gt (NVIDIA CUB `DeviceTopK` radix-select top-k, the AIR-TopK algorithm — an industry-standard GPU top-k baseline, not a full sort)
 - dist selects the input distribution: uniform (default), normal, sorted, reverse
 
 ## Example

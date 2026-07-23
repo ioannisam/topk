@@ -5,13 +5,14 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <stdexcept>
 #include <string>
 
-#include <thrust/device_ptr.h>
-#include <thrust/execution_policy.h>
-#include <thrust/functional.h>
-#include <thrust/sort.h>
+#include <cub/device/device_topk.cuh>
+#include <cuda/execution.determinism.h>
+#include <cuda/execution.output_ordering.h>
+#include <cuda/execution.require.h>
 #include <cuda_runtime.h>
 
 namespace gpu::ground_truth {
@@ -83,11 +84,23 @@ template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, boo
 		return 0.0;
 	}
 
-	DeviceBuffer<D> d_data(n);
+	const std::size_t kk = std::min(k, n);
 
-	CUDA_CHECK(cudaMemcpy(d_data.get(), data, n * sizeof(D), cudaMemcpyHostToDevice));
+	auto env = cuda::execution::require(cuda::execution::determinism::not_guaranteed,
+										cuda::execution::output_ordering::unsorted);
 
-	thrust::device_ptr<D> dev_ptr(d_data.get());
+	DeviceBuffer<D> d_in(n);
+	DeviceBuffer<D> d_out(kk);
+
+	CUDA_CHECK(cudaMemcpy(d_in.get(), data, n * sizeof(D), cudaMemcpyHostToDevice));
+
+	std::size_t temp_bytes = 0;
+	if (want_max) {
+		CUDA_CHECK(cub::DeviceTopK::MaxKeys(nullptr, temp_bytes, d_in.get(), d_out.get(), n, kk, env));
+	} else {
+		CUDA_CHECK(cub::DeviceTopK::MinKeys(nullptr, temp_bytes, d_in.get(), d_out.get(), n, kk, env));
+	}
+	DeviceBuffer<std::uint8_t> d_temp(temp_bytes);
 
 	cudaEvent_t start, stop;
 	CUDA_CHECK(cudaEventCreate(&start));
@@ -97,9 +110,9 @@ template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, boo
 	CUDA_CHECK(cudaEventRecord(start));
 
 	if (want_max) {
-		thrust::sort(thrust::device, dev_ptr, dev_ptr + n, thrust::greater<D>());
+		CUDA_CHECK(cub::DeviceTopK::MaxKeys(d_temp.get(), temp_bytes, d_in.get(), d_out.get(), n, kk, env));
 	} else {
-		thrust::sort(thrust::device, dev_ptr, dev_ptr + n, thrust::less<D>());
+		CUDA_CHECK(cub::DeviceTopK::MinKeys(d_temp.get(), temp_bytes, d_in.get(), d_out.get(), n, kk, env));
 	}
 
 	CUDA_CHECK(cudaEventRecord(stop));
@@ -112,9 +125,22 @@ template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, boo
 	CUDA_CHECK(cudaEventDestroy(start));
 	CUDA_CHECK(cudaEventDestroy(stop));
 
-	std::size_t out_size = std::min(k, n);
+	CUDA_CHECK(cudaMemcpy(data, d_out.get(), kk * sizeof(D), cudaMemcpyDeviceToHost));
 
-	CUDA_CHECK(cudaMemcpy(data, d_data.get(), out_size * sizeof(D), cudaMemcpyDeviceToHost));
+	if constexpr (sizeof(T) == 2) {
+		__half* h = reinterpret_cast<__half*>(data);
+		if (want_max) {
+			std::sort(h, h + kk, [](__half a, __half b) { return __half2float(a) > __half2float(b); });
+		} else {
+			std::sort(h, h + kk, [](__half a, __half b) { return __half2float(a) < __half2float(b); });
+		}
+	} else {
+		if (want_max) {
+			std::sort(data, data + kk, std::greater<T>());
+		} else {
+			std::sort(data, data + kk, std::less<T>());
+		}
+	}
 
 	return static_cast<double>(algo_ms);
 }
