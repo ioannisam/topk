@@ -194,9 +194,29 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 
 	{
 		npu::PhaseTimer timer(phases.finalize_ms);
-		std::sort(heap.begin(), heap.end());
-		for (std::size_t i = 0; i < heap.size(); ++i) {
-			data[i] = from_key<T>(heap[i]);
+		if constexpr (sizeof(T) == 8) {
+			const std::size_t kept_k = heap.size();
+			std::int32_t threshold = std::numeric_limits<std::int32_t>::min();
+			for (const std::int32_t key : heap) {
+				threshold = std::max(threshold, key);
+			}
+			std::vector<T> candidates;
+			candidates.reserve(kept_k * 2);
+			for (std::size_t j = 0; j < n; ++j) {
+				if (to_key<T>(data[j]) <= threshold) {
+					candidates.push_back(data[j]);
+				}
+			}
+			const std::size_t take = std::min(kept_k, candidates.size());
+			std::partial_sort(candidates.begin(), candidates.begin() + take, candidates.end());
+			for (std::size_t i = 0; i < take; ++i) {
+				data[i] = candidates[i];
+			}
+		} else {
+			std::sort(heap.begin(), heap.end());
+			for (std::size_t i = 0; i < heap.size(); ++i) {
+				data[i] = from_key<T>(heap[i]);
+			}
 		}
 	}
 

@@ -232,13 +232,30 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 		}
 	}
 
-	std::vector<T> result(heap.size());
+	std::vector<T> result;
 	{
 		npu::PhaseTimer timer(phases.finalize_ms);
-		for (std::size_t i = 0; i < heap.size(); ++i)
-			result[i] = from_key<T>(heap[i]);
-		std::sort(result.begin(), result.end(),
-				  [](const T& lhs, const T& rhs) { return WantMax ? (lhs > rhs) : (lhs < rhs); });
+		auto order = [](const T& lhs, const T& rhs) { return WantMax ? (lhs > rhs) : (lhs < rhs); };
+		if constexpr (sizeof(T) == 8) {
+			const std::size_t kept_k = heap.size();
+			const std::int32_t threshold = heap.front();
+			std::vector<T> candidates;
+			candidates.reserve(kept_k * 2);
+			for (std::size_t j = 0; j < n; ++j) {
+				const std::int32_t key = to_key<T>(data[j]);
+				const bool keep = WantMax ? (key >= threshold) : (key <= threshold);
+				if (keep)
+					candidates.push_back(data[j]);
+			}
+			const std::size_t take = std::min(kept_k, candidates.size());
+			std::partial_sort(candidates.begin(), candidates.begin() + take, candidates.end(), order);
+			result.assign(candidates.begin(), candidates.begin() + take);
+		} else {
+			result.resize(heap.size());
+			for (std::size_t i = 0; i < heap.size(); ++i)
+				result[i] = from_key<T>(heap[i]);
+			std::sort(result.begin(), result.end(), order);
+		}
 	}
 
 	energy_scope.close();

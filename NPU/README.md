@@ -64,7 +64,7 @@ Behavior:
 - If `NPU_OFFLOAD_XCLBIN` is missing, execution fails with an error.
 - If kernel launch fails, execution fails with an error.
 - The bitonic offload follows the Truncated Bitonic Sort streaming model. Each of the 4 NPU columns runs one core that sorts its 1024-element tiles into ascending runs of length 16 (truncation: only short sorted runs are built, not a full sort), using hardware lane-shuffle compare-exchanges. The host then merges the sorted runs into a running top-k via a small max-heap with per-run early-out ("merge-and-purge"). Tiles are dispatched in double-buffered batches so host packing/merging overlaps NPU compute. There is no host-side global bitonic merge.
-- Each value is mapped to a monotonic `int32` key before the device sort (the AIE core compares with signed `int32` min/max), so `int`, `uint`, and `float` — including negative floats — all sort correctly; the reduction runs in key space and only the surviving keys are mapped back.
+- Each value is mapped to a monotonic `int32` key before the device sort (the AIE core compares with signed `int32` min/max), so `int`, `uint`, `float` (including negative floats), and `fp16` (widened to an exact `float` key) all sort correctly; the reduction runs in key space and only the surviving keys are mapped back. `double` is 64-bit, so its `int32` key keeps only the high 32 radix bits: the device sort and host merge are then an exact top-k in *key* space, but ties within that 32-bit prefix are broken by a final host refinement that selects the true top-k over the original `double` values (so both membership and returned values are exact). The refinement costs one extra host pass over the input and applies to `double` only.
 
 Example:
 
@@ -91,9 +91,8 @@ mode, sentinel) at **Arg 3**, shifting `dst_bo`/`src_bo` to **Arg 4**/**Arg 5**.
 
 Current host offload dtype support:
 
-- `int`, `uint`, `float` (4-byte element types)
-
-`double` and `fp16` are not offloaded by current host code.
+- `int`, `uint`, `float`, `fp16` — offloaded via an exact order-preserving `int32` key.
+- `double` — offloaded via a 32-bit radix-prefix key plus an exact host refinement pass (see the note above).
 
 ## Runtime Requirements
 
