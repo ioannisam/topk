@@ -112,6 +112,7 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 	std::size_t offset = 0;
 	std::size_t total_dispatches = 0;
 	std::size_t valid_tiles[2] = {0, 0};
+	std::size_t total_tiles = 0;
 	double bytes_moved = 0.0;
 
 	// Every staged batch crosses memory six times: the host reads the input and writes encoded
@@ -120,6 +121,7 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 	auto account_batch = [&](std::size_t batch, std::size_t tiles) {
 		const double tile_bytes = static_cast<double>(tiles) * kTile * sizeof(std::int32_t);
 		bytes_moved += static_cast<double>(batch) * sizeof(T) + 6.0 * tile_bytes;
+		total_tiles += tiles;
 	};
 
 	auto t0 = std::chrono::high_resolution_clock::now();
@@ -235,8 +237,14 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 	energy_scope.close();
 	auto t1 = std::chrono::high_resolution_clock::now();
 
-	return RunStats{
-		std::chrono::duration<double, std::milli>(t1 - t0).count(), total_dispatches, 0, 1, true, phases, bytes_moved};
+	const std::size_t comparators = total_tiles * common::bitonic::count_full_comparators(kTile);
+	return RunStats{std::chrono::duration<double, std::milli>(t1 - t0).count(),
+					total_dispatches,
+					comparators,
+					1,
+					true,
+					phases,
+					bytes_moved};
 }
 
 } // namespace
@@ -255,9 +263,7 @@ bool is_offload_configured() {
 	return npu::utils::load_offload_config().enabled;
 }
 
-template <typename T>
-RunStats run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers) {
-	(void)workers;
+template <typename T> RunStats run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) {
 	if (data.empty())
 		return RunStats{0.0, 0, 0, 1, true};
 
@@ -271,17 +277,14 @@ RunStats run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer
 }
 
 template RunStats run_topk<std::int32_t>(std::vector<std::int32_t>& data,
-										 const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
+										 const std::vector<common::bitonic::Layer>& layers);
 template RunStats run_topk<std::uint32_t>(std::vector<std::uint32_t>& data,
-										  const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
-template RunStats run_topk<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
-								  std::size_t workers);
-template RunStats run_topk<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers,
-								   std::size_t workers);
+										  const std::vector<common::bitonic::Layer>& layers);
+template RunStats run_topk<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers);
+template RunStats run_topk<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers);
 
 #if defined(__FLT16_MANT_DIG__)
-template RunStats run_topk<_Float16>(std::vector<_Float16>& data, const std::vector<common::bitonic::Layer>& layers,
-									 std::size_t workers);
+template RunStats run_topk<_Float16>(std::vector<_Float16>& data, const std::vector<common::bitonic::Layer>& layers);
 #endif
 
 } // namespace npu::bitonic

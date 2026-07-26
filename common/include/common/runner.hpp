@@ -151,14 +151,18 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 	if (run_trunc) {
 		trunc = input;
 		trunc_stats = hooks.run(trunc, trunc_layers);
-		trunc_stats.traffic.compare_ops = static_cast<double>(trunc_cmp);
-		trunc_stats.traffic.ops_exact = true;
+		if (trunc_stats.traffic.compare_ops == 0.0) {
+			trunc_stats.traffic.compare_ops = static_cast<double>(trunc_cmp);
+			trunc_stats.traffic.ops_exact = true;
+		}
 	}
 	if (run_full) {
 		full = input;
 		full_stats = hooks.run(full, full_layers);
-		full_stats.traffic.compare_ops = static_cast<double>(full_cmp);
-		full_stats.traffic.ops_exact = true;
+		if (full_stats.traffic.compare_ops == 0.0) {
+			full_stats.traffic.compare_ops = static_cast<double>(full_cmp);
+			full_stats.traffic.ops_exact = true;
+		}
 	}
 
 	const bool run_both = cfg.run_mode == common::config::RunMode::Both;

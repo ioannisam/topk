@@ -59,7 +59,7 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 				auto t0 = std::chrono::high_resolution_clock::now();
 				common::energy::Scope energy_scope(common::energy::Channel::E2e);
 
-				const npu::bitonic::RunStats stats = npu::bitonic::run_topk(temp, layers, context.ex_threads);
+				const npu::bitonic::RunStats stats = npu::bitonic::run_topk(temp, layers);
 
 				energy_scope.close();
 				auto t1 = std::chrono::high_resolution_clock::now();
@@ -93,6 +93,7 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 		common::topk::fill_timing_stats(stats, best);
 		stats.traffic.bytes_moved = best_stats.bytes_moved;
 		stats.traffic.bytes_exact = true;
+		stats.traffic.compare_ops = static_cast<double>(best_stats.active_comparators);
 		return stats;
 	}
 
@@ -126,8 +127,7 @@ template <typename T> class NpuMapReduceRunnerHooks final : public common::topk:
 				auto t0 = std::chrono::high_resolution_clock::now();
 				common::energy::Scope energy_scope(common::energy::Channel::E2e);
 
-				std::vector<T> output =
-					npu::map_reduce::run_topk(input, cfg.k, cfg.want_max, context.ex_threads, &run_stats);
+				std::vector<T> output = npu::map_reduce::run_topk(input, cfg.k, cfg.want_max, &run_stats);
 
 				energy_scope.close();
 				auto t1 = std::chrono::high_resolution_clock::now();

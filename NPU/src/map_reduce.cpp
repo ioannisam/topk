@@ -287,9 +287,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 } // namespace
 
 template <typename T>
-std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers,
-						npu::map_reduce::RunStats* stats) {
-	(void)workers;
+std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max, npu::map_reduce::RunStats* stats) {
 
 	npu::utils::OffloadConfig offload_cfg = npu::utils::load_offload_config();
 	if (!offload_cfg.enabled) {
@@ -302,19 +300,17 @@ std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max
 }
 
 template std::vector<std::int32_t> run_topk<std::int32_t>(const std::vector<std::int32_t>& data, std::size_t k,
-														  bool want_max, std::size_t workers,
-														  npu::map_reduce::RunStats* stats);
+														  bool want_max, npu::map_reduce::RunStats* stats);
 template std::vector<std::uint32_t> run_topk<std::uint32_t>(const std::vector<std::uint32_t>& data, std::size_t k,
-															bool want_max, std::size_t workers,
-															npu::map_reduce::RunStats* stats);
+															bool want_max, npu::map_reduce::RunStats* stats);
 template std::vector<float> run_topk<float>(const std::vector<float>& data, std::size_t k, bool want_max,
-											std::size_t workers, npu::map_reduce::RunStats* stats);
+											npu::map_reduce::RunStats* stats);
 template std::vector<double> run_topk<double>(const std::vector<double>& data, std::size_t k, bool want_max,
-											  std::size_t workers, npu::map_reduce::RunStats* stats);
+											  npu::map_reduce::RunStats* stats);
 
 #if defined(__FLT16_MANT_DIG__)
 template std::vector<_Float16> run_topk<_Float16>(const std::vector<_Float16>& data, std::size_t k, bool want_max,
-												  std::size_t workers, npu::map_reduce::RunStats* stats);
+												  npu::map_reduce::RunStats* stats);
 #endif
 
 } // namespace npu::map_reduce
