@@ -8,7 +8,8 @@
 namespace cpu::bitonic {
 
 template <typename T>
-void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers);
+void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers,
+			  double* out_bytes = nullptr);
 
 } // namespace cpu::bitonic
 
@@ -17,6 +18,7 @@ namespace cpu::map_reduce {
 struct RunStats {
 	std::size_t tiles_used = 0;
 	std::size_t aggregated_candidates = 0;
+	double bytes_moved = 0.0;
 };
 
 template <typename T>

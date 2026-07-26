@@ -30,6 +30,7 @@ from .plotting import time_vs_k_backend_compare
 from .plotting import time_vs_n_k_colored
 from .plotting import heatmap_time
 from .plotting import memory_bandwidth_vs_n
+from .plotting import roof_utilization
 from .plotting import roofline, walls
 
 
@@ -80,7 +81,9 @@ def parse_args() -> argparse.Namespace:
             "energy-per-element-vs-n",
             "time-per-element-vs-n",
             "memory-bandwidth-vs-n",
+            "roof-utilization",
             "roofline",
+            "roofline-kernels",
             # "time-vs-k-backend-compare",
             "time-vs-n-k-colored",
             "heatmap-time",
@@ -193,7 +196,6 @@ def main() -> int:
 
     measurement_records = parse_measurements(measurement_paths)
     roofline_points = parse_roofline([p for p in args.roofline_input if os.path.isfile(p)])
-    roofline_ceilings = roofline.backend_ceilings(roofline_points)
 
     bench_ops_by_key: dict = {}
     global_bench_ops = None
@@ -244,7 +246,9 @@ def main() -> int:
             "energy-per-element-vs-n",
             "time-per-element-vs-n",
             "memory-bandwidth-vs-n",
+            "roof-utilization",
             "roofline",
+            "roofline-kernels",
             # "time-vs-k-backend-compare",
             "time-vs-n-k-colored",
             "heatmap-time",
@@ -455,7 +459,7 @@ def main() -> int:
                         args.agg,
                         args.error_bars,
                         title=f"Effective Memory Bandwidth vs. N (All Backends, K={current_k})",
-                        ceilings=roofline_ceilings,
+                        roofline_points=roofline_points,
                     )
                     if out_main:
                         collect_output(out_main)
@@ -473,10 +477,39 @@ def main() -> int:
                         args.agg,
                         args.error_bars,
                         title=f"{b.upper()} Effective Memory Bandwidth vs. N (with GT, K={current_k})",
-                        ceilings=roofline_ceilings,
+                        roofline_points=roofline_points,
                     )
                     if out_b:
                         collect_output(out_b)
+
+        if "roof-utilization" in requested:
+            outs = roof_utilization.plot(records, roofline_points, out_memory, args.agg)
+            for out in outs:
+                collect_output(out)
+            if not outs:
+                reason = (
+                    "no roofline sweep points; run 'make measure-roofline' first"
+                    if not roofline_points
+                    else "no testcase records carry traffic counters"
+                )
+                print(f"Skipped roof-utilization ({dtype_dir}): {reason}.")
+
+        if "roofline-kernels" in requested:
+            out = roofline.plot_kernels(
+                records,
+                roofline_points,
+                os.path.join(out_memory, "roofline_kernels.png"),
+                title=f"Top-k Kernels on the Measured Roofline ({dtype_dir})",
+            )
+            if out:
+                collect_output(out)
+            else:
+                reason = (
+                    "no roofline sweep points; run 'make measure-roofline' first"
+                    if not roofline_points
+                    else "no testcase records carry traffic counters"
+                )
+                print(f"Skipped roofline-kernels ({dtype_dir}): {reason}.")
 
         if "pass-rate" in requested:
             out = pass_rate.plot(records_no_gt, os.path.join(out_correctness, "pass_rate.png"))

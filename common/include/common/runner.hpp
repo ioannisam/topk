@@ -151,10 +151,14 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 	if (run_trunc) {
 		trunc = input;
 		trunc_stats = hooks.run(trunc, trunc_layers);
+		trunc_stats.traffic.compare_ops = static_cast<double>(trunc_cmp);
+		trunc_stats.traffic.ops_exact = true;
 	}
 	if (run_full) {
 		full = input;
 		full_stats = hooks.run(full, full_layers);
+		full_stats.traffic.compare_ops = static_cast<double>(full_cmp);
+		full_stats.traffic.ops_exact = true;
 	}
 
 	const bool run_both = cfg.run_mode == common::config::RunMode::Both;
@@ -188,6 +192,7 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 	}
 
 	common::reporting::print_energy_lines(run_trunc ? trunc_stats.energy : full_stats.energy);
+	common::reporting::print_traffic_lines(run_trunc ? trunc_stats.traffic : full_stats.traffic);
 
 	if (run_trunc) {
 		const std::size_t skipped = full_cmp >= trunc_cmp ? (full_cmp - trunc_cmp) : 0;
@@ -237,6 +242,7 @@ template <typename T> int execute_map_reduce(const common::config::Config& cfg, 
 
 	MapReduceRunStats run_stats{};
 	std::vector<T> output = hooks.run(input, cfg, &run_stats);
+	run_stats.traffic.compare_ops = static_cast<double>(n);
 
 	common::reporting::print_timing_lines({
 		{"Map-reduce top-k end-to-end time (ms)", std::optional<double>(run_stats.end_to_end_ms)},
@@ -248,6 +254,7 @@ template <typename T> int execute_map_reduce(const common::config::Config& cfg, 
 	});
 
 	common::reporting::print_energy_lines(run_stats.energy);
+	common::reporting::print_traffic_lines(run_stats.traffic);
 
 	const bool check_vs_reference = cfg.verify_output || cfg.run_mode == common::config::RunMode::Both;
 	bool reference_ok = true;
@@ -275,6 +282,7 @@ template <typename T> int execute_ground_truth(const common::config::Config& cfg
 
 	GroundTruthRunStats run_stats{};
 	std::vector<T> output = hooks.run(input, cfg, &run_stats);
+	run_stats.traffic.compare_ops = static_cast<double>(n);
 
 	common::reporting::print_timing_lines({
 		{"Ground truth end-to-end time (ms)", std::optional<double>(run_stats.end_to_end_ms)},
@@ -286,6 +294,7 @@ template <typename T> int execute_ground_truth(const common::config::Config& cfg
 	});
 
 	common::reporting::print_energy_lines(run_stats.energy);
+	common::reporting::print_traffic_lines(run_stats.traffic);
 
 	const bool check_vs_reference = cfg.verify_output;
 	bool reference_ok = true;

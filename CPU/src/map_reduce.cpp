@@ -214,6 +214,7 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 	if (stats != nullptr) {
 		stats->tiles_used = workers;
 		stats->aggregated_candidates = final_heap.size();
+		stats->bytes_moved = static_cast<double>(n + 2 * workers * k) * static_cast<double>(sizeof(T));
 	}
 
 	return reduce<WantMax>(std::move(final_heap), k);

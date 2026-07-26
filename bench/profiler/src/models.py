@@ -44,6 +44,14 @@ class CaseRecord:
     energy_e2e_seconds: Optional[float] = None
     energy_algo_seconds: Optional[float] = None
     energy_loop_seconds: Optional[float] = None
+    bytes_moved: Optional[float] = None
+    bytes_model: str = ""
+    compare_ops: Optional[float] = None
+    ops_model: str = ""
+
+    @property
+    def bytes_exact(self) -> bool:
+        return self.bytes_model == "exact"
 
     @property
     def pass_bool(self) -> bool:

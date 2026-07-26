@@ -63,6 +63,50 @@ __global__ void fma_kernel(const float* __restrict__ src, float* __restrict__ ou
 	out[blockIdx.x * blockDim.x + threadIdx.x] = acc;
 }
 
+// Compare-exchange peak, so top-k kernels can be placed against a compute roof measured in
+// their own op currency. The three-register rotation keeps each step a real compare-exchange.
+__global__ void cmp_kernel(const float* __restrict__ src, float* __restrict__ out, std::size_t n, int ops) {
+	float acc = 0.0f;
+	const std::size_t stride = static_cast<std::size_t>(blockDim.x) * gridDim.x * kChains * 2;
+	std::size_t base = (static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x) * kChains * 2;
+
+	float z[kChains];
+#pragma unroll
+	for (int c = 0; c < kChains; ++c) {
+		z[c] = static_cast<float>(c);
+	}
+
+	for (; base + kChains * 2 <= n; base += stride) {
+		float x[kChains];
+		float y[kChains];
+#pragma unroll
+		for (int c = 0; c < kChains; ++c) {
+			x[c] = src[base + c];
+			y[c] = src[base + kChains + c];
+		}
+		for (int j = 0; j < ops; ++j) {
+#pragma unroll
+			for (int c = 0; c < kChains; ++c) {
+				const float lo = fminf(x[c], y[c]);
+				const float hi = fmaxf(x[c], y[c]);
+				x[c] = lo;
+				y[c] = z[c];
+				z[c] = hi;
+			}
+		}
+#pragma unroll
+		for (int c = 0; c < kChains; ++c) {
+			acc += x[c] + y[c];
+		}
+	}
+
+#pragma unroll
+	for (int c = 0; c < kChains; ++c) {
+		acc += z[c];
+	}
+	out[blockIdx.x * blockDim.x + threadIdx.x] = acc;
+}
+
 __global__ void repeat_read_kernel(const float* __restrict__ src, float* __restrict__ out, std::size_t n, int repeats) {
 	float acc = 0.0f;
 	const std::size_t stride = static_cast<std::size_t>(blockDim.x) * gridDim.x;
@@ -136,6 +180,12 @@ int execute(const Config& cfg) {
 			const double flops = static_cast<double>(n) * (2.0 * static_cast<double>(ops) + 1.0);
 			points.push_back(measure("fma", ops, n, read_bytes, flops, [&]() {
 				fma_kernel<<<grid_size, kBlockSize>>>(d_src, d_out, n, ops);
+				CUDA_CHECK(cudaDeviceSynchronize());
+				return 0.0;
+			}));
+			const double cmp_ops = 2.0 * static_cast<double>(n) * static_cast<double>(ops);
+			points.push_back(measure("cmp", ops, n, read_bytes, cmp_ops, [&]() {
+				cmp_kernel<<<grid_size, kBlockSize>>>(d_src, d_out, n, ops);
 				CUDA_CHECK(cudaDeviceSynchronize());
 				return 0.0;
 			}));

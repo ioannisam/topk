@@ -91,6 +91,8 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 		}
 		common::topk::BasicRunStats stats{};
 		common::topk::fill_timing_stats(stats, best);
+		stats.traffic.bytes_moved = best_stats.bytes_moved;
+		stats.traffic.bytes_exact = true;
 		return stats;
 	}
 
@@ -144,6 +146,8 @@ template <typename T> class NpuMapReduceRunnerHooks final : public common::topk:
 			common::topk::fill_timing_stats(*stats, best);
 			stats->tiles_used = 0;
 			stats->aggregated_candidates = 0;
+			stats->traffic.bytes_moved = best.sample.stats.bytes_moved;
+			stats->traffic.bytes_exact = true;
 		}
 
 		return std::move(best.sample.value);
@@ -194,6 +198,7 @@ template <typename T> class NpuGroundTruthHooks final : public common::topk::Gro
 
 		if (stats != nullptr) {
 			common::topk::fill_timing_stats(*stats, best);
+			stats->traffic.bytes_moved = static_cast<double>(input.size() + k) * static_cast<double>(sizeof(T));
 		}
 
 		return std::move(best.sample.value);

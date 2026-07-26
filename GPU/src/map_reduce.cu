@@ -334,6 +334,8 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 		stats->tiles_used = grid_size;
 		stats->aggregated_candidates = grid_size * k;
 		stats->block_size = block_size;
+		stats->bytes_moved =
+			(static_cast<double>(n) + static_cast<double>(grid_size) * static_cast<double>(k)) * sizeof(D);
 	}
 
 	if (block_results.size() > k) {

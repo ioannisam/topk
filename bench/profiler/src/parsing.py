@@ -111,6 +111,29 @@ def apply_energy_kv(rec, key: str, val: str) -> bool:
     return False
 
 
+TRAFFIC_FIELD_MAP = {
+    "Traffic bytes moved": "bytes_moved",
+    "Traffic compare ops": "compare_ops",
+}
+
+TRAFFIC_MODEL_MAP = {
+    "Traffic bytes model": "bytes_model",
+    "Traffic ops model": "ops_model",
+}
+
+
+def apply_traffic_kv(rec, key: str, val: str) -> bool:
+    field = TRAFFIC_FIELD_MAP.get(key)
+    if field is not None:
+        setattr(rec, field, parse_float(val))
+        return True
+    field = TRAFFIC_MODEL_MAP.get(key)
+    if field is not None:
+        setattr(rec, field, val)
+        return True
+    return False
+
+
 def parse_int(val: str) -> Optional[int]:
     try:
         return int(val)
@@ -184,7 +207,8 @@ def _parse_test_output_json(path: str) -> list[CaseRecord]:
                 elif key == "Benchmark iterations":
                     rec.bench_ops = parse_int(val)
                 else:
-                    apply_energy_kv(rec, key, val)
+                    if not apply_traffic_kv(rec, key, val):
+                        apply_energy_kv(rec, key, val)
 
         e2e_label, e2e_ms, algo_label, algo_ms = select_time_fields(timings)
         rec.timing_label_e2e = e2e_label
@@ -294,7 +318,8 @@ def _parse_test_output_text(path: str) -> list[CaseRecord]:
                     if s is not None:
                         current_stdevs[key] = s
                 else:
-                    apply_energy_kv(current, key, value)
+                    if not apply_traffic_kv(current, key, value):
+                        apply_energy_kv(current, key, value)
 
     if current is not None:
         finalize(current, current_timings, current_stdevs)

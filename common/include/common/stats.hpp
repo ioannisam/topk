@@ -6,6 +6,13 @@
 
 namespace common::topk {
 
+struct TrafficStats {
+	double bytes_moved = 0.0;
+	double compare_ops = 0.0;
+	bool bytes_exact = false;
+	bool ops_exact = false;
+};
+
 struct BasicRunStats {
 	double end_to_end_ms = 0.0;
 	double algorithm_ms = 0.0;
@@ -14,6 +21,7 @@ struct BasicRunStats {
 	double end_to_end_min_ms = 0.0;
 	double algorithm_min_ms = 0.0;
 	common::energy::Summary energy;
+	TrafficStats traffic;
 };
 
 struct BitonicRunStats {
@@ -34,6 +42,7 @@ struct MapReduceRunStats {
 	std::size_t tiles_used = 0;
 	std::size_t aggregated_candidates = 0;
 	common::energy::Summary energy;
+	TrafficStats traffic;
 };
 
 struct GroundTruthRunStats {
@@ -44,6 +53,7 @@ struct GroundTruthRunStats {
 	double end_to_end_min_ms = 0.0;
 	double algorithm_min_ms = 0.0;
 	common::energy::Summary energy;
+	TrafficStats traffic;
 };
 
 template <typename StatsT, typename ResultT> void fill_timing_stats(StatsT& stats, const ResultT& best) {

@@ -30,6 +30,8 @@ void print_timing_lines(const std::vector<std::pair<std::string, std::optional<d
 
 void print_energy_lines(const common::energy::Summary& energy);
 
+void print_traffic_lines(const common::topk::TrafficStats& traffic);
+
 void print_bitonic_common_metrics(const common::config::Config& cfg, const common::topk::BitonicRunStats& stats);
 
 void print_check_result(const char* label, bool enabled, bool ok);

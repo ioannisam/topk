@@ -173,6 +173,15 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 	std::size_t total_dispatches = 0;
 	std::size_t valid_chunks[2] = {0, 0};
 
+	double bytes_moved = 0.0;
+
+	// Each staged batch crosses memory six times: host read of the input, encoded-key write,
+	// H2D sync, device read and write, D2H sync, and the host-side merge read.
+	auto account_batch = [&](std::size_t batch, std::size_t chunks) {
+		const double chunk_bytes = static_cast<double>(chunks) * chunk_size * sizeof(std::int32_t);
+		bytes_moved += static_cast<double>(batch) * sizeof(T) + 6.0 * chunk_bytes;
+	};
+
 	if (offset < n) {
 		std::size_t current_batch = std::min(batch_size, n - offset);
 		{
@@ -180,6 +189,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 			valid_chunks[active_idx] = prepare_npu_batch<WantMax, T>(
 				state.mr_src_bo[active_idx], state.mr_cfg_bo[active_idx], data.data() + offset, current_batch,
 				BATCH_CHUNKS, heap.front(), sentinel_key);
+			account_batch(current_batch, valid_chunks[active_idx]);
 		}
 		{
 			npu::PhaseTimer timer(phases.dispatch_ms);
@@ -197,6 +207,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 			valid_chunks[next_idx] = prepare_npu_batch<WantMax, T>(state.mr_src_bo[next_idx], state.mr_cfg_bo[next_idx],
 																   data.data() + offset, current_batch, BATCH_CHUNKS,
 																   heap.front(), sentinel_key);
+			account_batch(current_batch, valid_chunks[next_idx]);
 		}
 		{
 			npu::PhaseTimer timer(phases.wait_ms);
@@ -237,6 +248,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 		npu::PhaseTimer timer(phases.finalize_ms);
 		auto order = [](const T& lhs, const T& rhs) { return WantMax ? (lhs > rhs) : (lhs < rhs); };
 		if constexpr (sizeof(T) == 8) {
+			bytes_moved += static_cast<double>(n) * sizeof(T);
 			const std::size_t kept_k = heap.size();
 			const std::int32_t threshold = heap.front();
 			std::vector<T> candidates;
@@ -266,6 +278,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 		stats->phases = phases;
 		stats->layer_dispatches = total_dispatches;
 		stats->used_offload = true;
+		stats->bytes_moved = bytes_moved;
 	}
 
 	return result;

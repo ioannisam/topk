@@ -112,6 +112,15 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 	std::size_t offset = 0;
 	std::size_t total_dispatches = 0;
 	std::size_t valid_tiles[2] = {0, 0};
+	double bytes_moved = 0.0;
+
+	// Every staged batch crosses memory six times: the host reads the input and writes encoded
+	// keys, XRT syncs them in, the tile kernel reads and writes them, XRT syncs them back, and
+	// the host reduce reads the result.
+	auto account_batch = [&](std::size_t batch, std::size_t tiles) {
+		const double tile_bytes = static_cast<double>(tiles) * kTile * sizeof(std::int32_t);
+		bytes_moved += static_cast<double>(batch) * sizeof(T) + 6.0 * tile_bytes;
+	};
 
 	auto t0 = std::chrono::high_resolution_clock::now();
 	common::energy::Scope energy_scope(common::energy::Channel::Algo);
@@ -143,6 +152,7 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 		{
 			npu::PhaseTimer timer(phases.stage_ms);
 			valid_tiles[active] = prepare_batch<T>(state.bit_src_bo[active], data.data() + offset, batch, pad_key);
+			account_batch(batch, valid_tiles[active]);
 		}
 		{
 			npu::PhaseTimer timer(phases.dispatch_ms);
@@ -157,6 +167,7 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 		{
 			npu::PhaseTimer timer(phases.stage_ms);
 			valid_tiles[next] = prepare_batch<T>(state.bit_src_bo[next], data.data() + offset, batch, pad_key);
+			account_batch(batch, valid_tiles[next]);
 		}
 		{
 			npu::PhaseTimer timer(phases.wait_ms);
@@ -195,6 +206,7 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 	{
 		npu::PhaseTimer timer(phases.finalize_ms);
 		if constexpr (sizeof(T) == 8) {
+			bytes_moved += static_cast<double>(n) * sizeof(T);
 			const std::size_t kept_k = heap.size();
 			std::int32_t threshold = std::numeric_limits<std::int32_t>::min();
 			for (const std::int32_t key : heap) {
@@ -223,7 +235,8 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 	energy_scope.close();
 	auto t1 = std::chrono::high_resolution_clock::now();
 
-	return RunStats{std::chrono::duration<double, std::milli>(t1 - t0).count(), total_dispatches, 0, 1, true, phases};
+	return RunStats{
+		std::chrono::duration<double, std::milli>(t1 - t0).count(), total_dispatches, 0, 1, true, phases, bytes_moved};
 }
 
 } // namespace

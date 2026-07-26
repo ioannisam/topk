@@ -233,7 +233,7 @@ template <typename T>
 T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 						   const std::vector<common::bitonic::Layer>& layers, std::size_t block_size,
 						   double& out_elapsed_ms, std::size_t& out_launches, std::size_t& out_comparators,
-						   std::size_t& out_final_n) {
+						   std::size_t& out_final_n, double& out_bytes) {
 
 	cudaStream_t stream;
 	CUDA_CHECK(cudaStreamCreate(&stream));
@@ -263,6 +263,7 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 		bitonic_fused_wide<T, BITONIC_BLOCK_SIZE>
 			<<<grid, BITONIC_BLOCK_SIZE, smem_size, stream>>>(current_src, tile_elems, buffer);
 		out_launches++;
+		out_bytes += 2.0 * static_cast<double>(active_n) * sizeof(T);
 		buffer.count = 0;
 	};
 
@@ -280,6 +281,7 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 				bitonic_layer_global_coalesced_half2<<<grid, block_size, 0, stream>>>(
 					reinterpret_cast<__half2*>(current_src), vec_pairs, large_stage / 2, s / 2);
 				out_launches++;
+				out_bytes += 2.0 * static_cast<double>(large_active) * sizeof(T);
 			}
 		} else {
 			std::size_t idx = 0;
@@ -314,6 +316,7 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 					break;
 				}
 				out_launches++;
+				out_bytes += 2.0 * static_cast<double>(large_active) * sizeof(T);
 				idx += static_cast<std::size_t>(t);
 			}
 		}
@@ -336,6 +339,7 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 			const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
 			bitonic_layer_truncate_kernel<<<grid, block_size, 0, stream>>>(current_src, current_dst, pairs, step);
 			out_launches++;
+			out_bytes += 3.0 * static_cast<double>(pairs) * sizeof(T);
 
 			T* temp = current_src;
 			current_src = current_dst;
@@ -425,14 +429,15 @@ RunStats run_topk(T* data, std::size_t n, std::size_t& final_n, const std::vecto
 	double elapsed_ms = 0.0;
 	std::size_t launches = 0;
 	std::size_t comparators = 0;
+	double bytes_moved = 0.0;
 	final_n = n;
 
 	D* final_src = execute_network_kernels(d_data.get(), d_data_alt.get(), n, layers, block_size, elapsed_ms, launches,
-										   comparators, final_n);
+										   comparators, final_n, bytes_moved);
 
 	CUDA_CHECK(cudaMemcpy(data, final_src, final_n * sizeof(D), cudaMemcpyDeviceToHost));
 
-	return RunStats{elapsed_ms, launches, comparators, block_size};
+	return RunStats{elapsed_ms, launches, comparators, block_size, bytes_moved};
 }
 
 template RunStats run_topk<std::int32_t>(std::int32_t*, std::size_t, std::size_t&,

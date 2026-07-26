@@ -47,6 +47,7 @@ struct RunStats {
 	std::size_t workers;
 	bool used_offload;
 	npu::PhaseTimers phases{};
+	double bytes_moved = 0.0;
 };
 
 std::string query_device_name();
@@ -65,6 +66,7 @@ struct RunStats {
 	std::size_t layer_dispatches;
 	bool used_offload;
 	npu::PhaseTimers phases{};
+	double bytes_moved = 0.0;
 };
 
 template <typename T>

@@ -50,13 +50,14 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 
 	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) override {
 		std::vector<T> data_backup = data;
+		double bytes_moved = 0.0;
 
 		auto best = common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValue<std::vector<T>> {
 			std::vector<T> temp = data_backup;
 			auto t0 = std::chrono::high_resolution_clock::now();
 			common::energy::FullScope energy_scope;
 
-			cpu::bitonic::run_topk(temp, layers, context.ex_threads);
+			cpu::bitonic::run_topk(temp, layers, context.ex_threads, &bytes_moved);
 
 			energy_scope.close();
 			auto t1 = std::chrono::high_resolution_clock::now();
@@ -67,6 +68,8 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 		data = std::move(best.sample.value);
 		common::topk::BasicRunStats stats{};
 		common::topk::fill_timing_stats(stats, best);
+		stats.traffic.bytes_moved = bytes_moved;
+		stats.traffic.bytes_exact = true;
 
 		return stats;
 	}
@@ -115,6 +118,8 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 			common::topk::fill_timing_stats(*stats, best);
 			stats->tiles_used = best.sample.stats.tiles_used;
 			stats->aggregated_candidates = best.sample.stats.aggregated_candidates;
+			stats->traffic.bytes_moved = best.sample.stats.bytes_moved;
+			stats->traffic.bytes_exact = true;
 		}
 
 		return std::move(best.sample.value);
@@ -166,6 +171,7 @@ template <typename T> class CpuGroundTruthHooks final : public common::topk::Gro
 
 		if (stats != nullptr) {
 			common::topk::fill_timing_stats(*stats, best);
+			stats->traffic.bytes_moved = static_cast<double>(input.size() + k) * static_cast<double>(sizeof(T));
 		}
 
 		return std::move(best.sample.value);

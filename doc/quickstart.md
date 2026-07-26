@@ -150,36 +150,45 @@ Notes:
 - Use the **net** (idle-subtracted) metric, especially for the NPU (removes the static
   uncore) and GPU (cancels the power sampler's own host overhead). True per-component
   cross-device parity (isolating the NPU tile) would still need a wall-socket meter.
-- **Roofline (`make measure-roofline`, plotted by `roofline` / `memory-bandwidth-vs-n`).**
-  Measures each backend's achievable bandwidth and compute ceilings by sweeping
-  arithmetic intensity, writing `bench/results/raw/roofline/roofline.json`. Measured here:
-  **CPU 57.5 GB/s / 905 GFLOP/s** (ridge AI 15.7, observed turnover at AI 16.25) and
-  **GPU 346.0 GB/s / 10207 GFLOP/s** (ridge AI 29.5). The predicted ridge matching the
-  observed turnover is the internal check that the sweep is well formed.
-  - **Compare like with like: the roofline uses a 512 MiB DRAM-resident working set.**
-    Top-k at n=2^20 with 4-byte elements is only 4 MiB and fits in the 16 MiB L3, so it
-    reads from cache and can legitimately *exceed* the DRAM ceiling — CPU `map_reduce`
-    at n=2^20 measures 97.5 GB/s, or 170% of roof, which is an artefact of the
-    comparison, not a result. Only n=2^24 (64 MiB > L3) is genuinely DRAM-bound, so
-    **quote roofline efficiency at n=2^24 only**.
-  - At n=2^24 the efficiencies are: CPU `map_reduce` **89.9%** of roof, GPU
-    `map_reduce` 45.2%, GPU `bitonic` 15.9%, CPU `bitonic` 11.8%. The CPU top-k is
-    therefore already near the memory-bandwidth limit, which bounds how much any
-    accelerator can win on this problem.
+- **Roofline (`make measure-roofline`, plotted by `roofline` / `roofline-kernels` /
+  `memory-bandwidth-vs-n` / `roof-utilization`).** Measures each backend's achievable
+  bandwidth and compute ceilings, writing `bench/results/raw/roofline/roofline.json`.
+  - **Bandwidth is measured, not assumed.** Each run reports `Traffic bytes moved`: the
+    traffic the backend actually pushes through memory, accumulated at the sites that move
+    it (per kernel launch on the GPU, per fused group on the CPU, per staged batch on the
+    NPU). A truncated bitonic network rereads its working set about **7x**, so the older
+    `n * sizeof(T) / t` figure understated its bandwidth by that factor and made every
+    implementation look far from the wall. CPU and GPU derive this independently and agree
+    to the byte, which is the cross-check that the accounting is right.
+  - `bytes model` is `exact` where every pass is enumerable (all three bitonic backends,
+    CPU/NPU `map_reduce`) and `lower-bound` where it is not: GPU `map_reduce` omits
+    data-dependent thread-local heap traffic, and `gt` counts only input plus output
+    because `cub::DeviceTopK` and `std::partial_sort` hide their internal passes.
+  - **The roof is a function of working-set size.** The `cache_read` ladder measures
+    attainable bandwidth at every level, and plots interpolate it at each run's working set
+    instead of drawing one flat DRAM line. This replaces the old "only quote efficiency at
+    n=2^24" workaround: a cache-resident run is now compared against the cache roof it
+    actually runs into, so every point on the sweep is a fair comparison. Expect the
+    ladder to show the L2/L3/DRAM cliffs (on this machine roughly 490 -> 412 -> 42 GB/s on
+    the CPU and 2098 -> 258 GB/s on the GPU).
+  - **The compute roof is measured in compare-exchanges, not FLOPs.** Top-k does
+    compare-exchanges, so an FMA roof is not a currency it can be compared against. The
+    `cmp` sweep measures peak compare-exchange throughput per backend, and
+    `roofline-kernels` places each run at its measured (compare-ops/byte, compare-ops/s)
+    against both roofs. Riding the sloped roof means bandwidth bound, riding the flat roof
+    means compute bound, and sitting well below both means the limit is latency, dispatch,
+    or occupancy. `roof-utilization` reports the same thing as percent-of-roof against N.
+  - The `cmp` kernel uses four vector-wide rotating chains on purpose: a single dependent
+    chain measures latency rather than throughput and lands roughly 10x low, which would
+    wrongly make kernels look compute bound.
   - **The NPU roofline measures the offload *data path*, not AIE compute.** There is no
-    variable-arithmetic-intensity AIE kernel available (writing one needs a new xclbin
-    via mlir-aie), so `build/NPU/roofline` reports no `fma` sweep and therefore no
-    compute roof. What it does report is the host-side staging path that feeds the NPU:
-    `read` and `copy` over the mapped `host_only` buffer, plus `stage_h2d`/`stage_d2h`
-    for the `xrt::bo::sync` cost. Measured: **read 55.5 GB/s, copy 44.3 GB/s**, which
-    tracks the CPU roof (57.5 GB/s) because a `host_only` BO is host DRAM - that
-    agreement is the sanity check, not an NPU result.
-  - Read the NPU ceiling as "how fast the host can stream the buffer the NPU is fed
-    from," not "AIE fabric bandwidth." The useful inference is that NPU top-k reaches
-    only 5-6 GB/s against a 55 GB/s staging path, so the limit is per-batch dispatch and
-    encode overhead rather than raw streaming bandwidth. `stage_h2d`/`stage_d2h` report
-    ~122 GB/s, i.e. faster than DRAM, which means `sync` on a `host_only` BO is close to
-    a no-op and no bulk transfer is taking place.
+    variable-arithmetic-intensity AIE kernel available (writing one needs a new xclbin via
+    mlir-aie), so `build/NPU/roofline` reports no `fma` sweep. Its `read`, `copy` and `cmp`
+    numbers are the host cores that stage and reduce the NPU's buffers, which is the right
+    roof precisely because the offload path is host-encode bound. Read the NPU ceiling as
+    "how fast the host can stream the buffer the NPU is fed from," not "AIE fabric
+    bandwidth." `stage_h2d`/`stage_d2h` come out faster than DRAM, which means `sync` on a
+    `host_only` BO is close to a no-op and no bulk transfer is taking place.
 - **Baselines** (`algo=gt`): CPU/NPU use `std::partial_sort` (the standard-library
   heap-based top-k, which for `k << n` is far faster than `nth_element` thanks to its
   cache-resident size-k heap and high rejection rate); GPU uses Thrust's `thrust::sort`

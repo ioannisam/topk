@@ -76,6 +76,8 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 
 		common::topk::BasicRunStats stats{};
 		common::topk::fill_timing_stats(stats, best);
+		stats.traffic.bytes_moved = best_stats.bytes_moved;
+		stats.traffic.bytes_exact = true;
 
 		return stats;
 	}
@@ -130,6 +132,7 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 			common::topk::fill_timing_stats(*stats, best);
 			stats->tiles_used = best.sample.stats.tiles_used;
 			stats->aggregated_candidates = best.sample.stats.aggregated_candidates;
+			stats->traffic.bytes_moved = best.sample.stats.bytes_moved;
 		}
 
 		last_stats = best.sample.stats;
@@ -185,6 +188,7 @@ template <typename T> class GpuGroundTruthHooks final : public common::topk::Gro
 
 		if (stats != nullptr) {
 			common::topk::fill_timing_stats(*stats, best);
+			stats->traffic.bytes_moved = static_cast<double>(input.size() + k) * static_cast<double>(sizeof(T));
 		}
 
 		return std::move(best.sample.value);

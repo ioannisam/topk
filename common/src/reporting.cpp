@@ -167,6 +167,14 @@ void print_energy_lines(const common::energy::Summary& energy) {
 	print_key_value("Energy wait count", static_cast<std::size_t>(energy.wait_count));
 }
 
+void print_traffic_lines(const common::topk::TrafficStats& traffic) {
+	print_section_header("Traffic");
+	print_key_value("Traffic bytes moved", traffic.bytes_moved, 0);
+	print_key_value("Traffic bytes model", traffic.bytes_exact ? "exact" : "lower-bound");
+	print_key_value("Traffic compare ops", traffic.compare_ops, 0);
+	print_key_value("Traffic ops model", traffic.ops_exact ? "exact" : "lower-bound");
+}
+
 void print_bitonic_common_metrics(const common::config::Config& cfg, const common::topk::BitonicRunStats& stats) {
 	const std::size_t full_cmp = stats.full_comparators;
 	const std::size_t trunc_cmp = stats.trunc_comparators;

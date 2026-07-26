@@ -38,6 +38,46 @@ __attribute__((noinline)) double copy_buffer(const Elem* src, Elem* dst, std::si
 	return static_cast<double>(dst[0]) + static_cast<double>(dst[n - 1]);
 }
 
+// Compare-exchange peak on the host cores that drive the NPU: the offload path is host
+// encode bound, so this is the compute roof the top-k kernels actually run into.
+constexpr std::size_t kCmpLane = 64;
+
+__attribute__((noinline)) double cmp_buffer(const Elem* src, std::size_t n, int ops) {
+	Elem x[kCmpLane];
+	Elem y[kCmpLane];
+	Elem z[kCmpLane];
+	std::int64_t acc = 0;
+	for (std::size_t l = 0; l < kCmpLane; ++l) {
+		z[l] = static_cast<Elem>(l);
+	}
+
+	std::size_t i = 0;
+	for (; i + 2 * kCmpLane <= n; i += 2 * kCmpLane) {
+		for (std::size_t l = 0; l < kCmpLane; ++l) {
+			x[l] = src[i + l];
+			y[l] = src[i + kCmpLane + l];
+		}
+		for (int j = 0; j < ops; ++j) {
+			for (std::size_t l = 0; l < kCmpLane; ++l) {
+				const Elem lo = std::min(x[l], y[l]);
+				const Elem hi = std::max(x[l], y[l]);
+				x[l] = lo;
+				y[l] = z[l];
+				z[l] = hi;
+			}
+		}
+		for (std::size_t l = 0; l < kCmpLane; ++l) {
+			acc += x[l] + y[l];
+		}
+	}
+
+	for (std::size_t l = 0; l < kCmpLane; ++l) {
+		acc += z[l];
+	}
+	asm volatile("" : "+r"(acc) : : "memory");
+	return static_cast<double>(acc);
+}
+
 } // namespace
 
 int execute(const Config& cfg) {
@@ -75,6 +115,13 @@ int execute(const Config& cfg) {
 			dst_bo.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
 			return 0.0;
 		}));
+	}
+
+	if (common::roofline::includes(cfg.experiment, Experiment::Sweep)) {
+		for (const int ops : cfg.ops) {
+			const double cmp_ops = 2.0 * static_cast<double>(n) * static_cast<double>(ops);
+			points.push_back(measure("cmp", ops, n, bytes, cmp_ops, [&]() { return cmp_buffer(src_map, n, ops); }));
+		}
 	}
 
 	if (common::roofline::includes(cfg.experiment, Experiment::Cache)) {

@@ -28,6 +28,10 @@ def write_case_csv(records: Iterable[CaseRecord], out_path: str) -> None:
                 "time_end_to_end_ms",
                 "timing_label_algorithmic",
                 "time_algorithmic_ms",
+                "bytes_moved",
+                "bytes_model",
+                "compare_ops",
+                "ops_model",
             ]
         )
         for rec in records:
@@ -48,6 +52,10 @@ def write_case_csv(records: Iterable[CaseRecord], out_path: str) -> None:
                     "" if rec.time_end_to_end_ms is None else f"{rec.time_end_to_end_ms:.12g}",
                     rec.timing_label_algorithmic,
                     "" if rec.time_algorithmic_ms is None else f"{rec.time_algorithmic_ms:.12g}",
+                    "" if rec.bytes_moved is None else f"{rec.bytes_moved:.12g}",
+                    rec.bytes_model,
+                    "" if rec.compare_ops is None else f"{rec.compare_ops:.12g}",
+                    rec.ops_model,
                 ]
             )
 

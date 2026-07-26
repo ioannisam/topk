@@ -61,6 +61,48 @@ float fma_chunk(const float* src, std::size_t begin, std::size_t end, int ops) {
 	return total;
 }
 
+constexpr std::size_t kCmpLane = 64;
+float cmp_chunk(const float* src, std::size_t begin, std::size_t end, int ops) {
+	float x[kCmpLane];
+	float y[kCmpLane];
+	float z[kCmpLane];
+	float acc[kCmpLane];
+	for (std::size_t l = 0; l < kCmpLane; ++l) {
+		acc[l] = 0.0f;
+		z[l] = static_cast<float>(l);
+	}
+
+	std::size_t i = begin;
+	for (; i + 2 * kCmpLane <= end; i += 2 * kCmpLane) {
+		for (std::size_t l = 0; l < kCmpLane; ++l) {
+			x[l] = src[i + l];
+			y[l] = src[i + kCmpLane + l];
+		}
+		// Three-register rotation keeps every step a real compare-exchange the compiler cannot fold away.
+		for (int j = 0; j < ops; ++j) {
+			for (std::size_t l = 0; l < kCmpLane; ++l) {
+				const float lo = std::min(x[l], y[l]);
+				const float hi = std::max(x[l], y[l]);
+				x[l] = lo;
+				y[l] = z[l];
+				z[l] = hi;
+			}
+		}
+		for (std::size_t l = 0; l < kCmpLane; ++l) {
+			acc[l] += x[l] + y[l];
+		}
+	}
+
+	float total = 0.0f;
+	for (std::size_t l = 0; l < kCmpLane; ++l) {
+		total += acc[l] + z[l];
+	}
+	for (; i < end; ++i) {
+		total += src[i];
+	}
+	return total;
+}
+
 void copy_chunk(const float* src, float* dst, std::size_t begin, std::size_t end) {
 	for (std::size_t i = begin; i < end; ++i) {
 		dst[i] = src[i];
@@ -86,6 +128,32 @@ double run_fma(const float* src, std::size_t n, std::size_t workers, int ops, st
 	for (std::size_t r = 0; r < repeats; ++r) {
 		partial[last_tid] += fma_chunk(src, last_begin, n, ops);
 	}
+
+	for (auto& t : pool) {
+		t.join();
+	}
+
+	double total = 0.0;
+	for (const float value : partial) {
+		total += static_cast<double>(value);
+	}
+	return total;
+}
+
+double run_cmp(const float* src, std::size_t n, std::size_t workers, int ops) {
+	std::vector<float> partial(workers, 0.0f);
+	std::vector<std::thread> pool;
+	pool.reserve(workers > 0 ? workers - 1 : 0);
+
+	for (std::size_t tid = 0; tid + 1 < workers; ++tid) {
+		pool.emplace_back([&, tid]() {
+			const std::size_t begin = (n * tid) / workers;
+			const std::size_t end = (n * (tid + 1)) / workers;
+			partial[tid] += cmp_chunk(src, begin, end, ops);
+		});
+	}
+	const std::size_t last_tid = workers - 1;
+	partial[last_tid] += cmp_chunk(src, (n * last_tid) / workers, n, ops);
 
 	for (auto& t : pool) {
 		t.join();
@@ -143,6 +211,9 @@ int execute(const Config& cfg) {
 			const double flops = static_cast<double>(n) * (2.0 * static_cast<double>(ops) + 1.0);
 			points.push_back(
 				measure("fma", ops, n, read_bytes, flops, [&]() { return run_fma(src.data(), n, workers, ops); }));
+			const double cmp_ops = 2.0 * static_cast<double>(n) * static_cast<double>(ops);
+			points.push_back(
+				measure("cmp", ops, n, read_bytes, cmp_ops, [&]() { return run_cmp(src.data(), n, workers, ops); }));
 		}
 	}
 

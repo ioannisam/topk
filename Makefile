@@ -19,7 +19,7 @@ help:
 	@echo "  Measure (write bench/results/):"
 	@echo "    measure-cases                 - measure timing data via runner.py (ARGS=...)"
 	@echo "    measure-energy                - measure energy data, all backends; sudo for RAPL (ARGS=...)"
-	@echo "    measure-roofline              - measure bandwidth ceilings, cache + transfer walls (ARGS=...)"
+	@echo "    measure-roofline              - measure bandwidth + compare-exchange roofs, cache + transfer walls (ARGS=...)"
 	@echo "    measure-ncu                   - GPU hardware counters via Nsight Compute (ARGS=...)"
 	@echo "  Plot:"
 	@echo "    plot                          - plot results from measured data (ARGS=...)"
@@ -100,7 +100,7 @@ benchmark-roofline:
 	@echo "=== 1. Measuring bandwidth ceilings and AI sweeps ==="
 	-$(MAKE) measure-roofline
 	@echo "=== 2. Generating roofline plots ==="
-	$(MAKE) plot ARGS="--plot roofline memory-bandwidth-vs-n --error-bars none"
+	$(MAKE) plot ARGS="--plot roofline roofline-kernels memory-bandwidth-vs-n roof-utilization --error-bars none"
 
 benchmark-cases:
 	@echo "=== 1. Measuring timing (all backends) ==="

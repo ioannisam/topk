@@ -13,6 +13,7 @@ struct RunStats {
 	std::size_t kernel_launches;
 	std::size_t active_comparators;
 	std::size_t block_size;
+	double bytes_moved = 0.0;
 };
 
 std::string query_device_name();
@@ -29,6 +30,7 @@ struct RunStats {
 	std::size_t tiles_used;
 	std::size_t aggregated_candidates;
 	std::size_t block_size;
+	double bytes_moved = 0.0;
 };
 
 template <typename T>
