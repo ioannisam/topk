@@ -26,7 +26,6 @@ from .plotting import time_vs_energy
 from .plotting import time_vs_n
 from .plotting import time_vs_n_backend_compare
 from .plotting import time_vs_n_metric_compare
-from .plotting import time_vs_k_backend_compare
 from .plotting import time_vs_n_k_colored
 from .plotting import heatmap_time
 from .plotting import memory_bandwidth_vs_n
@@ -84,7 +83,6 @@ def parse_args() -> argparse.Namespace:
             "roof-utilization",
             "roofline",
             "roofline-kernels",
-            # "time-vs-k-backend-compare",
             "time-vs-n-k-colored",
             "heatmap-time",
         ],
@@ -249,7 +247,6 @@ def main() -> int:
             "roof-utilization",
             "roofline",
             "roofline-kernels",
-            # "time-vs-k-backend-compare",
             "time-vs-n-k-colored",
             "heatmap-time",
         }
@@ -392,18 +389,6 @@ def main() -> int:
                 collect_output(out)
             else:
                 print(f"Skipped time-vs-n-metric-compare ({dtype_dir}): no timing points found.")
-
-        if "time-vs-k-backend-compare" in requested:
-            out = time_vs_k_backend_compare.plot(
-                records_no_gt,
-                os.path.join(out_time, "time_vs_k_backend_compare.png"),
-                args.agg,
-                args.error_bars,
-            )
-            if out:
-                collect_output(out)
-            else:
-                print(f"Skipped time-vs-k-backend-compare ({dtype_dir}): missing multi-k timing points.")
 
         if "time-vs-n-k-colored" in requested:
             out = time_vs_n_k_colored.plot(

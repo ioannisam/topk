@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from collections import defaultdict
-from typing import Iterable, Optional
+from typing import Iterable
 
 from ..models import CaseRecord, RooflinePoint
 from .common import aggregate_value, plt, select_time_ms, style_axes
@@ -119,8 +119,3 @@ def plot(
         written.append(out_file)
 
     return written
-
-
-def plot_all(*args, **kwargs) -> Optional[str]:
-    written = plot(*args, **kwargs)
-    return written[0] if written else None

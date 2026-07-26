@@ -6,8 +6,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
-#include <immintrin.h>
-#include <queue>
 #include <thread>
 #include <type_traits>
 #include <vector>

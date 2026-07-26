@@ -6,7 +6,7 @@ from typing import Iterable, Optional
 
 from ..models import RooflinePoint
 from .common import plt, style_axes
-from .roofline import backend_color
+from .roofline import LADDER_MIN_BYTES, backend_color
 
 TRANSFER_KERNELS = {
     "h2d_pageable": ("GPU host to device (pageable)", "-"),
@@ -23,11 +23,6 @@ CACHE_MARKERS = {
     "gpu": [(32 * 1024 * 1024, "L2 32 MiB")],
 }
 
-# Below this working set there are too few elements to keep every thread busy, so the
-# point measures available parallelism rather than a bandwidth ceiling. Plotting those
-# reads as a "roof" is misleading, so they are excluded.
-CACHE_LADDER_MIN_BYTES = 1024 * 1024
-
 
 def _bytes_axis(ax) -> None:
     ax.set_xscale("log", base=2)
@@ -43,7 +38,7 @@ def plot_cache_ladder(points: Iterable[RooflinePoint], out_path: str) -> Optiona
         if p.kernel != "cache_read" or p.gbytes_per_s <= 0 or p.elements <= 0:
             continue
         working_set = p.elements * 4.0
-        if working_set < CACHE_LADDER_MIN_BYTES:
+        if working_set < LADDER_MIN_BYTES:
             continue
         grouped[p.backend].append((working_set, p.gbytes_per_s))
 

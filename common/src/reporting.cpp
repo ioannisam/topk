@@ -20,6 +20,32 @@ std::size_t number_width(const std::vector<std::string>& values) {
 	return width;
 }
 
+const char* run_mode_name(common::config::RunMode mode) {
+	switch (mode) {
+	case common::config::RunMode::Trunc:
+		return "trunc";
+	case common::config::RunMode::Full:
+		return "full";
+	case common::config::RunMode::Both:
+		return "both";
+	}
+	return "unknown";
+}
+
+const char* distribution_name(common::config::Distribution dist) {
+	switch (dist) {
+	case common::config::Distribution::Uniform:
+		return "uniform";
+	case common::config::Distribution::Normal:
+		return "normal";
+	case common::config::Distribution::Sorted:
+		return "sorted";
+	case common::config::Distribution::Reverse:
+		return "reverse";
+	}
+	return "unknown";
+}
+
 } // namespace
 
 const char* dtype_name(common::config::DataType dtype) {
@@ -46,32 +72,6 @@ const char* algorithm_name(common::config::Algorithm algorithm) {
 		return "map_reduce";
 	case common::config::Algorithm::GroundTruth:
 		return "gt";
-	}
-	return "unknown";
-}
-
-const char* run_mode_name(common::config::RunMode mode) {
-	switch (mode) {
-	case common::config::RunMode::Trunc:
-		return "trunc";
-	case common::config::RunMode::Full:
-		return "full";
-	case common::config::RunMode::Both:
-		return "both";
-	}
-	return "unknown";
-}
-
-const char* distribution_name(common::config::Distribution dist) {
-	switch (dist) {
-	case common::config::Distribution::Uniform:
-		return "uniform";
-	case common::config::Distribution::Normal:
-		return "normal";
-	case common::config::Distribution::Sorted:
-		return "sorted";
-	case common::config::Distribution::Reverse:
-		return "reverse";
 	}
 	return "unknown";
 }

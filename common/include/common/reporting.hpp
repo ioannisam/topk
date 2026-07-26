@@ -13,8 +13,6 @@ namespace common::reporting {
 
 const char* dtype_name(common::config::DataType dtype);
 const char* algorithm_name(common::config::Algorithm algorithm);
-const char* run_mode_name(common::config::RunMode mode);
-const char* distribution_name(common::config::Distribution dist);
 std::string format_fixed(double value, int decimals, const char* suffix = "");
 
 void print_section_header(const char* title);

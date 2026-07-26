@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
+#include <stdexcept>
 #include <iostream>
 #include <limits>
 #include <optional>
@@ -17,6 +19,26 @@
 #include "common/validation.hpp"
 
 namespace common::topk {
+
+template <typename Fn> int dispatch_by_dtype(common::config::DataType dtype, Fn&& fn) {
+	switch (dtype) {
+	case common::config::DataType::Int:
+		return fn(std::int32_t{});
+	case common::config::DataType::UInt:
+		return fn(std::uint32_t{});
+	case common::config::DataType::Float:
+		return fn(float{});
+	case common::config::DataType::Double:
+		return fn(double{});
+	case common::config::DataType::Half:
+#if defined(__FLT16_MANT_DIG__)
+		return fn(_Float16{});
+#else
+		throw std::invalid_argument("dtype=half is not supported by this compiler target");
+#endif
+	}
+	throw std::invalid_argument("Unsupported dtype");
+}
 
 template <typename T> class BitonicRunnerHooks {
   public:

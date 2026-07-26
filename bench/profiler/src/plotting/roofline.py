@@ -17,7 +17,7 @@ BACKEND_COLORS = {
 STREAM_KERNELS = ("read", "fma", "cmp")
 
 # Below this the working set is too small to keep every thread busy, so the point measures
-# available parallelism rather than a bandwidth ceiling. Matches walls.CACHE_LADDER_MIN_BYTES.
+# available parallelism rather than a bandwidth ceiling.
 LADDER_MIN_BYTES = 1024 * 1024
 
 

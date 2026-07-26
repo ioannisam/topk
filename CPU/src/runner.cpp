@@ -207,24 +207,7 @@ template <typename T> int topk_typed(const Config& cfg) {
 } // namespace
 
 int execute(const common::config::Config& cfg) {
-	switch (cfg.dtype) {
-	case DataType::Int:
-		return topk_typed<std::int32_t>(cfg);
-	case DataType::UInt:
-		return topk_typed<std::uint32_t>(cfg);
-	case DataType::Float:
-		return topk_typed<float>(cfg);
-	case DataType::Double:
-		return topk_typed<double>(cfg);
-	case DataType::Half:
-#if defined(__FLT16_MANT_DIG__)
-		return topk_typed<_Float16>(cfg);
-#else
-		throw std::invalid_argument("dtype=half is not supported by this compiler target");
-#endif
-	}
-
-	throw std::invalid_argument("Unsupported dtype");
+	return common::topk::dispatch_by_dtype(cfg.dtype, [&](auto tag) { return topk_typed<decltype(tag)>(cfg); });
 }
 
 } // namespace cpu::topk
