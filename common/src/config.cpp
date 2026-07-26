@@ -210,10 +210,10 @@ DataType parse_dtype(const std::string& token) {
 	if (value == "double") {
 		return DataType::Double;
 	}
-	if (value == "fp16") {
-		return DataType::Fp16;
+	if (value == "half") {
+		return DataType::Half;
 	}
-	throw std::invalid_argument("Unsupported dtype. Use one of: int, uint, float, double, fp16");
+	throw std::invalid_argument("Unsupported dtype. Use one of: int, uint, float, double, half");
 }
 
 Algorithm parse_algorithm(const std::string& token) {

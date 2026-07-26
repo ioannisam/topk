@@ -59,7 +59,7 @@ Arguments are accepted in any order, but examples below use the canonical order 
 - `verify` defaults to `false`
 - random range defaults to `min=0`, `max=1000`
 - `threads=<num>` optionally overrides execution threads
-- `dtype=<type>` selects value type: `int`, `uint`, `float`, `double`, `fp16` (fp16 requires compiler support)
+- `dtype=<type>` selects value type: `int`, `uint`, `float`, `double`, `half` (half requires compiler support)
 - `algo=<name>` chooses backend algorithm: `bitonic` (default), `map_reduce`, or `gt` (std::partial_sort top-k baseline)
 - `dist=<name>` selects input distribution: `uniform` (default), `normal`, `sorted`, `reverse`
 

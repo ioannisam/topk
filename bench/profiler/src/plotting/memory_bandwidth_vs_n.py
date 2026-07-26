@@ -13,7 +13,7 @@ def get_bytes_per_element(dtype: str) -> int:
     d = dtype.lower()
     if "double" in d:
         return 8
-    if "fp16" in d:
+    if "half" in d:
         return 2
     return 4
 

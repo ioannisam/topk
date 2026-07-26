@@ -230,11 +230,11 @@ int execute(const common::config::Config& cfg) {
 		return topk_typed<float>(cfg);
 	case DataType::Double:
 		return topk_typed<double>(cfg);
-	case DataType::Fp16:
+	case DataType::Half:
 #if defined(__FLT16_MANT_DIG__)
 		return topk_typed<_Float16>(cfg);
 #else
-		throw std::invalid_argument("dtype=fp16 is not supported by this compiler target");
+		throw std::invalid_argument("dtype=half is not supported by this compiler target");
 #endif
 	}
 

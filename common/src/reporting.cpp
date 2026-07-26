@@ -32,8 +32,8 @@ const char* dtype_name(common::config::DataType dtype) {
 		return "float";
 	case common::config::DataType::Double:
 		return "double";
-	case common::config::DataType::Fp16:
-		return "fp16";
+	case common::config::DataType::Half:
+		return "half";
 	}
 	return "unknown";
 }

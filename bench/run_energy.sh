@@ -26,7 +26,7 @@ fi
 
 NPU_OFFLOAD_XCLBIN="${ROOT_DIR}/build/NPU/bitonic.xclbin" \
     python3 "${ROOT_DIR}/bench/lib/runner.py" cpu gpu npu --energy auto \
-    --types int uint float double fp16 --q-min 16 --q-max 24 --repeats 3 --verify false \
+    --types int uint float double half --q-min 16 --q-max 24 --repeats 3 --verify false \
     --cooldown 15 --min 0 --max 1000000000 \
     --output-json "${RESULTS_DIR}/raw/energy/output.json" \
     --output-raw "${RESULTS_DIR}/raw/energy/output.txt" "$@"

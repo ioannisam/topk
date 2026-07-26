@@ -5,7 +5,7 @@ This directory contains a CUDA backend implementation of the bitonic top-k pipel
 It supports:
 - Full bitonic sorting network (reference path)
 - Trunc bitonic execution for top-k output
-- Optional fp16 execution path through CUDA half conversion
+- Optional half execution path through CUDA half conversion
 
 ## Layout
 
@@ -51,7 +51,7 @@ Notes:
 - verify defaults to false
 - random range defaults to min=0 and max=1000
 - threads is accepted by shared CLI for parity across backends, but GPU launch geometry is selected internally by the CUDA backend
-- dtype supports int, uint, float, double, fp16 (fp16 uses float input with CUDA half compute path)
+- dtype supports int, uint, float, double, half (half uses float input with CUDA half compute path)
 - algo chooses bitonic (default), map_reduce, or gt (NVIDIA CUB `DeviceTopK` radix-select top-k, the AIR-TopK algorithm — an industry-standard GPU top-k baseline, not a full sort)
 - dist selects the input distribution: uniform (default), normal, sorted, reverse
 

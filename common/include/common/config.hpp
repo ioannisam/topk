@@ -12,7 +12,7 @@ enum class DataType {
 	UInt,
 	Float,
 	Double,
-	Fp16,
+	Half,
 };
 
 enum class RunMode {

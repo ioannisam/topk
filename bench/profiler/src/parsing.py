@@ -30,7 +30,7 @@ def infer_backend_from_command(cmd: str) -> str:
 def infer_algorithm_and_dtype_from_command(cmd: str) -> tuple[str, str]:
     lower = cmd.lower()
     m_algo = re.search(r"(?:^|\s)algo=(bitonic|map_reduce|mapreduce|gt)(?:\s|$)", lower)
-    m_dtype = re.search(r"(?:^|\s)dtype=(int|uint|float|double|fp16)(?:\s|$)", lower)
+    m_dtype = re.search(r"(?:^|\s)dtype=(int|uint|float|double|half)(?:\s|$)", lower)
     algo = m_algo.group(1) if m_algo else ""
     if algo == "mapreduce":
         algo = "map_reduce"

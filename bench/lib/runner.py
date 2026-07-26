@@ -67,7 +67,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Dynamic Top-K Test Runner")
     parser.add_argument("backends", nargs="+", help="Backends to test (e.g., cpu gpu npu)")
     parser.add_argument(
-        "--types", nargs="*", default=["double", "float", "fp16", "int", "uint"], help="Datatypes to test"
+        "--types", nargs="*", default=["double", "float", "half", "int", "uint"], help="Datatypes to test"
     )
     parser.add_argument(
         "--energy", choices=["none", "auto", "rapl", "gpu"], default="none", help="Energy measurement wrapper"
