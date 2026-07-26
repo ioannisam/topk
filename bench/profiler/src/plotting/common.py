@@ -86,8 +86,41 @@ def add_energy_metric_legend(ax, *, loc: str = "lower right") -> None:
         return
 
 
-def style_axes(ax, title: str, xlabel: str, ylabel: str) -> None:
-    ax.set_title(title, fontsize=14)
+_DTYPE_CONTEXT: str | None = None
+
+
+def set_dtype_context(dtype: str | None) -> None:
+    """Set the dtype every subsequent figure is subtitled with, or None to clear it.
+
+    Plots are written into per-dtype directories, so the figures themselves carried no
+    record of which type produced them and stopped being self-describing the moment one
+    was pulled out of its folder. The profiler emits one dtype at a time, so a single
+    setter is enough; machine-level figures clear it because they characterise the
+    hardware rather than any one dtype.
+    """
+    global _DTYPE_CONTEXT
+    _DTYPE_CONTEXT = dtype or None
+
+
+def add_subtitle(ax, subtitle: str | None = None) -> None:
+    text = subtitle if subtitle is not None else _DTYPE_CONTEXT
+    if not text:
+        return
+    ax.text(
+        0.5,
+        1.008,
+        f"dtype: {text}",
+        transform=ax.transAxes,
+        ha="center",
+        va="bottom",
+        fontsize=10,
+        color="#6B7280",
+    )
+
+
+def style_axes(ax, title: str, xlabel: str, ylabel: str, subtitle: str | None = None) -> None:
+    ax.set_title(title, fontsize=14, pad=22 if (subtitle or _DTYPE_CONTEXT) else 12)
+    add_subtitle(ax, subtitle)
     ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel(ylabel, fontsize=12)
 

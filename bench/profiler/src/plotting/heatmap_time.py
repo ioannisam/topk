@@ -7,7 +7,7 @@ from typing import Optional
 import matplotlib.colors as mcolors
 
 from ..models import CaseRecord
-from .common import aggregate_value, plt, select_time_ms
+from .common import add_subtitle, aggregate_value, plt, select_time_ms
 
 
 def plot(records: list[CaseRecord], out_path: str, agg: str) -> Optional[list[str]]:
@@ -64,7 +64,8 @@ def plot(records: list[CaseRecord], out_path: str, agg: str) -> Optional[list[st
 
             ax.set_xlabel("Input Size N")
             ax.set_ylabel("Requested Top-K")
-            ax.set_title(f"Heatmap: Algorithmic Time ({backend} - {algo})")
+            ax.set_title(f"Heatmap: Algorithmic Time ({backend} - {algo})", pad=22)
+            add_subtitle(ax)
 
             # pad to match the colorbar
             cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)

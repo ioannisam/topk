@@ -8,7 +8,7 @@ import os
 from .csv_io import write_case_csv, write_measurement_csv, write_roofline_csv
 from .filtering import filter_measurements, filter_records
 from .parsing import attach_inprocess_energy, parse_measurements, parse_roofline, parse_test_output
-from .plotting.common import MATPLOTLIB_AVAILABLE
+from .plotting.common import MATPLOTLIB_AVAILABLE, set_dtype_context
 from .plotting import edp_vs_n
 from .plotting import energy_by_backend
 from .plotting import energy_by_source
@@ -285,6 +285,8 @@ def main() -> int:
         out_correctness = os.path.join(out_root, "correctness")
         out_energy = os.path.join(out_root, "energy")
         out_memory = os.path.join(out_root, "memory")
+
+        set_dtype_context(dtype_dir)
 
         dtype_set = {dtype} if dtype and dtype != "unknown" else set()
 
@@ -690,7 +692,10 @@ def main() -> int:
         else:
             print("Skipped roofline CSV: no sweep points found. Run 'make measure-roofline' first.")
 
-    # The roofline characterizes the machine, not a dtype, so it is emitted once.
+    # The roofline characterizes the machine, not a dtype, so it is emitted once and
+    # without a dtype subtitle.
+    set_dtype_context(None)
+
     if "roofline" in requested:
         out = roofline.plot(roofline_points, os.path.join(args.output_dir, "machine", "roofline.png"))
         if out:
