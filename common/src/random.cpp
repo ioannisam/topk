@@ -13,20 +13,17 @@ namespace common::utils {
 namespace {
 
 template <typename T> T sample_value(std::mt19937& rng, int min_value, int max_value, bool normal) {
-	if (normal) {
-		const double mean = 0.5 * (static_cast<double>(min_value) + static_cast<double>(max_value));
-		const double span = static_cast<double>(max_value) - static_cast<double>(min_value);
-		const double sigma = span > 0.0 ? span / 6.0 : 1.0;
-		std::normal_distribution<double> dist(mean, sigma);
-		double value = dist(rng);
-		value = std::min(std::max(value, static_cast<double>(min_value)), static_cast<double>(max_value));
-		if constexpr (std::is_integral_v<T>) {
+	if constexpr (std::is_integral_v<T>) {
+		if (normal) {
+			const double mean = 0.5 * (static_cast<double>(min_value) + static_cast<double>(max_value));
+			const double span = static_cast<double>(max_value) - static_cast<double>(min_value);
+			const double sigma = span > 0.0 ? span / 6.0 : 1.0;
+			std::normal_distribution<double> dist(mean, sigma);
+			double value = dist(rng);
+			value = std::min(std::max(value, static_cast<double>(min_value)), static_cast<double>(max_value));
 			return static_cast<T>(std::llround(value));
 		}
-		return static_cast<T>(value);
-	}
 
-	if constexpr (std::is_integral_v<T>) {
 		if constexpr (std::is_unsigned_v<T>) {
 			const auto umin = static_cast<unsigned long long>(std::max(0, min_value));
 			const auto umax = static_cast<unsigned long long>(std::max(0, max_value));
@@ -37,7 +34,27 @@ template <typename T> T sample_value(std::mt19937& rng, int min_value, int max_v
 		return static_cast<T>(dist(rng));
 	}
 
-	std::uniform_real_distribution<double> dist(static_cast<double>(min_value), static_cast<double>(max_value));
+	double eff_min = static_cast<double>(min_value);
+	double eff_max = static_cast<double>(max_value);
+#if defined(__FLT16_MANT_DIG__)
+	if constexpr (std::is_same_v<T, _Float16>) {
+		constexpr double kHalfMax = 65504.0;
+		eff_min = std::clamp(eff_min, -kHalfMax, kHalfMax);
+		eff_max = std::clamp(eff_max, -kHalfMax, kHalfMax);
+	}
+#endif
+
+	if (normal) {
+		const double mean = 0.5 * (eff_min + eff_max);
+		const double span = eff_max - eff_min;
+		const double sigma = span > 0.0 ? span / 6.0 : 1.0;
+		std::normal_distribution<double> dist(mean, sigma);
+		double value = dist(rng);
+		value = std::min(std::max(value, eff_min), eff_max);
+		return static_cast<T>(value);
+	}
+
+	std::uniform_real_distribution<double> dist(eff_min, eff_max);
 	return static_cast<T>(dist(rng));
 }
 
