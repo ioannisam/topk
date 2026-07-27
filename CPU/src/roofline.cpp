@@ -118,16 +118,20 @@ double run_fma(const float* src, std::size_t n, std::size_t workers, int ops, st
 		pool.emplace_back([&, tid]() {
 			const std::size_t begin = (n * tid) / workers;
 			const std::size_t end = (n * (tid + 1)) / workers;
+			float acc = 0.0f;
 			for (std::size_t r = 0; r < repeats; ++r) {
-				partial[tid] += fma_chunk(src, begin, end, ops);
+				acc += fma_chunk(src, begin, end, ops);
 			}
+			partial[tid] = acc;
 		});
 	}
 	const std::size_t last_tid = workers - 1;
 	const std::size_t last_begin = (n * last_tid) / workers;
+	float last_acc = 0.0f;
 	for (std::size_t r = 0; r < repeats; ++r) {
-		partial[last_tid] += fma_chunk(src, last_begin, n, ops);
+		last_acc += fma_chunk(src, last_begin, n, ops);
 	}
+	partial[last_tid] = last_acc;
 
 	for (auto& t : pool) {
 		t.join();
@@ -211,7 +215,7 @@ int execute(const Config& cfg) {
 			const double flops = static_cast<double>(n) * (2.0 * static_cast<double>(ops) + 1.0);
 			points.push_back(
 				measure("fma", ops, n, read_bytes, flops, [&]() { return run_fma(src.data(), n, workers, ops); }));
-			const double cmp_ops = 2.0 * static_cast<double>(n) * static_cast<double>(ops);
+			const double cmp_ops = common::roofline::compare_exchange_count(n, ops);
 			points.push_back(
 				measure("cmp", ops, n, read_bytes, cmp_ops, [&]() { return run_cmp(src.data(), n, workers, ops); }));
 		}

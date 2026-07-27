@@ -38,8 +38,6 @@ __attribute__((noinline)) double copy_buffer(const Elem* src, Elem* dst, std::si
 	return static_cast<double>(dst[0]) + static_cast<double>(dst[n - 1]);
 }
 
-// Compare-exchange peak on the host cores that drive the NPU: the offload path is host
-// encode bound, so this is the compute roof the top-k kernels actually run into.
 constexpr std::size_t kCmpLane = 64;
 
 __attribute__((noinline)) double cmp_buffer(const Elem* src, std::size_t n, int ops) {
@@ -119,7 +117,7 @@ int execute(const Config& cfg) {
 
 	if (common::roofline::includes(cfg.experiment, Experiment::Sweep)) {
 		for (const int ops : cfg.ops) {
-			const double cmp_ops = 2.0 * static_cast<double>(n) * static_cast<double>(ops);
+			const double cmp_ops = common::roofline::compare_exchange_count(n, ops);
 			points.push_back(measure("cmp", ops, n, bytes, cmp_ops, [&]() { return cmp_buffer(src_map, n, ops); }));
 		}
 	}

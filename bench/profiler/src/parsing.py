@@ -42,20 +42,19 @@ def infer_algorithm_and_dtype_from_command(cmd: str) -> tuple[str, str]:
     return algo, dtype
 
 
-def select_time_fields(timings: dict[str, float]) -> tuple[str, Optional[float], str, Optional[float]]:
-    e2e_label = ""
-    e2e_ms: Optional[float] = None
-    algo_label = ""
-    algo_ms: Optional[float] = None
+def _pick_timing(timings: dict[str, float], kind: str) -> tuple[str, Optional[float]]:
+    matches = [(label, val) for label, val in timings.items() if kind in label.lower()]
+    if not matches:
+        return "", None
+    for label, val in matches:
+        if "trunc" in label.lower():
+            return label, val
+    return matches[0]
 
-    for label, val in timings.items():
-        low = label.lower()
-        if "end-to-end" in low:
-            e2e_label = label
-            e2e_ms = val
-        elif "algorithmic" in low:
-            algo_label = label
-            algo_ms = val
+
+def select_time_fields(timings: dict[str, float]) -> tuple[str, Optional[float], str, Optional[float]]:
+    e2e_label, e2e_ms = _pick_timing(timings, "end-to-end")
+    algo_label, algo_ms = _pick_timing(timings, "algorithmic")
 
     if e2e_ms is None and algo_ms is None:
         for label, val in timings.items():
@@ -69,15 +68,7 @@ def select_time_fields(timings: dict[str, float]) -> tuple[str, Optional[float],
 
 
 def select_stdev_fields(stdevs: dict[str, float]) -> tuple[Optional[float], Optional[float]]:
-    e2e_std: Optional[float] = None
-    algo_std: Optional[float] = None
-    for label, val in stdevs.items():
-        low = label.lower()
-        if "end-to-end" in low:
-            e2e_std = val
-        elif "algorithmic" in low:
-            algo_std = val
-    return e2e_std, algo_std
+    return _pick_timing(stdevs, "end-to-end")[1], _pick_timing(stdevs, "algorithmic")[1]
 
 
 ENERGY_FIELD_MAP = {
@@ -346,6 +337,7 @@ def attach_inprocess_energy(measurements, inproc_by_key) -> None:
 
         rec.inproc_available = True
         rec.inproc_counters = case.energy_counters
+        rec.inproc_iterations = case.energy_iterations
         rec.inproc_e2e_joules = case.energy_e2e_joules
         rec.inproc_algo_joules = case.energy_algo_joules
         rec.inproc_e2e_seconds = case.energy_e2e_seconds

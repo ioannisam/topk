@@ -1,4 +1,5 @@
 #include "../include/algorithm.hpp"
+#include "cuda_utils.cuh"
 #include "device_traits.cuh"
 
 #include "common/energy.hpp"
@@ -18,13 +19,7 @@ namespace gpu::map_reduce {
 
 namespace {
 
-#define CUDA_CHECK(expr)                                                                                               \
-	do {                                                                                                               \
-		cudaError_t _err = (expr);                                                                                     \
-		if (_err != cudaSuccess) {                                                                                     \
-			throw std::runtime_error(std::string("CUDA error: ") + cudaGetErrorString(_err));                          \
-		}                                                                                                              \
-	} while (false)
+using gpu::utils::DeviceBuffer;
 
 constexpr int MAP_BLOCK_SIZE = 256;
 constexpr std::size_t MAP_STRATEGY_A_MAX_K = 256;
@@ -43,54 +38,6 @@ inline int map_blocks_per_sm(int occupancy_blocks, int sm_count, std::size_t n, 
 	}
 	return occupancy_blocks < budget ? occupancy_blocks : budget;
 }
-
-template <typename T> struct DeviceBuffer {
-	T* ptr = nullptr;
-	std::size_t size = 0;
-
-	explicit DeviceBuffer(std::size_t num_elements) : size(num_elements) {
-		if (size > 0) {
-			CUDA_CHECK(cudaMalloc(&ptr, size * sizeof(T)));
-		}
-	}
-
-	~DeviceBuffer() {
-		if (ptr) {
-			cudaFree(ptr);
-			ptr = nullptr;
-		}
-	}
-
-	DeviceBuffer(const DeviceBuffer&) = delete;
-	DeviceBuffer& operator=(const DeviceBuffer&) = delete;
-
-	DeviceBuffer(DeviceBuffer&& other) noexcept : ptr(other.ptr), size(other.size) {
-		other.ptr = nullptr;
-		other.size = 0;
-	}
-
-	DeviceBuffer& operator=(DeviceBuffer&& other) noexcept {
-		if (this != &other) {
-			if (ptr)
-				cudaFree(ptr);
-			ptr = other.ptr;
-			size = other.size;
-			other.ptr = nullptr;
-			other.size = 0;
-		}
-		return *this;
-	}
-
-	T* get() const {
-		return ptr;
-	}
-	T* operator->() const {
-		return ptr;
-	}
-	T& operator[](std::size_t idx) const {
-		return ptr[idx];
-	}
-};
 
 template <typename T> __device__ __forceinline__ bool beats_threshold(T candidate, T threshold, bool want_max) {
 	return want_max ? gpu::traits::DeviceTraits<T>::gt(candidate, threshold)
@@ -335,7 +282,9 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 		stats->aggregated_candidates = grid_size * k;
 		stats->block_size = block_size;
 		stats->bytes_moved =
-			(static_cast<double>(n) + static_cast<double>(grid_size) * static_cast<double>(k)) * sizeof(D);
+			(static_cast<double>(n) + 2.0 * static_cast<double>(total_threads) * static_cast<double>(k) +
+			 static_cast<double>(grid_size) * static_cast<double>(k)) *
+			sizeof(D);
 	}
 
 	if (block_results.size() > k) {

@@ -133,6 +133,7 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 			stats->tiles_used = best.sample.stats.tiles_used;
 			stats->aggregated_candidates = best.sample.stats.aggregated_candidates;
 			stats->traffic.bytes_moved = best.sample.stats.bytes_moved;
+			stats->traffic.bytes_exact = true;
 		}
 
 		last_stats = best.sample.stats;

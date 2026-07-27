@@ -29,28 +29,38 @@ Notes:
 EOF
 }
 
+# -L to follow the class symlinks, but depth 2 so the per-domain `device/` back-links do not
+# re-surface the same counters under aliased paths.
+discover_energy_paths() {
+    find -L /sys/class/powercap -maxdepth 2 -name energy_uj -print 2>/dev/null | sort
+}
+
+# Match the in-process counter in common/src/energy.cpp: integrate the package domain, not
+# whichever energy_uj happens to sort first (psys and intel-rapl-mmio also expose one).
 find_default_energy_path() {
-    local candidate
+    local candidate domain_name
     while IFS= read -r candidate; do
-        if [[ -r "${candidate}" ]]; then
+        domain_name="$(cat "$(dirname "${candidate}")/name" 2>/dev/null || true)"
+        if [[ -r "${candidate}" && "${domain_name}" == package-* ]]; then
             echo "${candidate}"
             return 0
         fi
-    done < <(find -L /sys/class/powercap -maxdepth 6 -name energy_uj -print 2>/dev/null | sort)
+    done < <(discover_energy_paths)
     return 1
 }
 
 list_energy_paths() {
     local found=0
-    local candidate
+    local candidate domain_name
     while IFS= read -r candidate; do
         found=1
+        domain_name="$(cat "$(dirname "${candidate}")/name" 2>/dev/null || echo '?')"
         if [[ -r "${candidate}" ]]; then
-            echo "readable ${candidate}"
+            echo "readable ${candidate} (${domain_name})"
         else
-            echo "not-readable ${candidate}"
+            echo "not-readable ${candidate} (${domain_name})"
         fi
-    done < <(find -L /sys/class/powercap -maxdepth 6 -name energy_uj -print 2>/dev/null | sort)
+    done < <(discover_energy_paths)
 
     if [[ ${found} -eq 0 ]]; then
         echo "no energy_uj paths found under /sys/class/powercap" >&2
@@ -173,8 +183,12 @@ CORE_START_UJ=""
 [[ -n "${CORE_ENERGY_PATH}" ]] && CORE_START_UJ="$(<"${CORE_ENERGY_PATH}")"
 START_TS="$(date +%s.%N)"
 
+# `set -e` would abort here before CMD_STATUS is captured, dropping the whole report (and the
+# --out file) for exactly the runs whose failure the profiler needs to see.
+set +e
 "$@"
 CMD_STATUS=$?
+set -e
 
 END_TS="$(date +%s.%N)"
 END_UJ="$(<"${ENERGY_PATH}")"

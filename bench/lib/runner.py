@@ -120,13 +120,14 @@ def main():
 
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     os.makedirs(os.path.dirname(args.output_raw), exist_ok=True)
+    os.makedirs(os.path.dirname(args.output_json), exist_ok=True)
     if args.energy != "none":
         os.makedirs(args.energy_out_dir, exist_ok=True)
 
     json_data = {
         "metadata": {"timestamp": run_id, "backends": backends, "types": types, "config": vars(args)},
         "results": [],
-        "summary": {"total_pass": 0, "total_fail": 0},
+        "summary": {"total_pass": 0, "total_fail": 0, "skipped_backends": []},
     }
 
     print("Running testcase suite")
@@ -188,8 +189,10 @@ def main():
 
         binary_path = resolve_binary_path(backend)
         if not os.path.isfile(binary_path) or not os.access(binary_path, os.X_OK):
+            # Not a case failure: keep it out of the pass/fail tally so the rate stays a
+            # correctness measure, and surface it separately.
             print(f"\nBackend binary not found or not executable: {binary_path}")
-            json_data["summary"]["total_fail"] += 1
+            json_data["summary"]["skipped_backends"].append(backend)
             continue
 
         print(f"\nBackend: {backend}")
@@ -220,9 +223,10 @@ def main():
                     n = 1 << q
 
                     effective_ks = sorted(list(set(k_val for k_val in args.k if k_val <= n)))
-                    multi_variant = args.repeats > 1 or len(dists) > 1 or args.seeds > 1
                     for k_eff in effective_ks:
-                        base_seed = args.seed_base + q + k_eff
+                        # Spread q and k apart so distinct cases cannot land on the same seed
+                        # (q + k collided for e.g. (q=10,k=8) and (q=8,k=10)).
+                        base_seed = args.seed_base + q * 1000003 + k_eff
                         seed_list = [base_seed + s for s in range(max(1, args.seeds))]
                         base_case_name = f"q{q:02d}_k{k_eff}_{args.mode}"
 
@@ -262,8 +266,10 @@ def main():
                                     case_env["NPU_OFFLOAD_XCLBIN"] = npu_xclbin
 
                                 for rep in range(1, args.repeats + 1):
-                                    variant = f"{dist}_s{seed}_rep{rep}"
-                                    suffix = f"_{variant}" if multi_variant else ""
+                                    # Always tag the variant: the profiler joins measurement
+                                    # files to case records on (dist, seed, rep), and it can
+                                    # only recover them from the filename.
+                                    suffix = f"_{dist}_s{seed}_rep{rep}"
                                     if energy_mode == "none":
                                         run_cmd = [binary_path] + case_args
                                         energy_case_file = ""
@@ -300,6 +306,7 @@ def main():
                                     result = subprocess.run(run_cmd, capture_output=True, text=True, env=case_env)
 
                                     stdout = result.stdout
+                                    stderr = result.stderr
                                     label = f"{base_case_name} {dist} seed={seed}" + (
                                         f" rep={rep}" if args.repeats > 1 else ""
                                     )
@@ -314,11 +321,15 @@ def main():
                                             type_fail += 1
                                         else:
                                             case_status = "PASS"
-                                            case_reason = "ok"
+                                            # Do not claim a correctness check that never ran.
+                                            case_reason = "ok" if args.verify == "true" else "unverified"
                                             print(f"    [PASS] {label} (algo={algo})")
                                             type_pass += 1
                                     else:
-                                        print(f"    [FAIL] {label} (algo={algo}) (non-zero exit)")
+                                        reason_detail = stderr.strip().splitlines()
+                                        if reason_detail:
+                                            case_reason = f"non-zero exit: {reason_detail[-1]}"
+                                        print(f"    [FAIL] {label} (algo={algo}) ({case_reason})")
                                         type_fail += 1
 
                                     # Write Raw File
@@ -331,7 +342,10 @@ def main():
                                         f_raw.write(f"Command: {' '.join(run_cmd)}\n")
                                         if energy_case_file:
                                             f_raw.write(f"Measurement file: {energy_case_file}\n")
-                                        f_raw.write(f"Output:\n{stdout}\n\n")
+                                        f_raw.write(f"Output:\n{stdout}\n")
+                                        if stderr.strip():
+                                            f_raw.write(f"Stderr:\n{stderr}\n")
+                                        f_raw.write("\n")
 
                                     # Append to JSON structure
                                     json_data["results"].append(
@@ -351,6 +365,7 @@ def main():
                                             "energy_file": energy_case_file,
                                             "exit_code": result.returncode,
                                             "stdout": stdout.strip(),
+                                            "stderr": stderr.strip(),
                                         }
                                     )
 
@@ -369,6 +384,10 @@ def main():
     print("\nTotal Summary")
     print(f"  Passed: {json_data['summary']['total_pass']}")
     print(f"  Failed: {json_data['summary']['total_fail']}")
+    if json_data["summary"]["skipped_backends"]:
+        print(f"  Skipped backends (no binary): {','.join(json_data['summary']['skipped_backends'])}")
+    if args.verify != "true":
+        print("  NOTE: --verify false, so PASS means 'ran without error', not 'output correct'")
     print(f"Wrote detailed text output to: {args.output_raw}")
     print(f"Wrote structured JSON output to: {args.output_json}")
 

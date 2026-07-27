@@ -158,7 +158,8 @@ def select_energy_joules(rec, metric: str, scope: str = "e2e") -> float | None:
         else:
             energy = rec.inproc_net_e2e_joules if net else rec.inproc_e2e_joules
         if energy is not None:
-            return energy / ops
+            iterations = getattr(rec, "inproc_iterations", None) or ops
+            return energy / iterations
 
     energy = rec.net_energy_joules if (net and rec.net_energy_joules is not None) else rec.energy_joules
     return energy / ops if energy is not None else None

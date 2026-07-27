@@ -99,6 +99,7 @@ class MeasurementRecord:
     board_baseline_watts: Optional[float] = None
     inproc_available: bool = False
     inproc_counters: str = ""
+    inproc_iterations: Optional[int] = None
     inproc_e2e_joules: Optional[float] = None
     inproc_algo_joules: Optional[float] = None
     inproc_e2e_seconds: Optional[float] = None

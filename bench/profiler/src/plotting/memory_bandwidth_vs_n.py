@@ -37,23 +37,21 @@ def plot(
     # look far from the wall.
     grouped: dict[tuple[str, str], dict[int, list[float]]] = defaultdict(lambda: defaultdict(list))
     working_set: dict[tuple[str, str], dict[int, float]] = defaultdict(dict)
-    missing_traffic = 0
+    missing_traffic: set[tuple[str, str, str, int, int]] = set()
     for r in records:
         time_ms = select_time_ms(r, metric)
         if r.n is None or time_ms is None or time_ms <= 0:
             continue
         if not r.bytes_moved or r.bytes_moved <= 0:
-            missing_traffic += 1
+            missing_traffic.add((r.backend, r.dtype, r.algorithm, r.n, r.k))
             continue
         bw_gbps = r.bytes_moved / (time_ms * 1e6)
         grouped[(r.backend, r.algorithm)][r.n].append(bw_gbps)
         working_set[(r.backend, r.algorithm)][r.n] = r.n * get_bytes_per_element(r.dtype)
 
     if missing_traffic:
-        print(
-            f"Warning: {missing_traffic} record(s) carry no traffic counter and were skipped; "
-            "re-measure with a build that emits 'Traffic bytes moved'."
-        )
+        cases = ", ".join(f"{b}/{d}/{a} n={n} k={k}" for b, d, a, n, k in sorted(missing_traffic))
+        print(f"Warning: skipped {len(missing_traffic)} case(s) reporting zero bytes moved: {cases}")
     if not grouped:
         return None
 

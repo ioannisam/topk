@@ -56,6 +56,9 @@ struct Point {
 };
 
 Config parse_args(int argc, char** argv);
+inline double compare_exchange_count(std::size_t n, int ops) {
+	return 0.5 * static_cast<double>(n) * static_cast<double>(ops);
+}
 
 template <typename Fn>
 Point measure(const char* kernel, int ops_per_elem, std::size_t n, double bytes_moved, double op_count, Fn&& fn) {

@@ -10,6 +10,8 @@
 
 #include <cuda_runtime.h>
 
+#include "cuda_utils.cuh"
+
 #include "common/benchmark.hpp"
 #include "common/random.hpp"
 
@@ -21,14 +23,6 @@ using common::roofline::Config;
 using common::roofline::Experiment;
 using common::roofline::measure;
 using common::roofline::Point;
-
-#define CUDA_CHECK(expr)                                                                                               \
-	do {                                                                                                               \
-		cudaError_t _err = (expr);                                                                                     \
-		if (_err != cudaSuccess) {                                                                                     \
-			throw std::runtime_error(std::string("CUDA error: ") + cudaGetErrorString(_err));                          \
-		}                                                                                                              \
-	} while (false)
 
 constexpr int kBlockSize = 256;
 constexpr int kChains = 4;
@@ -183,7 +177,7 @@ int execute(const Config& cfg) {
 				CUDA_CHECK(cudaDeviceSynchronize());
 				return 0.0;
 			}));
-			const double cmp_ops = 2.0 * static_cast<double>(n) * static_cast<double>(ops);
+			const double cmp_ops = common::roofline::compare_exchange_count(n, ops);
 			points.push_back(measure("cmp", ops, n, read_bytes, cmp_ops, [&]() {
 				cmp_kernel<<<grid_size, kBlockSize>>>(d_src, d_out, n, ops);
 				CUDA_CHECK(cudaDeviceSynchronize());

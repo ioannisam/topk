@@ -94,6 +94,7 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 		stats.traffic.bytes_moved = best_stats.bytes_moved;
 		stats.traffic.bytes_exact = true;
 		stats.traffic.compare_ops = static_cast<double>(best_stats.active_comparators);
+		stats.traffic.ops_exact = true;
 		return stats;
 	}
 
