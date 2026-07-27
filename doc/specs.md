@@ -3,7 +3,7 @@
 ## System Information
 * **Host Model:** Lenovo Legion 5 15AHP10
 * **Operating System:** Arch Linux x86_64
-* **Kernel:** Linux 6.19.9-arch1-1
+* **Kernel:** Linux 7.1.4-arch1-1 (re-check with `make specs`; this drifts on every kernel update)
 * **Desktop Environment:** KDE Plasma 6.6.3 on Wayland
 * **System RAM:** ~32 GB DDR5 installed (`MemTotal` 32138656 kB ≈ 30.6 GiB usable), upgraded from ~16 GB by adding a second module.
   * **Configuration:** Dual-channel, confirmed by `dmidecode -t memory`: two 16 GiB DDR5 SODIMMs (mixed vendors) on CHANNEL A and CHANNEL B, both at a configured 5600 MT/s. Matches the measured ~2× jump in sustained DRAM bandwidth.
@@ -38,8 +38,7 @@
 
 ## NPU: AMD XDNA (Ryzen AI)
 * **Runtime Device:** RyzenAI-npu1 at BDF `0000:66:00.1`
-* **Kernel Driver Module:** `amdxdna` loaded
-* **XRT-reported amdxdna version:** 6.19.9-arch1-1
+* **Kernel Driver Module:** `amdxdna` loaded (in-tree, so its version tracks the running kernel)
 * **NPU Firmware Version:** 1.5.2.380
 * **Architecture / TOPS figures:** Keep as vendor claims unless tied to an AMD official source in this document.
 * **Memory:** Likely shares system DDR5 memory
