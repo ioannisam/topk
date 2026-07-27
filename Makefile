@@ -67,9 +67,11 @@ run-gpu: build-gpu
 	./$(BUILD_DIR)/GPU/topk $(ARGS)
 
 run-npu: build-npu
-	@# default offload file: bitonic
-	@if [ -z "$$NPU_OFFLOAD_XCLBIN" ]; then \
-		export NPU_OFFLOAD_XCLBIN="$(BUILD_DIR)/NPU/bitonic.xclbin"; \
+	@# offload file follows algo= in ARGS; falls back to bitonic when there is no matching xclbin
+	@algo=$$(printf '%s\n' $(ARGS) | sed -n 's/^algo=//p' | tail -1); \
+	if [ -z "$$algo" ] || [ ! -f "$(BUILD_DIR)/NPU/$$algo.xclbin" ]; then algo=bitonic; fi; \
+	if [ -z "$$NPU_OFFLOAD_XCLBIN" ]; then \
+		export NPU_OFFLOAD_XCLBIN="$(BUILD_DIR)/NPU/$$algo.xclbin"; \
 	fi; \
 	./$(BUILD_DIR)/NPU/topk $(ARGS)
 

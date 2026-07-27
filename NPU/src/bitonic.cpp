@@ -273,6 +273,7 @@ template <typename T> RunStats run_topk(std::vector<T>& data, const std::vector<
 		throw std::runtime_error(
 			"NPU offload is required for this backend. Set NPU_OFFLOAD_XCLBIN to a valid xclbin path.");
 	}
+	npu::utils::require_xclbin_for(offload_cfg, "bitonic");
 	return run_network_offload_xrt(data, layers, offload_cfg);
 }
 

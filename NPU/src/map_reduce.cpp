@@ -293,6 +293,7 @@ std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max
 	if (!offload_cfg.enabled) {
 		throw std::runtime_error("NPU offload is required. Set NPU_OFFLOAD_XCLBIN to map_reduce.xclbin.");
 	}
+	npu::utils::require_xclbin_for(offload_cfg, "map_reduce");
 
 	if (want_max)
 		return run_map_reduce_offload_xrt<true>(data, k, offload_cfg, stats);
