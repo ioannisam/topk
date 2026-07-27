@@ -54,14 +54,14 @@ collect_cpp_files() {
     if command -v git >/dev/null 2>&1 && git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         (
             cd "${ROOT_DIR}"
-            git ls-files --cached --others --exclude-standard -- '*.cpp' '*.cu' '*.h' '*.hpp'
+            git ls-files --cached --others --exclude-standard -- '*.cpp' '*.cc' '*.cu' '*.cuh' '*.h' '*.hpp'
         )
     else
         (
             cd "${ROOT_DIR}"
             find . \
                 -type d \( -name .git -o -name build -o -name build-fast -o -name CMakeFiles -o -name npu_env \) -prune -o \
-                -type f \( -name '*.cpp' -o -name '*.cu' -o -name '*.h' -o -name '*.hpp' \) -print | sed 's#^\./##'
+                -type f \( -name '*.cpp' -o -name '*.cc' -o -name '*.cu' -o -name '*.cuh' -o -name '*.h' -o -name '*.hpp' \) -print | sed 's#^\./##'
         )
     fi
 }

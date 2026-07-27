@@ -1,4 +1,5 @@
 #include "../include/algorithm.hpp"
+#include "cuda_utils.cuh"
 #include "device_traits.cuh"
 
 #include "common/energy.hpp"
@@ -16,20 +17,14 @@ namespace gpu::bitonic {
 
 namespace {
 
+using gpu::utils::DeviceBuffer;
+
 constexpr std::size_t BITONIC_BLOCK_SIZE = 256;
 constexpr std::size_t BITONIC_TILE_LARGE = 8192;		  // working set > L2 (DRAM bound)
 constexpr std::size_t BITONIC_TILE_SMALL = 4096;		  // working set <= L2 (occupancy bound)
 constexpr std::size_t BITONIC_MAX_TILE_BYTES = 48 * 1024; // stay within default smem budget (no opt-in)
 constexpr int FUSED_LAYER_CAP = 128;
 constexpr int MULTISTEP_MAX_BITS = 5;
-
-#define CUDA_CHECK(expr)                                                                                               \
-	do {                                                                                                               \
-		cudaError_t _err = (expr);                                                                                     \
-		if (_err != cudaSuccess) {                                                                                     \
-			throw std::runtime_error(std::string("CUDA error: ") + cudaGetErrorString(_err));                          \
-		}                                                                                                              \
-	} while (false)
 
 std::size_t l2_cache_bytes() {
 	static const std::size_t bytes = []() {
@@ -50,53 +45,6 @@ template <typename T> std::size_t tile_target_elems(std::size_t n) {
 	}
 	return w;
 }
-
-template <typename T> struct DeviceBuffer {
-	T* ptr = nullptr;
-	std::size_t size = 0;
-
-	explicit DeviceBuffer(std::size_t num_elements) : size(num_elements) {
-		if (size > 0) {
-			CUDA_CHECK(cudaMalloc(&ptr, size * sizeof(T)));
-		}
-	}
-
-	~DeviceBuffer() {
-		cudaFree(ptr);
-		ptr = nullptr;
-	}
-
-	// Deleted copy operations
-	DeviceBuffer(const DeviceBuffer&) = delete;
-	DeviceBuffer& operator=(const DeviceBuffer&) = delete;
-
-	// Move operations
-	DeviceBuffer(DeviceBuffer&& other) noexcept : ptr(other.ptr), size(other.size) {
-		other.ptr = nullptr;
-		other.size = 0;
-	}
-
-	DeviceBuffer& operator=(DeviceBuffer&& other) noexcept {
-		if (this != &other) {
-			cudaFree(ptr);
-			ptr = other.ptr;
-			size = other.size;
-			other.ptr = nullptr;
-			other.size = 0;
-		}
-		return *this;
-	}
-
-	T* get() const {
-		return ptr;
-	}
-	T* operator->() const {
-		return ptr;
-	}
-	T& operator[](std::size_t idx) const {
-		return ptr[idx];
-	}
-};
 
 struct FusedLayers {
 	std::uint32_t stages[FUSED_LAYER_CAP];
