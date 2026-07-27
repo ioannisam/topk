@@ -164,13 +164,22 @@ Notes:
     CPU/NPU `map_reduce`) and `lower-bound` where it is not: GPU `map_reduce` omits
     data-dependent thread-local heap traffic, and `gt` counts only input plus output
     because `cub::DeviceTopK` and `std::partial_sort` hide their internal passes.
+  - `ops model` is reported separately, and the two do not always agree. CPU and GPU
+    `bitonic` are `exact`: they execute the layer schedule, so the comparator count is
+    exactly `count_trunc_comparators`. **NPU `bitonic` is `lower-bound`**, because the
+    offload path never runs that schedule at all -- it sorts fixed 1024-element tiles on
+    the AIE and merges them on the host, so it counts its per-tile sort networks and the
+    data-dependent host merge sifts go uncounted. Crediting it with the layer schedule
+    would attribute work the device does not perform. `map_reduce` and `gt` report one
+    compare per element, also a lower bound.
   - **The roof is a function of working-set size.** The `cache_read` ladder measures
     attainable bandwidth at every level, and plots interpolate it at each run's working set
     instead of drawing one flat DRAM line. This replaces the old "only quote efficiency at
     n=2^24" workaround: a cache-resident run is now compared against the cache roof it
-    actually runs into, so every point on the sweep is a fair comparison. Expect the
-    ladder to show the L2/L3/DRAM cliffs (on this machine roughly 490 -> 412 -> 42 GB/s on
-    the CPU and 2098 -> 258 GB/s on the GPU).
+    actually runs into, so every point on the sweep is a fair comparison. The ladder shows
+    the L2/L3/DRAM cliffs; read the current figures off
+    `bench/results/plots/machine/cache_ladder.png` rather than from prose here, which
+    goes stale every time the machine is re-measured.
   - **The compute roof is measured in compare-exchanges, not FLOPs.** Top-k does
     compare-exchanges, so an FMA roof is not a currency it can be compared against. The
     `cmp` sweep measures peak compare-exchange throughput per backend, and
@@ -181,6 +190,10 @@ Notes:
   - The `cmp` kernel uses four vector-wide rotating chains on purpose: a single dependent
     chain measures latency rather than throughput and lands roughly 10x low, which would
     wrongly make kernels look compute bound.
+  - **The op columns are unit-agnostic on purpose.** `roofline.csv` reports `ops`,
+    `gops_per_s` and `operational_intensity`, and the `kernel` column defines the unit:
+    `fma` rows count FLOPs, `cmp` rows count compare-exchanges. Do not read a `cmp` row's
+    `gops_per_s` as GFLOP/s -- they are Gcmp/s.
   - **The NPU roofline measures the offload *data path*, not AIE compute.** There is no
     variable-arithmetic-intensity AIE kernel available (writing one needs a new xclbin via
     mlir-aie), so `build/NPU/roofline` reports no `fma` sweep. Its `read`, `copy` and `cmp`
@@ -191,6 +204,8 @@ Notes:
     `host_only` BO is close to a no-op and no bulk transfer is taking place.
 - **Baselines** (`algo=gt`): CPU/NPU use `std::partial_sort` (the standard-library
   heap-based top-k, which for `k << n` is far faster than `nth_element` thanks to its
-  cache-resident size-k heap and high rejection rate); GPU uses Thrust's `thrust::sort`
-  + truncate. Both are industry-standard library calls. Thrust sorts all N, so treat the
-  GPU `gt` as a full-sort *reference* baseline rather than a tuned top-k.
+  cache-resident size-k heap and high rejection rate); GPU uses `cub::DeviceTopK`
+  (radix select). Both are industry-standard library calls. Unlike the older
+  `thrust::sort` + truncate baseline, `cub::DeviceTopK` is a genuine tuned top-k that
+  does not sort all N, so the GPU `gt` is a competitive baseline rather than a
+  full-sort reference.

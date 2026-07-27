@@ -7,7 +7,9 @@
 * **Desktop Environment:** KDE Plasma 6.6.3 on Wayland
 * **System RAM:** ~32 GB DDR5 installed (`MemTotal` 32138656 kB ≈ 30.6 GiB usable), upgraded from ~16 GB by adding a second module.
   * **Configuration:** Dual-channel, confirmed by `dmidecode -t memory`: two 16 GiB DDR5 SODIMMs (mixed vendors) on CHANNEL A and CHANNEL B, both at a configured 5600 MT/s. Matches the measured ~2× jump in sustained DRAM bandwidth.
-  * **Measured bandwidth** (64 MB working set above L3, 16 threads, AVX-512 stream): read+write 25.4 → **63.0 GB/s**, copy 17.8 → 36.1 GB/s after the upgrade. This is the real wall for the memory-bound top-k backends; use it, not the DDR5 datasheet figure.
+  * **Measured bandwidth, external AVX-512 stream benchmark** (64 MB working set above L3, 16 threads): read+write 25.4 → **63.0 GB/s**, copy 17.8 → 36.1 GB/s after the upgrade. This is what established the ~2× dual-channel jump; it is not the figure the plots compare against.
+  * **Measured bandwidth, this repo's roofline** (`make measure-roofline`, written to `bench/results/raw/roofline/roofline.json`): the `read`, `copy` and `cache_read` kernels. These are the numbers every bandwidth and roof-utilization plot uses, so quote **these** in the thesis, per kernel and per working-set size rather than as a single "wall". They are deliberately not transcribed here — read them off `bench/results/derived/roofline.csv` or `bench/results/plots/machine/cache_ladder.png` for the current run, because a hardcoded copy drifts the moment the machine is re-measured.
+  * The two do not measure the same thing (different tool, different kernels, and `copy` counts both directions), so do not expect the 63.0 GB/s figure to reappear in `roofline.csv`. Cite one or the other and say which.
 * **Storage:**
   * NVMe0: 476.9 GB WD PC SN7100S (root on ext4)
   * NVMe1: 931.5 GB Lexar NM710 (additional drive, NTFS partitions present)
@@ -43,5 +45,5 @@
 * **Memory:** Likely shares system DDR5 memory
 
 ## Validation Status Summary
-* **Fully validated from live commands:** host model, OS/kernel, desktop session, CPU topology/cache, GPU model/driver/CUDA/VRAM/power limits, NPU presence/firmware/runtime visibility, system RAM size (32 GB), dual-channel DDR5-5600 topology (two 16 GiB modules on CHANNEL A/B via `dmidecode`), and sustained DRAM bandwidth (~63 GB/s, measured).
+* **Fully validated from live commands:** host model, OS/kernel, desktop session, CPU topology/cache, GPU model/driver/CUDA/VRAM/power limits, NPU presence/firmware/runtime visibility, system RAM size (32 GB), dual-channel DDR5-5600 topology (two 16 GiB modules on CHANNEL A/B via `dmidecode`), and sustained DRAM bandwidth (~63 GB/s via an external AVX-512 stream benchmark; this repo's roofline measures the same wall per kernel and per working-set size, and is what the plots use).
 * **Partially validated / vendor-claim fields:** process node, architecture marketing labels, TOPS and theoretical bandwidth, NPU shares system DDR5 memory.
