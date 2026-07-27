@@ -52,8 +52,9 @@ std::size_t derive_kept_prefix(const std::vector<common::bitonic::Layer>& layers
 	return n;
 }
 
-template <typename T>
-std::size_t prepare_batch(xrt::bo& src_bo, const T* data_ptr, std::size_t batch_elems, std::int32_t pad_key) {
+constexpr std::int32_t kPadKey = std::numeric_limits<std::int32_t>::max();
+
+template <typename T> std::size_t prepare_batch(xrt::bo& src_bo, const T* data_ptr, std::size_t batch_elems) {
 	std::int32_t* src_map = src_bo.map<std::int32_t*>();
 	npu::utils::encode_keys<T>(src_map, data_ptr, batch_elems);
 
@@ -62,7 +63,7 @@ std::size_t prepare_batch(xrt::bo& src_bo, const T* data_ptr, std::size_t batch_
 	std::size_t valid_tiles = full_tiles;
 
 	if (remainder > 0) {
-		std::fill(src_map + batch_elems, src_map + (full_tiles + 1) * kTile, pad_key);
+		std::fill(src_map + batch_elems, src_map + (full_tiles + 1) * kTile, kPadKey);
 		valid_tiles = full_tiles + 1;
 	}
 
@@ -71,16 +72,18 @@ std::size_t prepare_batch(xrt::bo& src_bo, const T* data_ptr, std::size_t batch_
 }
 
 void reduce_batch(xrt::bo& dst_bo, std::vector<std::int32_t>& heap, std::size_t valid_tiles, std::size_t k,
-				  std::int32_t pad_key) {
+				  std::size_t valid_elems) {
 	const std::int32_t* dst_map = dst_bo.map<const std::int32_t*>();
 	const std::size_t total = valid_tiles * kTile;
 
 	for (std::size_t base = 0; base < total; base += kRunLen) {
+		if (base >= valid_elems)
+			break;
+
+		const std::size_t run_len = std::min(kRunLen, valid_elems - base);
 		const std::int32_t* run = dst_map + base;
-		for (std::size_t i = 0; i < kRunLen; ++i) {
+		for (std::size_t i = 0; i < run_len; ++i) {
 			const std::int32_t key = run[i];
-			if (key == pad_key)
-				break;
 
 			if (heap.size() < k) {
 				heap.push_back(key);
@@ -112,12 +115,10 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 	std::size_t offset = 0;
 	std::size_t total_dispatches = 0;
 	std::size_t valid_tiles[2] = {0, 0};
+	std::size_t valid_elems[2] = {0, 0};
 	std::size_t total_tiles = 0;
 	double bytes_moved = 0.0;
 
-	// Every staged batch crosses memory six times: the host reads the input and writes encoded
-	// keys, XRT syncs them in, the tile kernel reads and writes them, XRT syncs them back, and
-	// the host reduce reads the result.
 	auto account_batch = [&](std::size_t batch, std::size_t tiles) {
 		const double tile_bytes = static_cast<double>(tiles) * kTile * sizeof(std::int32_t);
 		bytes_moved += static_cast<double>(batch) * sizeof(T) + 6.0 * tile_bytes;
@@ -132,8 +133,6 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 
 	const std::size_t batch_bytes = kBatchElems * sizeof(std::int32_t);
 	state.allocate_bit_buffers(batch_bytes);
-
-	const std::int32_t pad_key = to_key<T>(std::numeric_limits<T>::max());
 
 	xrt::run run[2];
 	xrt::runlist rl[2] = {xrt::runlist(state.hwctx), xrt::runlist(state.hwctx)};
@@ -153,7 +152,8 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 		const std::size_t batch = std::min(kBatchElems, n - offset);
 		{
 			npu::PhaseTimer timer(phases.stage_ms);
-			valid_tiles[active] = prepare_batch<T>(state.bit_src_bo[active], data.data() + offset, batch, pad_key);
+			valid_tiles[active] = prepare_batch<T>(state.bit_src_bo[active], data.data() + offset, batch);
+			valid_elems[active] = batch;
 			account_batch(batch, valid_tiles[active]);
 		}
 		{
@@ -168,7 +168,8 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 		const std::size_t batch = std::min(kBatchElems, n - offset);
 		{
 			npu::PhaseTimer timer(phases.stage_ms);
-			valid_tiles[next] = prepare_batch<T>(state.bit_src_bo[next], data.data() + offset, batch, pad_key);
+			valid_tiles[next] = prepare_batch<T>(state.bit_src_bo[next], data.data() + offset, batch);
+			valid_elems[next] = batch;
 			account_batch(batch, valid_tiles[next]);
 		}
 		{
@@ -185,7 +186,7 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 			npu::PhaseTimer timer(phases.merge_ms);
 			state.bit_dst_bo[active].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
 										  valid_tiles[active] * kTile * sizeof(std::int32_t), 0);
-			reduce_batch(state.bit_dst_bo[active], heap, valid_tiles[active], kept, pad_key);
+			reduce_batch(state.bit_dst_bo[active], heap, valid_tiles[active], kept, valid_elems[active]);
 		}
 
 		std::swap(active, next);
@@ -201,7 +202,7 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 			npu::PhaseTimer timer(phases.merge_ms);
 			state.bit_dst_bo[active].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
 										  valid_tiles[active] * kTile * sizeof(std::int32_t), 0);
-			reduce_batch(state.bit_dst_bo[active], heap, valid_tiles[active], kept, pad_key);
+			reduce_batch(state.bit_dst_bo[active], heap, valid_tiles[active], kept, valid_elems[active]);
 		}
 	}
 

@@ -5,6 +5,12 @@
 
 #include "common/bitonic.hpp"
 
+namespace cpu {
+
+constexpr std::size_t kMaxWorkers = 8;
+
+} // namespace cpu
+
 namespace cpu::bitonic {
 
 template <typename T>

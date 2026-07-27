@@ -109,6 +109,9 @@ inline std::vector<uint32_t> load_instruction_sequence(const std::string& xclbin
 	if (size <= 0) {
 		throw std::runtime_error("Instruction file is empty (0 bytes): " + path);
 	}
+	if (static_cast<std::size_t>(size) % sizeof(uint32_t) != 0) {
+		throw std::runtime_error("Instruction file is not a whole number of 32-bit words: " + path);
+	}
 	file.seekg(0, std::ios::beg);
 
 	std::vector<uint32_t> insts(size / sizeof(uint32_t));

@@ -88,8 +88,7 @@ std::size_t prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_pt
 }
 
 template <bool WantMax>
-void process_npu_results(xrt::bo& dst_bo, std::vector<std::int32_t>& heap, std::size_t batch_chunks,
-						 std::int32_t sentinel_key) {
+void process_npu_results(xrt::bo& dst_bo, std::vector<std::int32_t>& heap, std::size_t batch_chunks) {
 	using Cmp = std::conditional_t<WantMax, std::greater<std::int32_t>, std::less<std::int32_t>>;
 	std::int32_t* dst_map = dst_bo.map<std::int32_t*>();
 	const std::size_t chunk_size = 1024;
@@ -98,7 +97,7 @@ void process_npu_results(xrt::bo& dst_bo, std::vector<std::int32_t>& heap, std::
 		std::int32_t* chunk_ptr = dst_map + (c * chunk_size);
 		for (std::size_t i = 0; i < chunk_size; ++i) {
 			std::int32_t key = chunk_ptr[i];
-			if (key != sentinel_key && Cmp{}(key, heap.front())) {
+			if (Cmp{}(key, heap.front())) {
 				heap[0] = key;
 				sift_down<WantMax>(heap, 0);
 			}
@@ -163,8 +162,8 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 
 	setup_timer.reset();
 
-	const T pad_val = WantMax ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
-	const std::int32_t sentinel_key = to_key<T>(pad_val);
+	constexpr std::int32_t sentinel_key =
+		WantMax ? std::numeric_limits<std::int32_t>::lowest() : std::numeric_limits<std::int32_t>::max();
 
 	int active_idx = 0;
 	int next_idx = 1;
@@ -173,10 +172,8 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 	std::size_t total_dispatches = 0;
 	std::size_t valid_chunks[2] = {0, 0};
 
-	double bytes_moved = 0.0;
+	double bytes_moved = static_cast<double>(sample_size) * sizeof(T);
 
-	// Each staged batch crosses memory six times: host read of the input, encoded-key write,
-	// H2D sync, device read and write, D2H sync, and the host-side merge read.
 	auto account_batch = [&](std::size_t batch, std::size_t chunks) {
 		const double chunk_bytes = static_cast<double>(chunks) * chunk_size * sizeof(std::int32_t);
 		bytes_moved += static_cast<double>(batch) * sizeof(T) + 6.0 * chunk_bytes;
@@ -196,7 +193,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 			rl[active_idx].execute();
 		}
 		total_dispatches++;
-		offset += batch_size;
+		offset += current_batch;
 	}
 
 	while (offset < n) {
@@ -223,11 +220,11 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 			npu::PhaseTimer timer(phases.merge_ms);
 			state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
 											 valid_chunks[active_idx] * chunk_size * sizeof(std::int32_t), 0);
-			process_npu_results<WantMax>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx], sentinel_key);
+			process_npu_results<WantMax>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx]);
 		}
 
 		std::swap(active_idx, next_idx);
-		offset += batch_size;
+		offset += current_batch;
 	}
 
 	if (total_dispatches > 0) {
@@ -239,7 +236,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 			npu::PhaseTimer timer(phases.merge_ms);
 			state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
 											 valid_chunks[active_idx] * chunk_size * sizeof(std::int32_t), 0);
-			process_npu_results<WantMax>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx], sentinel_key);
+			process_npu_results<WantMax>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx]);
 		}
 	}
 

@@ -2,9 +2,9 @@
 #include "simd_traits.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <functional>
 #include <thread>
 #include <type_traits>
@@ -152,19 +152,11 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 	const std::size_t n = data.size();
 	k = std::min(k, n);
 	workers = std::max<std::size_t>(1, std::min(workers, n));
-	workers = std::min<std::size_t>(workers, 8);
+	workers = std::min<std::size_t>(workers, cpu::kMaxWorkers);
 	workers = std::min(workers, std::max<std::size_t>(1, n >> 20));
 
-#if defined(__x86_64__) || defined(__i386__)
-	const bool has_avx512f = cpu::simd::cpu_supports_avx512f();
-	const bool has_avx2 = cpu::simd::cpu_supports_avx2();
-	const char* force_avx512 = std::getenv("TOPK_FORCE_AVX512");
-	const bool use_avx512f = has_avx512f && force_avx512 != nullptr && force_avx512[0] == '1';
-	const bool use_avx2 = has_avx2 && !use_avx512f;
-#else
-	const bool use_avx512f = false;
-	const bool use_avx2 = false;
-#endif
+	const bool use_avx512f = cpu::simd::use_avx512();
+	const bool use_avx2 = cpu::simd::cpu_supports_avx2() && !use_avx512f;
 
 	std::vector<std::vector<T>> local_topk(workers);
 	std::vector<std::thread> pool;
@@ -202,11 +194,6 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 				sift_down(final_heap, 0, HeapCompare{});
 			}
 		}
-	}
-
-	// total dataset across all threads < K
-	if (!final_heap.empty() && final_heap.size() < k) {
-		std::make_heap(final_heap.begin(), final_heap.end(), HeapCompare{});
 	}
 
 	if (stats != nullptr) {

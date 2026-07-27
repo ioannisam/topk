@@ -13,7 +13,7 @@ set_target_properties(gpu_topk PROPERTIES OUTPUT_NAME topk)
 set_target_properties(gpu_topk PROPERTIES CUDA_ARCHITECTURES native)
 
 target_compile_options(gpu_topk PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-O3 -march=native -DNDEBUG -Wall -Wextra>)
-target_compile_options(gpu_topk PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-O3 --use_fast_math>)
+target_compile_options(gpu_topk PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-O3>)
 
 add_executable(gpu_roofline)
 target_sources(gpu_roofline PRIVATE

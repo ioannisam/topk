@@ -175,15 +175,20 @@ void print_traffic_lines(const common::topk::TrafficStats& traffic) {
 	print_key_value("Traffic ops model", traffic.ops_exact ? "exact" : "lower-bound");
 }
 
+void print_skipped_comparators(std::size_t full_comparators, std::size_t trunc_comparators) {
+	const std::size_t skipped = full_comparators >= trunc_comparators ? (full_comparators - trunc_comparators) : 0;
+	const double skipped_pct =
+		full_comparators == 0 ? 0.0 : (100.0 * static_cast<double>(skipped) / static_cast<double>(full_comparators));
+	print_key_value("Skipped comparators", std::to_string(skipped) + "/" + std::to_string(full_comparators) + " (" +
+											   format_fixed(skipped_pct, 2, "%") + ")");
+}
+
 void print_bitonic_common_metrics(const common::config::Config& cfg, const common::topk::BitonicRunStats& stats) {
 	const std::size_t full_cmp = stats.full_comparators;
 	const std::size_t trunc_cmp = stats.trunc_comparators;
 	const double full_algo_ms = stats.full_run_stats != nullptr ? stats.full_run_stats->algorithm_ms : 0.0;
 	const double trunc_algo_ms = stats.trunc_run_stats != nullptr ? stats.trunc_run_stats->algorithm_ms : 0.0;
 
-	const std::size_t skipped = full_cmp >= trunc_cmp ? (full_cmp - trunc_cmp) : 0;
-	const double skipped_pct =
-		full_cmp == 0 ? 0.0 : (100.0 * static_cast<double>(skipped) / static_cast<double>(full_cmp));
 	const bool ran_both = cfg.run_mode == common::config::RunMode::Both;
 	const double speedup = (ran_both && trunc_algo_ms > 0.0) ? (full_algo_ms / trunc_algo_ms) : 0.0;
 
@@ -191,7 +196,6 @@ void print_bitonic_common_metrics(const common::config::Config& cfg, const commo
 	print_key_value("Bitonic layers", stats.layer_count);
 	print_key_value("Full comparators", full_cmp);
 	print_key_value("Trunc comparators", trunc_cmp);
-	print_key_value("Comparator skip ratio", format_fixed(skipped_pct, 2, "%"));
 	if (ran_both) {
 		print_key_value("Full/Trunc speedup", format_fixed(speedup, 3, "x"));
 		print_key_value("Speedup interpretation", (speedup >= 1.0 ? "trunc faster" : "trunc slower"));

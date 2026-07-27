@@ -75,9 +75,12 @@ template <typename T> T transform_for_max(T value) {
 		return static_cast<T>(std::numeric_limits<T>::max() - value);
 	} else if constexpr (std::is_integral_v<T>) {
 		using U = std::make_unsigned_t<T>;
-		return static_cast<T>(static_cast<U>(0) - static_cast<U>(value));
+		constexpr U msb = static_cast<U>(U{1} << (std::numeric_limits<U>::digits - 1));
+		const U key = static_cast<U>(static_cast<U>(value) ^ msb);
+		return static_cast<T>(static_cast<U>(std::numeric_limits<U>::max() - key) ^ msb);
+	} else {
+		return static_cast<T>(-value);
 	}
-	return static_cast<T>(-value);
 }
 
 template <typename T> T restore_from_max(T value) {
@@ -221,12 +224,7 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 	common::reporting::print_traffic_lines(run_trunc ? trunc_stats.traffic : full_stats.traffic);
 
 	if (run_trunc) {
-		const std::size_t skipped = full_cmp >= trunc_cmp ? (full_cmp - trunc_cmp) : 0;
-		const double skipped_pct =
-			full_cmp == 0 ? 0.0 : (100.0 * static_cast<double>(skipped) / static_cast<double>(full_cmp));
-		common::reporting::print_key_value("Skipped comparators",
-										   std::to_string(skipped) + "/" + std::to_string(full_cmp) + " (" +
-											   common::reporting::format_fixed(skipped_pct, 2, "%") + ")");
+		common::reporting::print_skipped_comparators(full_cmp, trunc_cmp);
 	}
 
 	BitonicRunStats debug_stats{};

@@ -20,6 +20,13 @@ struct IntraOp {
 	std::size_t k;
 };
 
+// Inverse of a truncate layer's output mapping out = ((i >> 1) & ~(j - 1)) | (i & (j - 1)):
+// output o is the winner of the pair (src[base], src[base + j]). Only equals 2 * o when o is
+// a multiple of j, so the scalar paths cannot assume that.
+inline std::size_t trunc_source_index(std::size_t o, std::size_t j) {
+	return 2 * (o & ~(j - 1)) + (o & (j - 1));
+}
+
 template <typename Tr, int J> inline void cx_step(typename Tr::Vec& v, std::size_t idx, std::size_t k) {
 	auto s = Tr::template permutex<J>(v);
 	v = Tr::blend(Tr::template get_blend_mask<J>(idx, k), Tr::min(v, s), Tr::max(v, s));
@@ -165,7 +172,8 @@ void run_fused_trunc_resort(const T* src, T* dst, std::size_t obegin, std::size_
 	}
 
 	for (std::size_t t = ovec_end; t < oend; ++t) {
-		dst[t] = std::min(src[2 * t], src[2 * t + W]);
+		const std::size_t in_base = trunc_source_index(t, W);
+		dst[t] = std::min(src[in_base], src[in_base + W]);
 	}
 	replay_intra_scalar<T>(dst, ovec_end, oend, ops, nops);
 }
@@ -272,7 +280,7 @@ template <typename T>
 bool try_run_fused_intra(T* ptr, std::size_t begin, std::size_t end, const IntraOp* ops, std::size_t nops,
 						 std::size_t max_k) {
 #if defined(__x86_64__) || defined(__i386__)
-	if (cpu::simd::cpu_supports_avx512f() && max_k <= std::numeric_limits<std::int32_t>::max()) {
+	if (cpu::simd::use_avx512() && max_k <= std::numeric_limits<std::int32_t>::max()) {
 		if constexpr (cpu::simd::has_simd512_width<T>::value) {
 			run_fused_intra<T, cpu::simd::SimdTraits512>(ptr, begin, end, ops, nops);
 			return true;
@@ -297,7 +305,6 @@ bool try_run_fused_intra(T* ptr, std::size_t begin, std::size_t end, const Intra
 
 constexpr std::size_t kTileCapBytes = 524288;
 constexpr std::size_t kTileMinBytes = 16384;
-constexpr std::size_t kMaxWorkers = 8;
 
 template <typename T> std::size_t pow2_floor_elems(std::size_t bytes) {
 	std::size_t w = bytes / sizeof(T);
@@ -323,7 +330,7 @@ template <typename T>
 bool try_run_fused_trunc_resort(const T* src, T* dst, std::size_t obegin, std::size_t oend, const IntraOp* ops,
 								std::size_t nops, std::size_t max_k) {
 #if defined(__x86_64__) || defined(__i386__)
-	if (cpu::simd::cpu_supports_avx512f() && max_k <= std::numeric_limits<std::int32_t>::max()) {
+	if (cpu::simd::use_avx512() && max_k <= std::numeric_limits<std::int32_t>::max()) {
 		if constexpr (cpu::simd::has_simd512_width<T>::value) {
 			run_fused_trunc_resort<T, cpu::simd::SimdTraits512>(src, dst, obegin, oend, ops, nops);
 			return true;
@@ -350,31 +357,17 @@ bool try_run_fused_trunc_resort(const T* src, T* dst, std::size_t obegin, std::s
 template <typename T>
 bool try_run_inter(T* ptr, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, std::size_t n) {
 #if defined(__x86_64__) || defined(__i386__)
-	if (cpu::simd::cpu_supports_avx512f() && k <= std::numeric_limits<std::int32_t>::max()) {
-		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t> ||
-					  cpu::simd::is_half_v<T>) {
-			if (j >= 16) {
-				run_layer_inter_simd<T, cpu::simd::SimdTraits512>(ptr, begin, end, k, j, n);
-				return true;
-			}
-		}
-		if constexpr (std::is_same_v<T, double>) {
-			if (j >= 8) {
+	if (cpu::simd::use_avx512() && k <= std::numeric_limits<std::int32_t>::max()) {
+		if constexpr (cpu::simd::has_simd512_width<T>::value) {
+			if (j >= cpu::simd::SimdTraits512<T>::width) {
 				run_layer_inter_simd<T, cpu::simd::SimdTraits512>(ptr, begin, end, k, j, n);
 				return true;
 			}
 		}
 	}
 	if (cpu::simd::cpu_supports_avx2()) {
-		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t> ||
-					  cpu::simd::is_half_v<T>) {
-			if (j >= 8) {
-				run_layer_inter_simd<T, cpu::simd::SimdTraits256>(ptr, begin, end, k, j, n);
-				return true;
-			}
-		}
-		if constexpr (std::is_same_v<T, double>) {
-			if (j >= 4) {
+		if constexpr (cpu::simd::has_simd256_width<T>::value) {
+			if (j >= cpu::simd::SimdTraits256<T>::width) {
 				run_layer_inter_simd<T, cpu::simd::SimdTraits256>(ptr, begin, end, k, j, n);
 				return true;
 			}
@@ -395,36 +388,29 @@ template <typename T>
 bool try_run_simd_layer_truncate(const T* src, T* dst, std::size_t begin, std::size_t end, std::size_t j,
 								 std::size_t n) {
 #if defined(__x86_64__) || defined(__i386__)
-	if (cpu::simd::cpu_supports_avx512f()) {
-		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t> ||
-					  cpu::simd::is_half_v<T>) {
-			if (j >= 16) {
-				run_layer_truncate_simd<T, cpu::simd::SimdTraits512>(src, dst, begin, end, j, n);
-				return true;
-			}
-		}
-		if constexpr (std::is_same_v<T, double>) {
-			if (j >= 8) {
+	if (cpu::simd::use_avx512()) {
+		if constexpr (cpu::simd::has_simd512_width<T>::value) {
+			if (j >= cpu::simd::SimdTraits512<T>::width) {
 				run_layer_truncate_simd<T, cpu::simd::SimdTraits512>(src, dst, begin, end, j, n);
 				return true;
 			}
 		}
 	}
 	if (cpu::simd::cpu_supports_avx2()) {
-		if constexpr (std::is_same_v<T, float> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t> ||
-					  cpu::simd::is_half_v<T>) {
-			if (j >= 8) {
-				run_layer_truncate_simd<T, cpu::simd::SimdTraits256>(src, dst, begin, end, j, n);
-				return true;
-			}
-		}
-		if constexpr (std::is_same_v<T, double>) {
-			if (j >= 4) {
+		if constexpr (cpu::simd::has_simd256_width<T>::value) {
+			if (j >= cpu::simd::SimdTraits256<T>::width) {
 				run_layer_truncate_simd<T, cpu::simd::SimdTraits256>(src, dst, begin, end, j, n);
 				return true;
 			}
 		}
 	}
+#else
+	(void)src;
+	(void)dst;
+	(void)begin;
+	(void)end;
+	(void)j;
+	(void)n;
 #endif
 	return false;
 }
@@ -588,8 +574,6 @@ std::vector<Group> build_groups(const std::vector<common::bitonic::Layer>& layer
 	return groups;
 }
 
-} // namespace
-
 template <typename T> double group_traffic_bytes(const std::vector<Group>& groups) {
 	double elems = 0.0;
 	for (const auto& g : groups) {
@@ -611,15 +595,17 @@ template <typename T> double group_traffic_bytes(const std::vector<Group>& group
 	return elems * static_cast<double>(sizeof(T));
 }
 
+} // namespace
+
 template <typename T>
 void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers,
 			  double* out_bytes) {
 	const std::size_t n = data.size();
 
-	workers = std::min<std::size_t>(workers, kMaxWorkers);
+	workers = std::min<std::size_t>(workers, cpu::kMaxWorkers);
 	workers = std::min(workers, std::max<std::size_t>(1, n >> 16));
 
-	const bool use_avx512 = cpu::simd::cpu_supports_avx512f();
+	const bool use_avx512 = cpu::simd::use_avx512();
 	const bool use_avx2 = cpu::simd::cpu_supports_avx2();
 
 	std::vector<IntraOp> ops;
@@ -697,8 +683,10 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 				case GroupKind::TruncResort: {
 					if (!try_run_fused_trunc_resort<T>(src, dst, begin, end, ops.data() + group.ops_begin,
 													   group.ops_count, group.max_k)) {
-						for (std::size_t o = begin; o < end; ++o)
-							dst[o] = std::min(src[2 * o], src[2 * o + group.j]);
+						for (std::size_t o = begin; o < end; ++o) {
+							const std::size_t in_base = trunc_source_index(o, group.j);
+							dst[o] = std::min(src[in_base], src[in_base + group.j]);
+						}
 						for (std::size_t oi = 0; oi < group.ops_count; ++oi) {
 							const IntraOp& op = ops[group.ops_begin + oi];
 							run_normal_scalar(dst, begin, end, op.k, op.j, group.out_active_n);

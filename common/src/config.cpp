@@ -1,5 +1,7 @@
 #include "common/config.hpp"
 
+#include <algorithm>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -10,6 +12,12 @@
 
 namespace common::config {
 namespace {
+
+// n = 1 << q must stay a defined shift on std::size_t.
+constexpr long long kMaxQ = 63;
+
+// Largest finite magnitude representable by IEEE binary16.
+constexpr int kHalfMax = 65504;
 
 constexpr const char* kUsage = "Usage: ./topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] "
 							   "[algo=bitonic|map_reduce|gt] [run=full|trunc|both] [debug=true|false] "
@@ -33,6 +41,8 @@ bool is_key_value_token(const std::string& token) {
 	return token.find('=') != std::string::npos;
 }
 
+int parse_int_field(const std::string& text, const char* field_name);
+
 long long parse_signed_long(const std::string& text, const char* field_name) {
 	try {
 		std::size_t pos = 0;
@@ -44,6 +54,14 @@ long long parse_signed_long(const std::string& text, const char* field_name) {
 	} catch (const std::exception&) {
 		throw std::invalid_argument(std::string(field_name) + " must be an integer");
 	}
+}
+
+int parse_int_field(const std::string& text, const char* field_name) {
+	const long long value = parse_signed_long(text, field_name);
+	if (value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max()) {
+		throw std::invalid_argument(std::string(field_name) + " must fit in a 32-bit int");
+	}
+	return static_cast<int>(value);
 }
 
 bool parse_bool_value(const std::string& value, const char* field_name) {
@@ -88,6 +106,9 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 			const long long parsed_q = parse_signed_long(token.substr(2), "q");
 			if (parsed_q < 0) {
 				throw std::invalid_argument("q must be non-negative");
+			}
+			if (parsed_q > kMaxQ) {
+				throw std::invalid_argument("q must be <= " + std::to_string(kMaxQ));
 			}
 			q = static_cast<int>(parsed_q);
 			q_seen = true;
@@ -143,11 +164,11 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 			continue;
 		}
 		if (starts_with(token, "min=")) {
-			rand_min = static_cast<int>(parse_signed_long(token.substr(4), "min"));
+			rand_min = parse_int_field(token.substr(4), "min");
 			continue;
 		}
 		if (starts_with(token, "max=")) {
-			rand_max = static_cast<int>(parse_signed_long(token.substr(4), "max"));
+			rand_max = parse_int_field(token.substr(4), "max");
 			continue;
 		}
 		if (starts_with(token, "run=")) {
@@ -168,6 +189,12 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 
 	if (rand_max < rand_min) {
 		throw std::invalid_argument("max must be >= min");
+	}
+
+	// Clamp here rather than in the generator so the reported range is the one actually sampled.
+	if (dtype == DataType::Half) {
+		rand_min = std::clamp(rand_min, -kHalfMax, kHalfMax);
+		rand_max = std::clamp(rand_max, -kHalfMax, kHalfMax);
 	}
 
 	const std::size_t n = std::size_t{1} << q;
