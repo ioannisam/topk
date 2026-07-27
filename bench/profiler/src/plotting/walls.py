@@ -68,6 +68,26 @@ def plot_cache_ladder(points: Iterable[RooflinePoint], out_path: str) -> Optiona
                 color=backend_color(backend),
             )
 
+    peaks = []
+    for p in points:
+        if p.kernel in ("read", "copy") and p.gbytes_per_s > 0 and p.backend in grouped:
+            peaks.append((p.backend, p.kernel, p.gbytes_per_s))
+    if peaks:
+        best: dict[tuple[str, str], float] = {}
+        for backend, kernel, value in peaks:
+            key = (backend, kernel)
+            best[key] = max(best.get(key, 0.0), value)
+        lines = [f"{b.upper()} {k}: {v:.1f} GB/s" for (b, k), v in sorted(best.items())]
+        ax.annotate(
+            "DRAM-resident stream peaks\n" + "\n".join(lines),
+            xy=(0.02, 0.02),
+            xycoords="axes fraction",
+            fontsize=8,
+            color="#374151",
+            va="bottom",
+            bbox={"boxstyle": "round", "facecolor": "white", "edgecolor": "#D1D5DB", "alpha": 0.9},
+        )
+
     _bytes_axis(ax)
     style_axes(
         ax,
@@ -110,14 +130,26 @@ def plot_transfer_walls(points: Iterable[RooflinePoint], out_path: str) -> Optio
 
     # Latency floors are fixed per-call costs, not rates, so they cannot be drawn as a
     # roof. They are reported as microseconds in a corner annotation instead.
-    floors = [
+    notes = [
         f"{p.backend.upper()} {p.kernel.removeprefix('latency_')}: {p.ms_min * 1000:.1f} us"
         for p in points
         if p.kernel.startswith("latency_") and p.ms_min > 0
     ]
-    if floors:
+    if notes:
+        notes.insert(0, "Latency floors (fixed per call)")
+    syncs = [
+        f"{p.backend.upper()} {p.kernel}: {p.gbytes_per_s:.1f} GB/s"
+        for p in points
+        if p.kernel in ("stage_h2d", "stage_d2h") and p.gbytes_per_s > 0
+    ]
+    if syncs:
+        if notes:
+            notes.append("")
+        notes.append("Whole-buffer sync (single measurement)")
+        notes.extend(sorted(syncs))
+    if notes:
         ax.annotate(
-            "Latency floors (fixed per call)\n" + "\n".join(sorted(floors)),
+            "\n".join(notes),
             xy=(0.02, 0.02),
             xycoords="axes fraction",
             fontsize=8,

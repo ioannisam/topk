@@ -216,18 +216,18 @@ double gbytes_per_second(const Point& point) {
 	return point.bytes_moved / (point.ms_min * 1e6);
 }
 
-double gflops_per_second(const Point& point) {
+double gops_per_second(const Point& point) {
 	if (point.ms_min <= 0.0) {
 		return 0.0;
 	}
-	return point.flops / (point.ms_min * 1e6);
+	return point.ops / (point.ms_min * 1e6);
 }
 
-double arithmetic_intensity(const Point& point) {
+double operational_intensity(const Point& point) {
 	if (point.bytes_moved <= 0.0) {
 		return 0.0;
 	}
-	return point.flops / point.bytes_moved;
+	return point.ops / point.bytes_moved;
 }
 
 void report(const Config& cfg, const char* backend, const std::vector<Point>& points) {
@@ -239,8 +239,8 @@ void report(const Config& cfg, const char* backend, const std::vector<Point>& po
 		common::reporting::print_section_header("Roofline Points");
 	}
 
-	std::printf("ROOFLINE_SCHEMA,backend,kernel,ops_per_elem,elements,bytes_moved,flops,ms_mean,ms_stdev,ms_min,"
-				"gbytes_per_s,gflops_per_s,arithmetic_intensity,joules_per_iter\n");
+	std::printf("ROOFLINE_SCHEMA,backend,kernel,ops_per_elem,elements,bytes_moved,ops,ms_mean,ms_stdev,ms_min,"
+				"gbytes_per_s,gops_per_s,operational_intensity,joules_per_iter\n");
 
 	for (const Point& point : points) {
 		const int iterations = point.energy.iterations > 0 ? point.energy.iterations : 1;
@@ -248,9 +248,9 @@ void report(const Config& cfg, const char* backend, const std::vector<Point>& po
 			point.energy.available ? point.energy.algo_total.total() / static_cast<double>(iterations) : 0.0;
 
 		std::printf("ROOFLINE,%s,%s,%d,%zu,%.0f,%.0f,%.6f,%.6f,%.6f,%.4f,%.4f,%.6f,%.6f\n", backend,
-					point.kernel.c_str(), point.ops_per_elem, point.elements, point.bytes_moved, point.flops,
-					point.ms_mean, point.ms_stdev, point.ms_min, gbytes_per_second(point), gflops_per_second(point),
-					arithmetic_intensity(point), joules);
+					point.kernel.c_str(), point.ops_per_elem, point.elements, point.bytes_moved, point.ops,
+					point.ms_mean, point.ms_stdev, point.ms_min, gbytes_per_second(point), gops_per_second(point),
+					operational_intensity(point), joules);
 	}
 
 	if (cfg.debug_output) {

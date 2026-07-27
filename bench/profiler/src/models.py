@@ -65,13 +65,13 @@ class RooflinePoint:
     ops_per_elem: int
     elements: int
     bytes_moved: float
-    flops: float
+    ops: float
     ms_mean: float
     ms_stdev: float
     ms_min: float
     gbytes_per_s: float
-    gflops_per_s: float
-    arithmetic_intensity: float
+    gops_per_s: float
+    operational_intensity: float
     joules_per_iter: float
 
 

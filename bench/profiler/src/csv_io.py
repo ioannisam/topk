@@ -134,13 +134,13 @@ def write_roofline_csv(points: Iterable, out_path: str) -> None:
                 "ops_per_elem",
                 "elements",
                 "bytes_moved",
-                "flops",
+                "ops",
                 "ms_mean",
                 "ms_stdev",
                 "ms_min",
                 "gbytes_per_s",
-                "gflops_per_s",
-                "arithmetic_intensity",
+                "gops_per_s",
+                "operational_intensity",
                 "joules_per_iter",
             ]
         )
@@ -152,13 +152,13 @@ def write_roofline_csv(points: Iterable, out_path: str) -> None:
                     p.ops_per_elem,
                     p.elements,
                     f"{p.bytes_moved:.12g}",
-                    f"{p.flops:.12g}",
+                    f"{p.ops:.12g}",
                     f"{p.ms_mean:.12g}",
                     f"{p.ms_stdev:.12g}",
                     f"{p.ms_min:.12g}",
                     f"{p.gbytes_per_s:.12g}",
-                    f"{p.gflops_per_s:.12g}",
-                    f"{p.arithmetic_intensity:.12g}",
+                    f"{p.gops_per_s:.12g}",
+                    f"{p.operational_intensity:.12g}",
                     f"{p.joules_per_iter:.12g}",
                 ]
             )

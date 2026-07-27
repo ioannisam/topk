@@ -568,11 +568,11 @@ template <typename T> struct has_simd512_width<T, std::void_t<decltype(SimdTrait
 template <typename T, typename = void> struct has_simd256_width : std::false_type {};
 template <typename T> struct has_simd256_width<T, std::void_t<decltype(SimdTraits256<T>::width)>> : std::true_type {};
 
-template <typename T> struct is_fp16 : std::false_type {};
+template <typename T> struct is_half : std::false_type {};
 #if defined(__FLT16_MANT_DIG__)
-template <> struct is_fp16<_Float16> : std::true_type {};
+template <> struct is_half<_Float16> : std::true_type {};
 #endif
-template <typename T> inline constexpr bool is_fp16_v = is_fp16<T>::value;
+template <typename T> inline constexpr bool is_half_v = is_half<T>::value;
 
 template <typename T, typename = void> struct has_simd512_any_greater : std::false_type {};
 template <typename T>

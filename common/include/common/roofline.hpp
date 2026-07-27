@@ -41,12 +41,14 @@ inline bool includes(Experiment selected, Experiment part) {
 	return selected == part;
 }
 
+// `ops` is whatever operation the kernel counts: FLOPs for fma, compare-exchanges for
+// cmp. The kernel column is what defines the unit, so the field stays generic.
 struct Point {
 	std::string kernel;
 	int ops_per_elem;
 	std::size_t elements;
 	double bytes_moved;
-	double flops;
+	double ops;
 	double ms_mean;
 	double ms_stdev;
 	double ms_min;
@@ -56,7 +58,7 @@ struct Point {
 Config parse_args(int argc, char** argv);
 
 template <typename Fn>
-Point measure(const char* kernel, int ops, std::size_t n, double bytes_moved, double flops, Fn&& fn) {
+Point measure(const char* kernel, int ops_per_elem, std::size_t n, double bytes_moved, double op_count, Fn&& fn) {
 	auto best = common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValue<double> {
 		asm volatile("" : : : "memory");
 		const auto t0 = std::chrono::high_resolution_clock::now();
@@ -73,10 +75,10 @@ Point measure(const char* kernel, int ops, std::size_t n, double bytes_moved, do
 
 	Point point;
 	point.kernel = kernel;
-	point.ops_per_elem = ops;
+	point.ops_per_elem = ops_per_elem;
 	point.elements = n;
 	point.bytes_moved = bytes_moved;
-	point.flops = flops;
+	point.ops = op_count;
 	point.ms_mean = best.e2e.mean;
 	point.ms_stdev = best.e2e.stdev;
 	point.ms_min = best.e2e.min;
@@ -85,8 +87,8 @@ Point measure(const char* kernel, int ops, std::size_t n, double bytes_moved, do
 }
 
 double gbytes_per_second(const Point& point);
-double gflops_per_second(const Point& point);
-double arithmetic_intensity(const Point& point);
+double gops_per_second(const Point& point);
+double operational_intensity(const Point& point);
 
 void report(const Config& cfg, const char* backend, const std::vector<Point>& points);
 

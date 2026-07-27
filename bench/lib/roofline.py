@@ -28,13 +28,13 @@ SCHEMA = [
     "ops_per_elem",
     "elements",
     "bytes_moved",
-    "flops",
+    "ops",
     "ms_mean",
     "ms_stdev",
     "ms_min",
     "gbytes_per_s",
-    "gflops_per_s",
-    "arithmetic_intensity",
+    "gops_per_s",
+    "operational_intensity",
     "joules_per_iter",
 ]
 
@@ -154,7 +154,7 @@ def main():
         for point in points:
             print(
                 f"  {point['kernel']:<18} ops={point['ops_per_elem']:<4} "
-                f"{point['gbytes_per_s']:>8.2f} GB/s  {point['gflops_per_s']:>10.2f} GFLOP/s"
+                f"{point['gbytes_per_s']:>8.2f} GB/s  {point['gops_per_s']:>10.2f} Gop/s"
             )
 
         if args.cooldown > 0 and index + 1 < len(args.backends):

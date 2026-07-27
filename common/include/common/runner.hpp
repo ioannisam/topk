@@ -268,7 +268,9 @@ template <typename T> int execute_map_reduce(const common::config::Config& cfg, 
 
 	MapReduceRunStats run_stats{};
 	std::vector<T> output = hooks.run(input, cfg, &run_stats);
-	run_stats.traffic.compare_ops = static_cast<double>(n);
+	if (run_stats.traffic.compare_ops == 0.0) {
+		run_stats.traffic.compare_ops = static_cast<double>(n);
+	}
 
 	common::reporting::print_timing_lines({
 		{"Map-reduce top-k end-to-end time (ms)", std::optional<double>(run_stats.end_to_end_ms)},
@@ -308,7 +310,9 @@ template <typename T> int execute_ground_truth(const common::config::Config& cfg
 
 	GroundTruthRunStats run_stats{};
 	std::vector<T> output = hooks.run(input, cfg, &run_stats);
-	run_stats.traffic.compare_ops = static_cast<double>(n);
+	if (run_stats.traffic.compare_ops == 0.0) {
+		run_stats.traffic.compare_ops = static_cast<double>(n);
+	}
 
 	common::reporting::print_timing_lines({
 		{"Ground truth end-to-end time (ms)", std::optional<double>(run_stats.end_to_end_ms)},

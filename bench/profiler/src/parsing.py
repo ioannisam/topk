@@ -14,6 +14,10 @@ KV_RE = re.compile(r"^\s{2}(?P<key>[^:]+):\s*(?P<value>.+)$")
 MEASURE_KV_RE = re.compile(r"^-\s+(?P<key>[a-zA-Z0-9_]+):\s*(?P<value>.+)$")
 COMMAND_RE = re.compile(r"^Command:\s*(?P<cmd>.+)$")
 VARIANT_RE = re.compile(r"_(?P<dist>uniform|normal|sorted|reverse)_s(?P<seed>\d+)_rep(?P<rep>\d+)_(?P<src>[a-z]+)$")
+MEASUREMENT_NAME_RE = re.compile(
+    r"^\d{8}_\d{6}_(?P<backend>cpu|gpu|npu)_(?P<dtype>int|uint|float|double|half)_"
+    r"(?P<algorithm>bitonic|map_reduce|gt)_"
+)
 
 
 def infer_backend_from_command(cmd: str) -> str:
@@ -374,10 +378,11 @@ def parse_measurements(paths: Iterable[str]) -> list[MeasurementRecord]:
         dtype = ""
         algo = ""
 
-        if len(parts) >= 5:
-            backend = parts[2]
-            dtype = parts[3]
-            algo = parts[4]
+        name_match = MEASUREMENT_NAME_RE.match(base)
+        if name_match is not None:
+            backend = name_match.group("backend")
+            dtype = name_match.group("dtype")
+            algo = name_match.group("algorithm")
 
         rec = MeasurementRecord(source=parts[-1] if parts else "unknown", file_path=path)
         v = VARIANT_RE.search(base.replace(".txt", ""))
@@ -463,13 +468,13 @@ def parse_roofline(paths: Iterable[str]) -> list[RooflinePoint]:
                         ops_per_elem=int(entry["ops_per_elem"]),
                         elements=int(entry["elements"]),
                         bytes_moved=float(entry["bytes_moved"]),
-                        flops=float(entry["flops"]),
+                        ops=float(entry["ops"]),
                         ms_mean=float(entry["ms_mean"]),
                         ms_stdev=float(entry["ms_stdev"]),
                         ms_min=float(entry["ms_min"]),
                         gbytes_per_s=float(entry["gbytes_per_s"]),
-                        gflops_per_s=float(entry["gflops_per_s"]),
-                        arithmetic_intensity=float(entry["arithmetic_intensity"]),
+                        gops_per_s=float(entry["gops_per_s"]),
+                        operational_intensity=float(entry["operational_intensity"]),
                         joules_per_iter=float(entry["joules_per_iter"]),
                     )
                 )

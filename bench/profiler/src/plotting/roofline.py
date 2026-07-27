@@ -45,11 +45,11 @@ def compute_ceilings(points: Iterable[RooflinePoint]) -> dict[str, float]:
     """
     ceilings: dict[str, float] = {}
     for p in points:
-        if p.kernel != "cmp" or p.gflops_per_s <= 0:
+        if p.kernel != "cmp" or p.gops_per_s <= 0:
             continue
         current = ceilings.get(p.backend)
-        if current is None or p.gflops_per_s > current:
-            ceilings[p.backend] = p.gflops_per_s
+        if current is None or p.gops_per_s > current:
+            ceilings[p.backend] = p.gops_per_s
     return ceilings
 
 
@@ -196,7 +196,7 @@ def plot(
 ) -> Optional[str]:
     grouped: dict[str, list[RooflinePoint]] = defaultdict(list)
     for p in points:
-        if p.kernel == "fma" and p.arithmetic_intensity > 0 and p.gflops_per_s > 0:
+        if p.kernel == "fma" and p.operational_intensity > 0 and p.gops_per_s > 0:
             grouped[p.backend].append(p)
 
     if not grouped:
@@ -204,16 +204,16 @@ def plot(
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    all_ai = [p.arithmetic_intensity for pts in grouped.values() for p in pts]
+    all_ai = [p.operational_intensity for pts in grouped.values() for p in pts]
     ai_lo = min(all_ai) / 4.0
     ai_hi = max(all_ai) * 4.0
 
     for backend in sorted(grouped.keys()):
-        pts = sorted(grouped[backend], key=lambda p: p.arithmetic_intensity)
+        pts = sorted(grouped[backend], key=lambda p: p.operational_intensity)
         color = backend_color(backend)
 
         peak_bw = max(p.gbytes_per_s for p in pts)
-        peak_gflops = max(p.gflops_per_s for p in pts)
+        peak_gflops = max(p.gops_per_s for p in pts)
         ridge_ai = peak_gflops / peak_bw if peak_bw > 0 else 0.0
 
         roof_x = [ai_lo, ridge_ai, ai_hi]
@@ -221,8 +221,8 @@ def plot(
         ax.plot(roof_x, roof_y, linewidth=2, color=color, label=f"{backend.upper()} roofline")
 
         ax.plot(
-            [p.arithmetic_intensity for p in pts],
-            [p.gflops_per_s for p in pts],
+            [p.operational_intensity for p in pts],
+            [p.gops_per_s for p in pts],
             linestyle="none",
             marker="o",
             markersize=8,

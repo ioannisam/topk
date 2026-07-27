@@ -209,7 +209,7 @@ def error_bounds(values: list[float], center: float, error_bars: str) -> tuple[f
         return center, center
     if error_bars == "std":
         s = pstdev(values)
-        return center - s, center + s
+        return max(center - s, min(values)), center + s
     return percentile(values, 0.10), percentile(values, 0.90)
 
 
