@@ -121,6 +121,7 @@ double run_fma(const float* src, std::size_t n, std::size_t workers, int ops, st
 			float acc = 0.0f;
 			for (std::size_t r = 0; r < repeats; ++r) {
 				acc += fma_chunk(src, begin, end, ops);
+				asm volatile("" : : : "memory");
 			}
 			partial[tid] = acc;
 		});
@@ -130,6 +131,7 @@ double run_fma(const float* src, std::size_t n, std::size_t workers, int ops, st
 	float last_acc = 0.0f;
 	for (std::size_t r = 0; r < repeats; ++r) {
 		last_acc += fma_chunk(src, last_begin, n, ops);
+		asm volatile("" : : : "memory");
 	}
 	partial[last_tid] = last_acc;
 

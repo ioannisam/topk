@@ -34,8 +34,7 @@ struct RunStats {
 };
 
 template <typename T>
-std::size_t run_topk(const T* data, std::size_t n, std::size_t k, bool want_max, std::size_t workers, T* out,
-					 RunStats* stats = nullptr);
+std::size_t run_topk(const T* data, std::size_t n, std::size_t k, bool want_max, T* out, RunStats* stats = nullptr);
 
 } // namespace gpu::map_reduce
 

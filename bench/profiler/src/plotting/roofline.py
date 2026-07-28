@@ -53,6 +53,19 @@ def compute_ceilings(points: Iterable[RooflinePoint]) -> dict[str, float]:
     return ceilings
 
 
+def cache_ceilings(points: Iterable[RooflinePoint]) -> dict[str, float]:
+    """Peak measured in-cache read bandwidth (GB/s) per backend.
+
+    A run whose working set stays in cache is not held to the DRAM slope, so the roofline needs
+    the cache level drawn too or every cache-resident kernel plots above its own roof.
+    """
+    ceilings: dict[str, float] = {}
+    for backend, ladder in bandwidth_ladders(points).items():
+        if ladder:
+            ceilings[backend] = max(gbps for _, gbps in ladder)
+    return ceilings
+
+
 def bandwidth_ladders(points: Iterable[RooflinePoint]) -> dict[str, list[tuple[float, float]]]:
     """Per backend, the measured (working-set bytes, GB/s) ladder across the cache hierarchy.
 
@@ -118,6 +131,7 @@ def plot_kernels(
     point_list = list(points)
     bw_ceilings = backend_ceilings(point_list)
     cmp_ceilings = compute_ceilings(point_list)
+    cache_bw = cache_ceilings(point_list)
     if not bw_ceilings or not cmp_ceilings:
         return None
 
@@ -153,8 +167,20 @@ def plot_kernels(
             linewidth=2,
             color=color,
             alpha=0.85,
-            label=f"{backend.upper()} roof ({peak_bw:.0f} GB/s, {peak_cmp:.0f} Gcmp/s)",
+            label=f"{backend.upper()} DRAM roof ({peak_bw:.0f} GB/s, {peak_cmp:.0f} Gcmp/s)",
         )
+        peak_cache = cache_bw.get(backend)
+        if peak_cache and peak_cache > peak_bw:
+            cache_x = [ai_lo, peak_cmp / peak_cache, ai_hi]
+            ax.plot(
+                cache_x,
+                [min(peak_cache * x, peak_cmp) for x in cache_x],
+                linewidth=1.5,
+                linestyle=(0, (6, 4)),
+                color=color,
+                alpha=0.55,
+                label=f"{backend.upper()} cache roof ({peak_cache:.0f} GB/s)",
+            )
 
     for (backend, algo), series in sorted(grouped.items()):
         ordered = sorted(series)

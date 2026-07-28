@@ -145,8 +145,8 @@ template <typename T> class NpuMapReduceRunnerHooks final : public common::topk:
 		last_run_stats = best.sample.stats;
 		if (stats != nullptr) {
 			common::topk::fill_timing_stats(*stats, best);
-			stats->tiles_used = 0;
-			stats->aggregated_candidates = 0;
+			stats->tiles_used = best.sample.stats.tiles_used;
+			stats->aggregated_candidates = best.sample.stats.aggregated_candidates;
 			stats->traffic.bytes_moved = best.sample.stats.bytes_moved;
 			stats->traffic.bytes_exact = true;
 		}

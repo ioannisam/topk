@@ -117,7 +117,7 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 				common::energy::Scope energy_scope(common::energy::Channel::E2e);
 
 				std::size_t count = gpu::map_reduce::run_topk(input.data(), input.size(), cfg.k, cfg.want_max,
-															  cfg.ex_threads, output.data(), &map_stats);
+															  output.data(), &map_stats);
 
 				energy_scope.close();
 				auto t1 = std::chrono::high_resolution_clock::now();

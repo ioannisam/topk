@@ -2,7 +2,7 @@ find_package(XRT REQUIRED)
 
 set(NPU_VENV_DIR "${CMAKE_SOURCE_DIR}/npu_venv")
 add_custom_target(npu_hardware ALL
-    COMMAND bash -c "source ${NPU_VENV_DIR}/bin/activate && $(MAKE) -C ${CMAKE_CURRENT_SOURCE_DIR} OUT_DIR=${CMAKE_CURRENT_BINARY_DIR} hardware"
+    COMMAND bash -c "source ${NPU_VENV_DIR}/bin/activate && make -C ${CMAKE_CURRENT_SOURCE_DIR} OUT_DIR=${CMAKE_CURRENT_BINARY_DIR} hardware"
     COMMENT "Building NPU Hardware (XCLBINs) via Peano/IRON..."
     VERBATIM
 )

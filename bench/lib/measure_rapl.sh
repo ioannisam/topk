@@ -195,6 +195,9 @@ END_UJ="$(<"${ENERGY_PATH}")"
 CORE_END_UJ=""
 [[ -n "${CORE_ENERGY_PATH}" ]] && CORE_END_UJ="$(<"${CORE_ENERGY_PATH}")"
 
+# Same reasoning as the command above: a failed awk must not take the report (and the --out
+# file) with it, or the profiler loses the run it most needs to see.
+set +e
 REPORT="$(awk \
     -v path="${ENERGY_PATH}" \
     -v start_uj="${START_UJ}" \
@@ -277,6 +280,16 @@ REPORT="$(awk \
 }
 '
  )"
+AWK_STATUS=$?
+set -e
+
+if [[ ${AWK_STATUS} -ne 0 ]]; then
+    REPORT="RAPL measurement
+Command: ${CMD_STR}
+- energy_path: ${ENERGY_PATH}
+- error: energy accounting failed (awk exit ${AWK_STATUS})
+- command_exit_code: ${CMD_STATUS}"
+fi
 
 if [[ -n "${OUT_FILE}" ]]; then
     mkdir -p "$(dirname "${OUT_FILE}")"

@@ -158,12 +158,14 @@ fi
 
 HOST_ENERGY_PATH=""
 HOST_MAX_RANGE_UJ=""
+_domain=""
 while IFS= read -r _candidate; do
-    if [[ -r "${_candidate}" ]]; then
+    _domain="$(cat "$(dirname "${_candidate}")/name" 2>/dev/null || true)"
+    if [[ -r "${_candidate}" && "${_domain}" == package-* ]]; then
         HOST_ENERGY_PATH="${_candidate}"
         break
     fi
-done < <(find -L /sys/class/powercap -maxdepth 6 -name energy_uj -print 2>/dev/null | sort)
+done < <(find -L /sys/class/powercap -maxdepth 2 -name energy_uj -print 2>/dev/null | sort)
 if [[ -n "${HOST_ENERGY_PATH}" ]]; then
     _max_range_path="$(dirname "${HOST_ENERGY_PATH}")/max_energy_range_uj"
     [[ -r "${_max_range_path}" ]] && HOST_MAX_RANGE_UJ="$(<"${_max_range_path}")"
@@ -195,16 +197,22 @@ while kill -0 "${cmd_pid}" 2>/dev/null; do
     sample_once
 done
 
+# `set -e` would exit here on a non-zero command, dropping the report (and the --out file) for
+# exactly the runs whose failure the profiler needs to see.
+set +e
 wait "${cmd_pid}"
 cmd_status=$?
+set -e
+
+# Close the integration window at the workload boundary. Sampling after end_ts instead pulls an
+# idle reading into the final trapezoid segment, which understates energy on short runs.
+sample_once
 end_ts="$(date +%s.%N)"
 
 HOST_END_UJ=""
 [[ -n "${HOST_ENERGY_PATH}" ]] && HOST_END_UJ="$(<"${HOST_ENERGY_PATH}")"
 
-# One last sample at end boundary to improve integration for short runs.
-sample_once
-
+set +e
 REPORT="$(awk \
     -v start_ts="${start_ts}" \
     -v end_ts="${end_ts}" \
@@ -296,6 +304,16 @@ END {
 }
 ' "${samples_file}"
  )"
+AWK_STATUS=$?
+set -e
+
+if [[ ${AWK_STATUS} -ne 0 ]]; then
+    REPORT="GPU measurement
+Command: ${CMD_STR}
+- gpu_index: ${GPU_INDEX}
+- error: energy accounting failed (awk exit ${AWK_STATUS})
+- command_exit_code: ${cmd_status}"
+fi
 
 if [[ -n "${OUT_FILE}" ]]; then
     mkdir -p "$(dirname "${OUT_FILE}")"

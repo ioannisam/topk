@@ -123,8 +123,14 @@ void print_configuration(const common::config::Config& cfg, std::size_t n, std::
 	print_key_value("CPU reference verify", (cfg.verify_output ? "on" : "off"));
 	print_key_value("Random range", std::to_string(cfg.rand_min) + ".." + std::to_string(cfg.rand_max));
 	print_key_value("Input distribution", distribution_name(cfg.dist));
+	// run=both benchmarks the truncated and full networks separately, so the process performs
+	// two full warmup+measure loops. Whole-process energy is normalised by this count.
+	const std::size_t benchmarked_runs =
+		(cfg.algorithm == common::config::Algorithm::Bitonic && cfg.run_mode == common::config::RunMode::Both) ? 2u
+																											   : 1u;
 	print_key_value("Benchmark iterations",
-					static_cast<std::size_t>(common::benchmark::kWarmupIters + common::benchmark::kMeasureIters));
+					benchmarked_runs *
+						static_cast<std::size_t>(common::benchmark::kWarmupIters + common::benchmark::kMeasureIters));
 }
 
 void print_timing_lines(const std::vector<std::pair<std::string, std::optional<double>>>& lines) {
@@ -138,16 +144,20 @@ void print_timing_lines(const std::vector<std::pair<std::string, std::optional<d
 	}
 }
 
-void print_energy_lines(const common::energy::Summary& energy) {
-	print_section_header("Energy");
+void print_energy_lines(const common::energy::Summary& energy, const char* scope) {
+	const std::string title = scope != nullptr ? std::string("Energy (") + scope + ")" : "Energy";
+	print_section_header(title.c_str());
 	print_key_value("Energy counters", common::energy::counter().describe());
+	// Iteration count and loop wall time come from the clock, not the counters, so they stay
+	// meaningful (and the profiler needs them) even where RAPL/NVML is unreadable.
+	print_key_value("Energy iterations", static_cast<std::size_t>(energy.iterations));
+	print_key_value("Energy loop seconds", energy.loop_seconds, 6);
 	if (!energy.available) {
 		print_key_value("Energy status", "unavailable");
 		return;
 	}
 
 	print_key_value("Energy status", "ok");
-	print_key_value("Energy iterations", static_cast<std::size_t>(energy.iterations));
 	print_key_value("Energy e2e joules", energy.e2e_total.total(), 6);
 	print_key_value("Energy algo joules", energy.algo_total.total(), 6);
 	print_key_value("Energy loop joules", energy.loop_total.total(), 6);
@@ -161,14 +171,14 @@ void print_energy_lines(const common::energy::Summary& energy) {
 	print_key_value("Energy loop device joules", energy.loop_total.device_j, 6);
 	print_key_value("Energy e2e seconds", energy.e2e_seconds, 6);
 	print_key_value("Energy algo seconds", energy.algo_seconds, 6);
-	print_key_value("Energy loop seconds", energy.loop_seconds, 6);
 	print_key_value("Energy wait joules", energy.wait_total.total(), 6);
 	print_key_value("Energy wait seconds", energy.wait_seconds, 6);
 	print_key_value("Energy wait count", static_cast<std::size_t>(energy.wait_count));
 }
 
-void print_traffic_lines(const common::topk::TrafficStats& traffic) {
-	print_section_header("Traffic");
+void print_traffic_lines(const common::topk::TrafficStats& traffic, const char* scope) {
+	const std::string title = scope != nullptr ? std::string("Traffic (") + scope + ")" : "Traffic";
+	print_section_header(title.c_str());
 	print_key_value("Traffic bytes moved", traffic.bytes_moved, 0);
 	print_key_value("Traffic bytes model", traffic.bytes_exact ? "exact" : "lower-bound");
 	print_key_value("Traffic compare ops", traffic.compare_ops, 0);

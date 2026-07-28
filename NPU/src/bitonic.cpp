@@ -238,7 +238,7 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 	energy_scope.close();
 	auto t1 = std::chrono::high_resolution_clock::now();
 
-	const std::size_t comparators = total_tiles * common::bitonic::count_full_comparators(kTile);
+	const std::size_t comparators = total_tiles * (kTile / kRunLen) * common::bitonic::count_full_comparators(kRunLen);
 	return RunStats{std::chrono::duration<double, std::milli>(t1 - t0).count(),
 					total_dispatches,
 					comparators,

@@ -148,6 +148,20 @@ def select_time_ms(rec, metric: str) -> float | None:
     return rec.time_end_to_end_ms if rec.time_end_to_end_ms is not None else rec.time_algorithmic_ms
 
 
+def measured_loop_fraction(rec) -> float | None:
+    """Share of process wall time spent inside the benchmark loop.
+
+    The external wrapper meters the whole process: startup, input generation, the CPU reference
+    sort when verify=true, and teardown all sit outside the timed region. Scaling by this fraction
+    keeps whole-process energy comparable with the in-process counters, which see only the loop.
+    """
+    loop_s = getattr(rec, "inproc_loop_seconds", None)
+    total_s = rec.elapsed_seconds
+    if not loop_s or not total_s or total_s <= 0:
+        return None
+    return min(loop_s / total_s, 1.0)
+
+
 def select_energy_joules(rec, metric: str, scope: str = "e2e") -> float | None:
     net = metric == "net"
     ops = getattr(rec, "bench_ops", 1) or 1
@@ -162,14 +176,22 @@ def select_energy_joules(rec, metric: str, scope: str = "e2e") -> float | None:
             return energy / iterations
 
     energy = rec.net_energy_joules if (net and rec.net_energy_joules is not None) else rec.energy_joules
-    return energy / ops if energy is not None else None
+    if energy is None:
+        return None
+    fraction = measured_loop_fraction(rec)
+    if fraction is not None:
+        energy *= fraction
+    return energy / ops
 
 
 def select_elapsed_seconds(rec) -> float | None:
-    # Per-operation end-to-end wall time, matching select_energy_joules' window.
+    # Per-operation wall time over the same window select_energy_joules bills.
+    ops = getattr(rec, "bench_ops", 1) or 1
+    loop_s = getattr(rec, "inproc_loop_seconds", None)
+    if loop_s:
+        return loop_s / ops
     if rec.elapsed_seconds is None:
         return None
-    ops = getattr(rec, "bench_ops", 1) or 1
     return rec.elapsed_seconds / ops
 
 

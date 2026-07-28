@@ -26,9 +26,9 @@ void print_configuration(const common::config::Config& cfg, std::size_t n, std::
 
 void print_timing_lines(const std::vector<std::pair<std::string, std::optional<double>>>& lines);
 
-void print_energy_lines(const common::energy::Summary& energy);
+void print_energy_lines(const common::energy::Summary& energy, const char* scope = nullptr);
 
-void print_traffic_lines(const common::topk::TrafficStats& traffic);
+void print_traffic_lines(const common::topk::TrafficStats& traffic, const char* scope = nullptr);
 
 void print_skipped_comparators(std::size_t full_comparators, std::size_t trunc_comparators);
 

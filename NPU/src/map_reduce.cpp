@@ -173,10 +173,12 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 	std::size_t valid_chunks[2] = {0, 0};
 
 	double bytes_moved = static_cast<double>(sample_size) * sizeof(T);
+	std::size_t total_chunks = 0;
 
 	auto account_batch = [&](std::size_t batch, std::size_t chunks) {
 		const double chunk_bytes = static_cast<double>(chunks) * chunk_size * sizeof(std::int32_t);
 		bytes_moved += static_cast<double>(batch) * sizeof(T) + 6.0 * chunk_bytes;
+		total_chunks += chunks;
 	};
 
 	if (offset < n) {
@@ -276,6 +278,8 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 		stats->layer_dispatches = total_dispatches;
 		stats->used_offload = true;
 		stats->bytes_moved = bytes_moved;
+		stats->tiles_used = total_chunks;
+		stats->aggregated_candidates = heap.size();
 	}
 
 	return result;

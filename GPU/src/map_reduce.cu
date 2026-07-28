@@ -208,8 +208,7 @@ __global__ __launch_bounds__(256, 4) void topk_map_kernel(const T* __restrict__ 
 } // namespace
 
 template <typename T>
-std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max, std::size_t ex_threads, T* out,
-					 RunStats* stats) {
+std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max, T* out, RunStats* stats) {
 	using D = typename gpu::traits::DeviceType<T>::type;
 
 	if (k == 0 || n == 0) {
@@ -281,8 +280,10 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 		stats->tiles_used = grid_size;
 		stats->aggregated_candidates = grid_size * k;
 		stats->block_size = block_size;
+		const std::size_t threads = static_cast<std::size_t>(total_threads);
+		const std::size_t heap_fill = std::min(k, (n + threads - 1) / threads);
 		stats->bytes_moved =
-			(static_cast<double>(n) + 2.0 * static_cast<double>(total_threads) * static_cast<double>(k) +
+			(static_cast<double>(n) + 2.0 * static_cast<double>(threads) * static_cast<double>(heap_fill) +
 			 static_cast<double>(grid_size) * static_cast<double>(k)) *
 			sizeof(D);
 	}
@@ -310,15 +311,14 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 	return block_results.size();
 }
 
-template std::size_t run_topk<float>(const float*, std::size_t, std::size_t, bool, std::size_t, float*, RunStats*);
-template std::size_t run_topk<std::int32_t>(const std::int32_t*, std::size_t, std::size_t, bool, std::size_t,
-											std::int32_t*, RunStats*);
-template std::size_t run_topk<std::uint32_t>(const std::uint32_t*, std::size_t, std::size_t, bool, std::size_t,
-											 std::uint32_t*, RunStats*);
-template std::size_t run_topk<double>(const double*, std::size_t, std::size_t, bool, std::size_t, double*, RunStats*);
+template std::size_t run_topk<float>(const float*, std::size_t, std::size_t, bool, float*, RunStats*);
+template std::size_t run_topk<std::int32_t>(const std::int32_t*, std::size_t, std::size_t, bool, std::int32_t*,
+											RunStats*);
+template std::size_t run_topk<std::uint32_t>(const std::uint32_t*, std::size_t, std::size_t, bool, std::uint32_t*,
+											 RunStats*);
+template std::size_t run_topk<double>(const double*, std::size_t, std::size_t, bool, double*, RunStats*);
 #if defined(__FLT16_MANT_DIG__)
-template std::size_t run_topk<_Float16>(const _Float16*, std::size_t, std::size_t, bool, std::size_t, _Float16*,
-										RunStats*);
+template std::size_t run_topk<_Float16>(const _Float16*, std::size_t, std::size_t, bool, _Float16*, RunStats*);
 #endif
 
 } // namespace gpu::map_reduce

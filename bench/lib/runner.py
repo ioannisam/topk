@@ -215,8 +215,9 @@ def main():
             type_fail = 0
 
             algorithms = ["bitonic", "map_reduce", "gt"]
-            if backend == "npu" and not os.path.isfile(os.path.join(ROOT_DIR, "build/NPU/map_reduce.xclbin")):
-                algorithms = ["bitonic", "gt"]
+            if backend == "npu":
+                # gt runs on the host; every other algo needs its own xclbin to run at all.
+                algorithms = [a for a in algorithms if a == "gt" or resolve_npu_xclbin(backend, a)]
 
             for algo in algorithms:
                 for q in range(args.q_min, args.q_max + 1):
@@ -264,6 +265,9 @@ def main():
                                 npu_xclbin = resolve_npu_xclbin(backend, algo)
                                 if npu_xclbin:
                                     case_env["NPU_OFFLOAD_XCLBIN"] = npu_xclbin
+                                else:
+                                    # An inherited value points at the wrong algo's xclbin.
+                                    case_env.pop("NPU_OFFLOAD_XCLBIN", None)
 
                                 for rep in range(1, args.repeats + 1):
                                     # Always tag the variant: the profiler joins measurement

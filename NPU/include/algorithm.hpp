@@ -66,6 +66,8 @@ struct RunStats {
 	bool used_offload;
 	npu::PhaseTimers phases{};
 	double bytes_moved = 0.0;
+	std::size_t tiles_used = 0;
+	std::size_t aggregated_candidates = 0;
 };
 
 template <typename T>
