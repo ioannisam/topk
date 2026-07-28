@@ -156,7 +156,7 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 	workers = std::min(workers, std::max<std::size_t>(1, n >> 20));
 
 	const bool use_avx512f = cpu::simd::use_avx512();
-	const bool use_avx2 = cpu::simd::cpu_supports_avx2() && !use_avx512f;
+	const bool use_avx2 = cpu::simd::cpu_supports_avx2();
 
 	std::vector<std::vector<T>> local_topk(workers);
 	std::vector<std::thread> pool;

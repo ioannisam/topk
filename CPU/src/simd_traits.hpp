@@ -540,12 +540,10 @@ template <typename T> inline std::size_t simd_block_width(bool use_512, bool use
 	if (use_512) {
 		if constexpr (has_simd512_width<T>::value)
 			return SimdTraits512<T>::width;
-		return 1;
 	}
 	if (use_256) {
 		if constexpr (has_simd256_width<T>::value)
 			return SimdTraits256<T>::width;
-		return 1;
 	}
 	return 1;
 }

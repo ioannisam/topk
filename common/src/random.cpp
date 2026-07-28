@@ -14,23 +14,24 @@ namespace {
 
 template <typename T> T sample_value(std::mt19937& rng, int min_value, int max_value, bool normal) {
 	if constexpr (std::is_integral_v<T>) {
+		long long lo = min_value;
+		long long hi = max_value;
+		if constexpr (std::is_unsigned_v<T>) {
+			lo = std::max<long long>(0, lo);
+			hi = std::max<long long>(0, hi);
+		}
+
 		if (normal) {
-			const double mean = 0.5 * (static_cast<double>(min_value) + static_cast<double>(max_value));
-			const double span = static_cast<double>(max_value) - static_cast<double>(min_value);
+			const double mean = 0.5 * (static_cast<double>(lo) + static_cast<double>(hi));
+			const double span = static_cast<double>(hi) - static_cast<double>(lo);
 			const double sigma = span > 0.0 ? span / 6.0 : 1.0;
 			std::normal_distribution<double> dist(mean, sigma);
 			double value = dist(rng);
-			value = std::min(std::max(value, static_cast<double>(min_value)), static_cast<double>(max_value));
+			value = std::min(std::max(value, static_cast<double>(lo)), static_cast<double>(hi));
 			return static_cast<T>(std::llround(value));
 		}
 
-		if constexpr (std::is_unsigned_v<T>) {
-			const auto umin = static_cast<unsigned long long>(std::max(0, min_value));
-			const auto umax = static_cast<unsigned long long>(std::max(0, max_value));
-			std::uniform_int_distribution<unsigned long long> dist(umin, umax);
-			return static_cast<T>(dist(rng));
-		}
-		std::uniform_int_distribution<long long> dist(min_value, max_value);
+		std::uniform_int_distribution<long long> dist(lo, hi);
 		return static_cast<T>(dist(rng));
 	}
 

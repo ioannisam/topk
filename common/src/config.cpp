@@ -1,7 +1,8 @@
 #include "common/config.hpp"
 
+#include "parse_utils.hpp"
+
 #include <algorithm>
-#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -29,9 +30,10 @@ Algorithm parse_algorithm(const std::string& token);
 RunMode parse_run_mode(const std::string& token);
 Distribution parse_distribution(const std::string& token);
 
-bool starts_with(const std::string& text, const std::string& prefix) {
-	return text.rfind(prefix, 0) == 0;
-}
+using common::parse::parse_bool_value;
+using common::parse::parse_int_field;
+using common::parse::parse_signed_long;
+using common::parse::starts_with;
 
 bool is_dtype_token(const std::string& token) {
 	return starts_with(token, "dtype=");
@@ -39,39 +41,6 @@ bool is_dtype_token(const std::string& token) {
 
 bool is_key_value_token(const std::string& token) {
 	return token.find('=') != std::string::npos;
-}
-
-int parse_int_field(const std::string& text, const char* field_name);
-
-long long parse_signed_long(const std::string& text, const char* field_name) {
-	try {
-		std::size_t pos = 0;
-		const long long value = std::stoll(text, &pos);
-		if (pos != text.size()) {
-			throw std::invalid_argument("");
-		}
-		return value;
-	} catch (const std::exception&) {
-		throw std::invalid_argument(std::string(field_name) + " must be an integer");
-	}
-}
-
-int parse_int_field(const std::string& text, const char* field_name) {
-	const long long value = parse_signed_long(text, field_name);
-	if (value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max()) {
-		throw std::invalid_argument(std::string(field_name) + " must fit in a 32-bit int");
-	}
-	return static_cast<int>(value);
-}
-
-bool parse_bool_value(const std::string& value, const char* field_name) {
-	if (value == "true" || value == "1" || value == "yes" || value == "on") {
-		return true;
-	}
-	if (value == "false" || value == "0" || value == "no" || value == "off") {
-		return false;
-	}
-	throw std::invalid_argument(std::string(field_name) + " must be true/false");
 }
 
 Config parse_tokens(const std::vector<std::string>& tokens) {
@@ -195,6 +164,9 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 	if (dtype == DataType::Half) {
 		rand_min = std::clamp(rand_min, -kHalfMax, kHalfMax);
 		rand_max = std::clamp(rand_max, -kHalfMax, kHalfMax);
+	} else if (dtype == DataType::UInt) {
+		rand_min = std::max(0, rand_min);
+		rand_max = std::max(0, rand_max);
 	}
 
 	const std::size_t n = std::size_t{1} << q;

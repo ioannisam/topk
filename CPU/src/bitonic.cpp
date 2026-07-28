@@ -278,9 +278,9 @@ void run_layer_truncate_simd(const T* src, T* dst, std::size_t begin, std::size_
 
 template <typename T>
 bool try_run_fused_intra(T* ptr, std::size_t begin, std::size_t end, const IntraOp* ops, std::size_t nops,
-						 std::size_t max_k) {
+						 bool use_avx512) {
 #if defined(__x86_64__) || defined(__i386__)
-	if (cpu::simd::use_avx512() && max_k <= std::numeric_limits<std::int32_t>::max()) {
+	if (use_avx512) {
 		if constexpr (cpu::simd::has_simd512_width<T>::value) {
 			run_fused_intra<T, cpu::simd::SimdTraits512>(ptr, begin, end, ops, nops);
 			return true;
@@ -298,7 +298,7 @@ bool try_run_fused_intra(T* ptr, std::size_t begin, std::size_t end, const Intra
 	(void)end;
 	(void)ops;
 	(void)nops;
-	(void)max_k;
+	(void)use_avx512;
 #endif
 	return false;
 }
@@ -328,9 +328,9 @@ template <typename T> std::size_t run_tile_elems(std::size_t max_j) {
 
 template <typename T>
 bool try_run_fused_trunc_resort(const T* src, T* dst, std::size_t obegin, std::size_t oend, const IntraOp* ops,
-								std::size_t nops, std::size_t max_k) {
+								std::size_t nops, bool use_avx512) {
 #if defined(__x86_64__) || defined(__i386__)
-	if (cpu::simd::use_avx512() && max_k <= std::numeric_limits<std::int32_t>::max()) {
+	if (use_avx512) {
 		if constexpr (cpu::simd::has_simd512_width<T>::value) {
 			run_fused_trunc_resort<T, cpu::simd::SimdTraits512>(src, dst, obegin, oend, ops, nops);
 			return true;
@@ -349,15 +349,16 @@ bool try_run_fused_trunc_resort(const T* src, T* dst, std::size_t obegin, std::s
 	(void)oend;
 	(void)ops;
 	(void)nops;
-	(void)max_k;
+	(void)use_avx512;
 #endif
 	return false;
 }
 
 template <typename T>
-bool try_run_inter(T* ptr, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, std::size_t n) {
+bool try_run_inter(T* ptr, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, std::size_t n,
+				   bool use_avx512) {
 #if defined(__x86_64__) || defined(__i386__)
-	if (cpu::simd::use_avx512() && k <= std::numeric_limits<std::int32_t>::max()) {
+	if (use_avx512) {
 		if constexpr (cpu::simd::has_simd512_width<T>::value) {
 			if (j >= cpu::simd::SimdTraits512<T>::width) {
 				run_layer_inter_simd<T, cpu::simd::SimdTraits512>(ptr, begin, end, k, j, n);
@@ -380,15 +381,16 @@ bool try_run_inter(T* ptr, std::size_t begin, std::size_t end, std::size_t k, st
 	(void)k;
 	(void)j;
 	(void)n;
+	(void)use_avx512;
 #endif
 	return false;
 }
 
 template <typename T>
-bool try_run_simd_layer_truncate(const T* src, T* dst, std::size_t begin, std::size_t end, std::size_t j,
-								 std::size_t n) {
+bool try_run_simd_layer_truncate(const T* src, T* dst, std::size_t begin, std::size_t end, std::size_t j, std::size_t n,
+								 bool use_avx512) {
 #if defined(__x86_64__) || defined(__i386__)
-	if (cpu::simd::use_avx512()) {
+	if (use_avx512) {
 		if constexpr (cpu::simd::has_simd512_width<T>::value) {
 			if (j >= cpu::simd::SimdTraits512<T>::width) {
 				run_layer_truncate_simd<T, cpu::simd::SimdTraits512>(src, dst, begin, end, j, n);
@@ -411,6 +413,7 @@ bool try_run_simd_layer_truncate(const T* src, T* dst, std::size_t begin, std::s
 	(void)end;
 	(void)j;
 	(void)n;
+	(void)use_avx512;
 #endif
 	return false;
 }
@@ -442,7 +445,7 @@ void run_normal_scalar(T* ptr, std::size_t begin, std::size_t end, std::size_t k
 
 template <typename T>
 void run_tiled(T* ptr, std::size_t begin, std::size_t end, const IntraOp* ops, std::size_t nops, std::size_t active_n,
-			   std::size_t tile_w, std::size_t width) {
+			   std::size_t tile_w, std::size_t width, bool use_avx512) {
 	for (std::size_t tb = begin; tb < end; tb += tile_w) {
 		const std::size_t te = std::min(tb + tile_w, end);
 		for (std::size_t o = 0; o < nops; ++o) {
@@ -450,10 +453,10 @@ void run_tiled(T* ptr, std::size_t begin, std::size_t end, const IntraOp* ops, s
 			const std::size_t k = ops[o].k;
 			if (j < width) {
 				const IntraOp one{j, k};
-				if (!try_run_fused_intra<T>(ptr, tb, te, &one, 1, k))
+				if (!try_run_fused_intra<T>(ptr, tb, te, &one, 1, use_avx512))
 					run_normal_scalar(ptr, tb, te, k, j, active_n);
 			} else {
-				if (!try_run_inter<T>(ptr, tb, te, k, j, active_n))
+				if (!try_run_inter<T>(ptr, tb, te, k, j, active_n, use_avx512))
 					run_normal_scalar(ptr, tb, te, k, j, active_n);
 			}
 		}
@@ -498,7 +501,6 @@ struct Group {
 	std::size_t k;			  // InterNormal
 	std::size_t ops_begin;	  // IntraRun / TiledRun / TruncResort: range into the flat ops vector
 	std::size_t ops_count;
-	std::size_t max_k; // largest k in the fused run (AVX-512 mask guard)
 };
 
 template <typename T>
@@ -513,15 +515,13 @@ std::vector<Group> build_groups(const std::vector<common::bitonic::Layer>& layer
 	bool run_open = false;
 	std::size_t run_active_n = 0;
 	std::size_t run_ops_begin = 0;
-	std::size_t run_max_k = 0;
 	std::size_t run_max_j = 0;
 
 	auto flush_run = [&]() {
 		if (!run_open)
 			return;
 		const GroupKind kind = run_max_j < width ? GroupKind::IntraRun : GroupKind::TiledRun;
-		groups.push_back(
-			Group{kind, run_active_n, 0, run_max_j, 0, run_ops_begin, ops.size() - run_ops_begin, run_max_k});
+		groups.push_back(Group{kind, run_active_n, 0, run_max_j, 0, run_ops_begin, ops.size() - run_ops_begin});
 		run_open = false;
 	};
 
@@ -534,21 +534,19 @@ std::vector<Group> build_groups(const std::vector<common::bitonic::Layer>& layer
 			if (width > 0 && layer.j == width) {
 				const std::size_t out_active_n = layer.active_n / 2;
 				const std::size_t ops_begin = ops.size();
-				std::size_t max_k = 0;
 				std::size_t look = li + 1;
 				while (look < layers.size() && layers[look].type == common::bitonic::LayerType::Normal &&
 					   layers[look].active_n == out_active_n && layers[look].j <= imax) {
 					ops.push_back(IntraOp{layers[look].j, layers[look].k});
-					max_k = std::max(max_k, layers[look].k);
 					++look;
 				}
 				groups.push_back(Group{GroupKind::TruncResort, layer.active_n, out_active_n, layer.j, layer.k,
-									   ops_begin, ops.size() - ops_begin, max_k});
+									   ops_begin, ops.size() - ops_begin});
 				li = look - 1; // skip the resort layers we just absorbed
 				continue;
 			}
 
-			groups.push_back(Group{GroupKind::Truncate, layer.active_n, 0, layer.j, layer.k, 0, 0, 0});
+			groups.push_back(Group{GroupKind::Truncate, layer.active_n, 0, layer.j, layer.k, 0, 0});
 			continue;
 		}
 
@@ -559,15 +557,13 @@ std::vector<Group> build_groups(const std::vector<common::bitonic::Layer>& layer
 				run_open = true;
 				run_active_n = layer.active_n;
 				run_ops_begin = ops.size();
-				run_max_k = 0;
 				run_max_j = 0;
 			}
 			ops.push_back(IntraOp{layer.j, layer.k});
-			run_max_k = std::max(run_max_k, layer.k);
 			run_max_j = std::max(run_max_j, layer.j);
 		} else {
 			flush_run();
-			groups.push_back(Group{GroupKind::InterNormal, layer.active_n, 0, layer.j, layer.k, 0, 0, 0});
+			groups.push_back(Group{GroupKind::InterNormal, layer.active_n, 0, layer.j, layer.k, 0, 0});
 		}
 	}
 	flush_run();
@@ -605,7 +601,12 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 	workers = std::min<std::size_t>(workers, cpu::kMaxWorkers);
 	workers = std::min(workers, std::max<std::size_t>(1, n >> 16));
 
-	const bool use_avx512 = cpu::simd::use_avx512();
+	std::size_t max_layer_k = 0;
+	for (const auto& layer : layers) {
+		max_layer_k = std::max(max_layer_k, layer.k);
+	}
+	const bool use_avx512 =
+		cpu::simd::use_avx512() && max_layer_k <= static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max());
 	const bool use_avx2 = cpu::simd::cpu_supports_avx2();
 
 	std::vector<IntraOp> ops;
@@ -667,7 +668,7 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 				switch (group.kind) {
 				case GroupKind::IntraRun: {
 					if (!try_run_fused_intra<T>(src, begin, end, ops.data() + group.ops_begin, group.ops_count,
-												group.max_k)) {
+												use_avx512)) {
 						for (std::size_t o = 0; o < group.ops_count; ++o) {
 							const IntraOp& op = ops[group.ops_begin + o];
 							run_normal_scalar(src, begin, end, op.k, op.j, active_n);
@@ -677,12 +678,13 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 				}
 				case GroupKind::TiledRun: {
 					run_tiled<T>(src, begin, end, ops.data() + group.ops_begin, group.ops_count, active_n,
-								 run_tile_elems<T>(group.j), cpu::simd::simd_block_width<T>(use_avx512, use_avx2));
+								 run_tile_elems<T>(group.j), cpu::simd::simd_block_width<T>(use_avx512, use_avx2),
+								 use_avx512);
 					break;
 				}
 				case GroupKind::TruncResort: {
 					if (!try_run_fused_trunc_resort<T>(src, dst, begin, end, ops.data() + group.ops_begin,
-													   group.ops_count, group.max_k)) {
+													   group.ops_count, use_avx512)) {
 						for (std::size_t o = begin; o < end; ++o) {
 							const std::size_t in_base = trunc_source_index(o, group.j);
 							dst[o] = std::min(src[in_base], src[in_base + group.j]);
@@ -695,13 +697,13 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 					break;
 				}
 				case GroupKind::InterNormal: {
-					if (!try_run_inter<T>(src, begin, end, group.k, group.j, active_n)) {
+					if (!try_run_inter<T>(src, begin, end, group.k, group.j, active_n, use_avx512)) {
 						run_normal_scalar(src, begin, end, group.k, group.j, active_n);
 					}
 					break;
 				}
 				case GroupKind::Truncate: {
-					if (!try_run_simd_layer_truncate<T>(src, dst, begin, end, group.j, active_n)) {
+					if (!try_run_simd_layer_truncate<T>(src, dst, begin, end, group.j, active_n, use_avx512)) {
 						std::size_t i = begin;
 						const std::size_t j_minus_1 = group.j - 1;
 						const std::size_t j_mask = ~j_minus_1;

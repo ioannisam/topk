@@ -73,7 +73,7 @@ template <> struct DeviceTraits<__half> {
 		return __hmax(a, b);
 	}
 	static __device__ __forceinline__ __half sentinel(bool want_max) {
-		return want_max ? __float2half(-65504.0f) : __float2half(65504.0f);
+		return want_max ? __float2half(-CUDART_INF_F) : __float2half(CUDART_INF_F);
 	}
 };
 

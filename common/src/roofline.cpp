@@ -1,5 +1,7 @@
 #include "common/roofline.hpp"
 
+#include "parse_utils.hpp"
+
 #include <cctype>
 #include <cstdio>
 #include <stdexcept>
@@ -16,32 +18,9 @@ namespace {
 constexpr const char* kUsage = "Usage: ./roofline [exp=stream|sweep|cache|transfer|both|all] [bytes=<size>[K|M|G]] "
 							   "[ops=<csv>] [sizes=<csv of sizes>] [threads=<num>] [seed=<seed>] [debug=true|false]";
 
-bool starts_with(const std::string& text, const std::string& prefix) {
-	return text.rfind(prefix, 0) == 0;
-}
-
-bool parse_bool_value(const std::string& value, const char* field_name) {
-	if (value == "true" || value == "1" || value == "yes" || value == "on") {
-		return true;
-	}
-	if (value == "false" || value == "0" || value == "no" || value == "off") {
-		return false;
-	}
-	throw std::invalid_argument(std::string(field_name) + " must be true/false");
-}
-
-long long parse_signed_long(const std::string& text, const char* field_name) {
-	try {
-		std::size_t pos = 0;
-		const long long value = std::stoll(text, &pos);
-		if (pos != text.size()) {
-			throw std::invalid_argument("");
-		}
-		return value;
-	} catch (const std::exception&) {
-		throw std::invalid_argument(std::string(field_name) + " must be an integer");
-	}
-}
+using common::parse::parse_bool_value;
+using common::parse::parse_signed_long;
+using common::parse::starts_with;
 
 std::size_t parse_bytes(const std::string& text) {
 	if (text.empty()) {
@@ -231,6 +210,9 @@ double operational_intensity(const Point& point) {
 }
 
 void report(const Config& cfg, const char* backend, const std::vector<Point>& points) {
+	if (points.empty()) {
+		std::fprintf(stderr, "warning: backend %s produced no roofline points for the selected experiment\n", backend);
+	}
 	if (cfg.debug_output) {
 		common::reporting::print_section_header("Roofline Configuration");
 		common::reporting::print_key_value("Backend", backend);
