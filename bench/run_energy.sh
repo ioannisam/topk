@@ -20,8 +20,18 @@ rm -f "${RESULTS_DIR}/raw/energy/measurements/"*.txt 2>/dev/null || true
 # Grant RAPL read for this session so the workload runs unprivileged
 # (NPU needs its own XRT env, which sudo would strip).
 if command -v sudo >/dev/null 2>&1; then
-    sudo chmod a+r /sys/class/powercap/intel-rapl:*/energy_uj \
+    sudo -n chmod a+r /sys/class/powercap/intel-rapl:*/energy_uj \
         /sys/class/powercap/intel-rapl:*/*/energy_uj 2>/dev/null || true
+fi
+
+rapl_readable=0
+for f in /sys/class/powercap/intel-rapl:*/energy_uj; do
+    [[ -r "${f}" ]] && rapl_readable=1 && break
+done
+if [[ "${rapl_readable}" != "1" ]]; then
+    echo "error: no readable /sys/class/powercap/intel-rapl:*/energy_uj - energy data would be empty" >&2
+    echo "       fix: sudo chmod a+r /sys/class/powercap/intel-rapl:*/energy_uj /sys/class/powercap/intel-rapl:*/*/energy_uj" >&2
+    exit 1
 fi
 
 NPU_OFFLOAD_XCLBIN="${ROOT_DIR}/build/NPU/bitonic.xclbin" \
