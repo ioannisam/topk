@@ -5,11 +5,12 @@ from aie.dialects.scf import *
 from aie.ir import *
 
 NUM_COLS = 4
+CORES_PER_COL = 2
 TILE = 1024
-CHUNKS_PER_COL = 256
-BATCH_CHUNKS = NUM_COLS * CHUNKS_PER_COL
-ELEMS_PER_COL = CHUNKS_PER_COL * TILE
-BATCH_ELEMS = BATCH_CHUNKS * TILE
+CHUNKS_PER_CORE = 128
+ELEMS_PER_CORE = CHUNKS_PER_CORE * TILE
+ELEMS_PER_COL = CORES_PER_COL * ELEMS_PER_CORE
+BATCH_ELEMS = NUM_COLS * ELEMS_PER_COL
 
 
 def build_design():
@@ -24,15 +25,6 @@ def build_design():
 
                 sort_func = external_func("bitonic_sort_runs", inputs=[memref_tile, memref_tile], link_with="bitonic.o")
 
-                tiles = {}
-                fifos = {}
-                for col in range(NUM_COLS):
-                    tiles[col] = {"shim": tile(col, 0), "compute": tile(col, 2)}
-                    fifos[col] = {
-                        "in": object_fifo(f"in_{col}", tiles[col]["shim"], tiles[col]["compute"], 2, memref_tile),
-                        "out": object_fifo(f"out_{col}", tiles[col]["compute"], tiles[col]["shim"], 2, memref_tile),
-                    }
-
                 def build_core(compute_tile, in_f, out_f):
                     @core(compute_tile)
                     def core_body():
@@ -44,30 +36,45 @@ def build_design():
                             out_f.release(ObjectFifoPort.Produce, 1)
                             yield_([])
 
+                comps = {}
+                fifos = {}
                 for col in range(NUM_COLS):
-                    build_core(tiles[col]["compute"], fifos[col]["in"], fifos[col]["out"])
+                    shim = tile(col, 0)
+                    for r in range(CORES_PER_COL):
+                        comp = tile(col, 2 + r)
+                        comps[(col, r)] = comp
+                        fifos[(col, r)] = (
+                            object_fifo(f"in_{col}_{r}", shim, comp, 2, memref_tile),
+                            object_fifo(f"out_{col}_{r}", comp, shim, 2, memref_tile),
+                        )
+
+                for col in range(NUM_COLS):
+                    for r in range(CORES_PER_COL):
+                        in_f, out_f = fifos[(col, r)]
+                        build_core(comps[(col, r)], in_f, out_f)
 
                 @runtime_sequence(memref_batch, memref_batch)
                 def seq(out, inp):
                     for col in range(NUM_COLS):
-                        elem_offset = col * ELEMS_PER_COL
-                        bd_base = col * 2
-                        npu_dma_memcpy_nd(
-                            metadata=f"out_{col}",
-                            bd_id=bd_base + 0,
-                            mem=out,
-                            offsets=[0, 0, 0, elem_offset],
-                            sizes=[1, 1, CHUNKS_PER_COL, TILE],
-                            strides=[1, 1, TILE, 1],
-                        )
-                        npu_dma_memcpy_nd(
-                            metadata=f"in_{col}",
-                            bd_id=bd_base + 1,
-                            mem=inp,
-                            offsets=[0, 0, 0, elem_offset],
-                            sizes=[1, 1, CHUNKS_PER_COL, TILE],
-                            strides=[1, 1, TILE, 1],
-                        )
+                        for r in range(CORES_PER_COL):
+                            elem_offset = col * ELEMS_PER_COL + r * ELEMS_PER_CORE
+                            bd_base = (col * CORES_PER_COL + r) * 2
+                            npu_dma_memcpy_nd(
+                                metadata=f"out_{col}_{r}",
+                                bd_id=bd_base + 0,
+                                mem=out,
+                                offsets=[0, 0, 0, elem_offset],
+                                sizes=[1, 1, CHUNKS_PER_CORE, TILE],
+                                strides=[1, 1, TILE, 1],
+                            )
+                            npu_dma_memcpy_nd(
+                                metadata=f"in_{col}_{r}",
+                                bd_id=bd_base + 1,
+                                mem=inp,
+                                offsets=[0, 0, 0, elem_offset],
+                                sizes=[1, 1, CHUNKS_PER_CORE, TILE],
+                                strides=[1, 1, TILE, 1],
+                            )
 
                     npu_sync(column=0, row=0, direction=0, channel=0, column_num=NUM_COLS, row_num=1)
 
