@@ -93,13 +93,24 @@ void process_npu_results(xrt::bo& dst_bo, std::vector<std::int32_t>& heap, std::
 	std::int32_t* dst_map = dst_bo.map<std::int32_t*>();
 	const std::size_t chunk_size = 1024;
 
+	constexpr std::size_t kBlock = 16;
 	for (std::size_t c = 0; c < batch_chunks; ++c) {
 		std::int32_t* chunk_ptr = dst_map + (c * chunk_size);
-		for (std::size_t i = 0; i < chunk_size; ++i) {
-			std::int32_t key = chunk_ptr[i];
-			if (Cmp{}(key, heap.front())) {
-				heap[0] = key;
-				sift_down<WantMax>(heap, 0);
+		for (std::size_t i = 0; i < chunk_size; i += kBlock) {
+			std::int32_t best = chunk_ptr[i];
+			for (std::size_t l = 1; l < kBlock; ++l) {
+				const std::int32_t v = chunk_ptr[i + l];
+				best = Cmp{}(v, best) ? v : best;
+			}
+			if (!Cmp{}(best, heap.front())) {
+				continue;
+			}
+			for (std::size_t l = 0; l < kBlock; ++l) {
+				const std::int32_t key = chunk_ptr[i + l];
+				if (Cmp{}(key, heap.front())) {
+					heap[0] = key;
+					sift_down<WantMax>(heap, 0);
+				}
 			}
 		}
 	}
