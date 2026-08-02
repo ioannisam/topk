@@ -8,3 +8,4 @@ tmp*
 .python-version
 __pycache__
 .ruff_cache
+copy_results

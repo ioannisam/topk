@@ -38,10 +38,14 @@ const char* distribution_name(common::config::Distribution dist) {
 		return "uniform";
 	case common::config::Distribution::Normal:
 		return "normal";
+	case common::config::Distribution::Trimodal:
+		return "trimodal";
 	case common::config::Distribution::Sorted:
 		return "sorted";
 	case common::config::Distribution::Reverse:
 		return "reverse";
+	case common::config::Distribution::Adversarial:
+		return "adversarial";
 	}
 	return "unknown";
 }

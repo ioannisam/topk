@@ -1,0 +1,16 @@
+RAPL measurement
+Command: /home/ioannis/Development/Thesis/build/CPU/topk q=24 k=131072 mode=max dtype=double algo=bitonic run=trunc debug=false threads=8 seed=24131244 verify=false min=0 max=1000000000 dist=uniform
+- energy_path: /sys/class/powercap/intel-rapl:0/energy_uj
+- wrapped: no
+- core_available: yes
+- elapsed_seconds: 6.599597
+- energy_joules: 180.488926
+- average_watts: 27.348478
+- core_energy_joules: 18.039991
+- core_average_watts: 2.733499
+- baseline_watts: 2.857751
+- net_energy_joules: 161.628922
+- net_average_watts: 24.490727
+- core_baseline_watts: 0.025745
+- net_core_energy_joules: 17.870084
+- command_exit_code: 0

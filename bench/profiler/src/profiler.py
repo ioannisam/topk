@@ -9,6 +9,7 @@ from .csv_io import write_case_csv, write_measurement_csv, write_roofline_csv
 from .filtering import filter_measurements, filter_records
 from .parsing import attach_inprocess_energy, parse_measurements, parse_roofline, parse_test_output
 from .plotting.common import MATPLOTLIB_AVAILABLE, set_dtype_context
+from .plotting import dist_compare
 from .plotting import edp_vs_n
 from .plotting import energy_by_backend
 from .plotting import energy_by_source
@@ -85,6 +86,7 @@ def parse_args() -> argparse.Namespace:
             "roofline-kernels",
             "time-vs-n-k-colored",
             "heatmap-time",
+            "dist-compare",
         ],
         help="Plot(s) to generate.",
     )
@@ -107,6 +109,23 @@ def parse_args() -> argparse.Namespace:
         help="Optional mode filter.",
     )
     parser.add_argument("--k", type=int, default=None, help="Optional top-k filter.")
+    parser.add_argument(
+        "--fanout-k",
+        type=int,
+        nargs="*",
+        default=[],
+        help=(
+            "Restrict which k values get their own figure in the per-k plot families. "
+            "Plots that carry k as an axis (heatmap-time, time-vs-n-k-colored) keep every "
+            "measured k regardless. Default: every k present."
+        ),
+    )
+    parser.add_argument(
+        "--dist",
+        nargs="*",
+        default=[],
+        help="Optional input-distribution filter(s), e.g. uniform trimodal adversarial.",
+    )
     parser.add_argument(
         "--backend",
         nargs="*",
@@ -186,6 +205,8 @@ def main() -> int:
     dtypes_filter = {d.lower() for d in args.dtype}
     algorithms = {a.lower() for a in args.algorithm}
     backends = {b.lower() for b in args.backend}
+    dists = {d.lower() for d in args.dist}
+    fanout_ks = set(args.fanout_k)
     energy_metrics = ["total", "net"] if args.energy_metric == "both" else [args.energy_metric]
 
     measurement_paths = list(args.measurement_input)
@@ -249,6 +270,7 @@ def main() -> int:
             "roofline-kernels",
             "time-vs-n-k-colored",
             "heatmap-time",
+            "dist-compare",
         }
     if "none" in requested:
         requested.remove("none")
@@ -282,6 +304,7 @@ def main() -> int:
         out_correctness = os.path.join(out_root, "correctness")
         out_energy = os.path.join(out_root, "energy")
         out_memory = os.path.join(out_root, "memory")
+        out_dist = os.path.join(out_root, "dist")
 
         set_dtype_context(dtype_dir)
 
@@ -294,6 +317,7 @@ def main() -> int:
             mode=args.mode,
             k_value=args.k,
             backends=backends,
+            dists=dists,
         )
         dtype_measurements = filter_measurements(
             measurement_records,
@@ -302,11 +326,18 @@ def main() -> int:
             mode=args.mode,
             k_value=args.k,
             backends=backends,
+            dists=dists,
         )
 
         # Create GT-stripped subsets for plots that shouldn't show the Ground Truth
         records_no_gt = [r for r in records if r.algorithm != "gt"]
         dtype_measurements_no_gt = [m for m in dtype_measurements if m.algorithm != "gt"]
+
+        records_fan = [r for r in records if not fanout_ks or r.k in fanout_ks]
+        records_no_gt_fan = [r for r in records_no_gt if not fanout_ks or r.k in fanout_ks]
+        measurements_no_gt_fan = [
+            m for m in dtype_measurements_no_gt if not fanout_ks or m.k is None or m.k in fanout_ks
+        ]
 
         if not records and ("time-vs-n" in requested or "speedup-vs-gt" in requested or "pass-rate" in requested):
             print(f"No testcase records for dtype '{dtype_dir}' matched the selected filters.")
@@ -343,7 +374,7 @@ def main() -> int:
 
         if "time-vs-n" in requested:
             out = time_vs_n.plot(
-                records_no_gt,
+                records_no_gt_fan,
                 os.path.join(out_time, "time_vs_n.png"),
                 args.agg,
                 args.error_bars,
@@ -356,7 +387,7 @@ def main() -> int:
         # HAS GT - Gets full 'records'
         if "time-vs-n-algo-compare" in requested:
             out = time_vs_n_algo_compare.plot(
-                records,
+                records_fan,
                 os.path.join(out_time, "time_vs_n_algo_compare.png"),
                 args.agg,
                 args.error_bars,
@@ -368,7 +399,7 @@ def main() -> int:
 
         if "time-vs-n-backend-compare" in requested:
             out = time_vs_n_backend_compare.plot(
-                records_no_gt,
+                records_no_gt_fan,
                 os.path.join(out_time, "time_vs_n_backend_compare.png"),
                 args.agg,
                 args.error_bars,
@@ -412,8 +443,30 @@ def main() -> int:
             else:
                 print(f"Skipped heatmap-time ({dtype_dir}): missing data.")
 
+        if "dist-compare" in requested:
+            produced = False
+            for out in (
+                dist_compare.plot_time_vs_n(
+                    records_no_gt_fan,
+                    os.path.join(out_dist, "time_vs_n_dist_compare.png"),
+                    args.agg,
+                    args.error_bars,
+                ),
+                dist_compare.plot_sensitivity(
+                    records_fan,
+                    os.path.join(out_dist, "dist_sensitivity.png"),
+                    args.agg,
+                    args.compare_n,
+                ),
+            ):
+                if out:
+                    collect_output(out)
+                    produced = True
+            if not produced:
+                print(f"Skipped dist-compare ({dtype_dir}): fewer than two input distributions in the data.")
+
         if "speedup-vs-gt" in requested:
-            out = speedup_vs_gt.plot(records, os.path.join(out_time, "speedup_vs_gt.png"), args.agg)
+            out = speedup_vs_gt.plot(records_fan, os.path.join(out_time, "speedup_vs_gt.png"), args.agg)
             if out:
                 collect_output(out)
             else:
@@ -421,7 +474,7 @@ def main() -> int:
 
         if "time-per-element-vs-n" in requested:
             out = time_per_element_vs_n.plot(
-                records_no_gt,
+                records_no_gt_fan,
                 os.path.join(out_time, "time_per_element_vs_n.png"),
                 args.agg,
                 args.error_bars,
@@ -433,7 +486,7 @@ def main() -> int:
 
         if "memory-bandwidth-vs-n" in requested:
             # Extract all unique K values tested for this dtype
-            unique_ks = sorted(list({r.k for r in records if r.k is not None}))
+            unique_ks = sorted(list({r.k for r in records_fan if r.k is not None}))
 
             for current_k in unique_ks:
                 # all backends, no gt
@@ -542,7 +595,7 @@ def main() -> int:
             produced = False
             for metric in energy_metrics:
                 out = energy_vs_n.plot(
-                    dtype_measurements_no_gt,
+                    measurements_no_gt_fan,
                     metric_path(out_energy, "energy_vs_n.png", metric),
                     args.agg,
                     args.error_bars,
@@ -574,7 +627,7 @@ def main() -> int:
             produced = False
             for metric in energy_metrics:
                 out = power_vs_n.plot(
-                    dtype_measurements_no_gt,
+                    measurements_no_gt_fan,
                     metric_path(out_energy, "power_vs_n.png", metric),
                     args.agg,
                     args.error_bars,
@@ -590,7 +643,7 @@ def main() -> int:
             produced = False
             for metric in energy_metrics:
                 out = energy_by_backend.plot(
-                    dtype_measurements_no_gt,
+                    measurements_no_gt_fan,
                     metric_path(out_energy, "energy_by_backend.png", metric),
                     args.agg,
                     args.compare_n,
@@ -607,7 +660,7 @@ def main() -> int:
             produced = False
             for metric in energy_metrics:
                 out = power_by_backend.plot(
-                    dtype_measurements_no_gt,
+                    measurements_no_gt_fan,
                     metric_path(out_energy, "power_by_backend.png", metric),
                     args.agg,
                     args.compare_n,
@@ -637,7 +690,7 @@ def main() -> int:
             produced = False
             for metric in energy_metrics:
                 out = edp_vs_n.plot(
-                    dtype_measurements_no_gt,
+                    measurements_no_gt_fan,
                     metric_path(out_energy, "edp_vs_n.png", metric),
                     args.agg,
                     args.error_bars,
@@ -655,7 +708,7 @@ def main() -> int:
             produced = False
             for metric in energy_metrics:
                 out = energy_per_element_vs_n.plot(
-                    dtype_measurements_no_gt,
+                    measurements_no_gt_fan,
                     metric_path(out_energy, "energy_per_element_vs_n.png", metric),
                     args.agg,
                     args.error_bars,

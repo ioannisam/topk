@@ -30,8 +30,10 @@ enum class Algorithm {
 enum class Distribution {
 	Uniform,
 	Normal,
+	Trimodal,
 	Sorted,
 	Reverse,
+	Adversarial,
 };
 
 struct Config {

@@ -12,6 +12,7 @@ def filter_records(
     mode: Optional[str],
     k_value: Optional[int],
     backends: set[str],
+    dists: Optional[set[str]] = None,
 ) -> list[CaseRecord]:
     out: list[CaseRecord] = []
     for rec in records:
@@ -29,6 +30,8 @@ def filter_records(
             continue
         if backends and rec.backend not in backends:
             continue
+        if dists and rec.dist and rec.dist not in dists:
+            continue
         out.append(rec)
     return out
 
@@ -40,6 +43,7 @@ def filter_measurements(
     mode: Optional[str],
     k_value: Optional[int],
     backends: set[str],
+    dists: Optional[set[str]] = None,
 ) -> list[MeasurementRecord]:
     out: list[MeasurementRecord] = []
     for rec in records:
@@ -56,6 +60,8 @@ def filter_measurements(
         if k_value is not None and rec.k is not None and rec.k != k_value:
             continue
         if backends and rec.backend and rec.backend not in backends:
+            continue
+        if dists and rec.dist and rec.dist not in dists:
             continue
         out.append(rec)
     return out

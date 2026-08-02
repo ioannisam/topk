@@ -5,14 +5,21 @@ ARGS ?=
 GPU_W ?= 50
 NPU_VENV ?= npu_venv
 
-PLOT_CASES := --plot all --error-bars none
-PLOT_ENERGY := --input ./bench/results/raw/energy/output.json --plot energy-by-backend power-by-backend energy-vs-n power-vs-n edp-vs-n energy-per-element-vs-n time-vs-energy --energy-metric both --error-bars none
-PLOT_ROOFLINE := --plot roofline roofline-kernels memory-bandwidth-vs-n roof-utilization --error-bars none
+CATALOGUE_DIST ?= uniform
+CATALOGUE_K ?= 8 131072
+CATALOGUE_DTYPES ?= int uint float double half
+CATALOGUE_METRIC ?= net
+CATALOGUE := --dist $(CATALOGUE_DIST) --fanout-k $(CATALOGUE_K) --dtype $(CATALOGUE_DTYPES) --energy-metric $(CATALOGUE_METRIC)
+
+PLOT_CASES := --plot all --error-bars none $(CATALOGUE)
+PLOT_ENERGY := --input ./bench/results/raw/energy/output.json --plot energy-by-backend power-by-backend energy-vs-n power-vs-n edp-vs-n energy-per-element-vs-n time-vs-energy --error-bars none $(CATALOGUE)
+PLOT_ROOFLINE := --plot roofline roofline-kernels memory-bandwidth-vs-n roof-utilization --error-bars none $(CATALOGUE)
+PLOT_DISTS := --input ./bench/results/raw/dists/output.json --plot dist-compare --fanout-k $(CATALOGUE_K) --dtype float half --error-bars none --timing-csv-out ./bench/results/derived/dists.csv --energy-csv-out ''
 
 .PHONY: all help build-all build-cpu build-gpu build-npu verify-artifacts \
 	clean clean-build clean-results \
-	run-cpu run-gpu run-npu measure-cases measure-energy measure-roofline measure-ncu plot \
-	benchmark benchmark-cases benchmark-energy benchmark-roofline profiler-bootstrap \
+	run-cpu run-gpu run-npu measure-cases measure-energy measure-dists measure-roofline measure-ncu plot \
+	benchmark benchmark-cases benchmark-energy benchmark-dists benchmark-roofline profiler-bootstrap \
 	pin pin-show unpin lint specs a-test ab-test \
 	thesis
 
@@ -26,6 +33,7 @@ help:
 	@echo "  Measure (write bench/results/):"
 	@echo "    measure-cases                 - measure timing data via runner.py (ARGS=...)"
 	@echo "    measure-energy                - measure energy data, all backends; sudo for RAPL (ARGS=...)"
+	@echo "    measure-dists                 - measure input-distribution sensitivity on a reduced grid (ARGS=...)"
 	@echo "    measure-roofline              - measure bandwidth + compare-exchange roofs, cache + transfer walls (ARGS=...)"
 	@echo "    measure-ncu                   - GPU hardware counters via Nsight Compute (ARGS=...)"
 	@echo "  Plot:"
@@ -33,6 +41,7 @@ help:
 	@echo "  Pipelines (measure + plot):"
 	@echo "    benchmark-cases               - timing: measure-cases + plot"
 	@echo "    benchmark-energy              - energy: measure-energy + plot"
+	@echo "    benchmark-dists               - distributions: measure-dists + plot"
 	@echo "    benchmark-roofline            - roofline: measure-roofline + plot"
 	@echo "    benchmark                     - UNATTENDED full run: clean, build, pin, measure x3,"
 	@echo "                                    plot x3, unpin. Asks for sudo once up front, then"
@@ -97,13 +106,16 @@ run-npu: build-npu
 	./$(BUILD_DIR)/NPU/topk $(ARGS)
 
 measure-cases:
-	./bench/run_cases.sh $(ARGS)
+	./bench/measure/run_cases.sh $(ARGS)
 
 measure-energy:
-	./bench/run_energy.sh $(ARGS)
+	./bench/measure/run_energy.sh $(ARGS)
+
+measure-dists:
+	./bench/measure/run_dists.sh $(ARGS)
 
 measure-roofline:
-	./bench/run_roofline.sh $(ARGS)
+	./bench/measure/run_roofline.sh $(ARGS)
 
 measure-ncu:
 	./bench/lib/measure_ncu.sh --out bench/results/raw/ncu/report.txt -- ./build/GPU/topk $(ARGS)
@@ -138,10 +150,12 @@ benchmark:
 	echo "=== 4/6 Measure ==="; \
 	$(MAKE) measure-cases    || echo "WARNING: measure-cases failed"; \
 	$(MAKE) measure-energy   || echo "WARNING: measure-energy failed"; \
+	$(MAKE) measure-dists    || echo "WARNING: measure-dists failed"; \
 	$(MAKE) measure-roofline || echo "WARNING: measure-roofline failed"; \
 	echo "=== 5/6 Plot ==="; \
 	$(MAKE) plot ARGS="$(PLOT_CASES)"    || echo "WARNING: timing plots failed"; \
 	$(MAKE) plot ARGS="$(PLOT_ENERGY)"   || echo "WARNING: energy plots failed"; \
+	$(MAKE) plot ARGS="$(PLOT_DISTS)"    || echo "WARNING: distribution plots failed"; \
 	$(MAKE) plot ARGS="$(PLOT_ROOFLINE)" || echo "WARNING: roofline plots failed"; \
 	echo "=== 6/6 Done ==="
 
@@ -162,6 +176,12 @@ benchmark-energy:
 	-$(MAKE) measure-energy
 	@echo "=== 2. Generating energy plots ==="
 	$(MAKE) plot ARGS="$(PLOT_ENERGY)"
+
+benchmark-dists:
+	@echo "=== 1. Measuring distribution sensitivity (reduced grid) ==="
+	-$(MAKE) measure-dists
+	@echo "=== 2. Generating distribution plots ==="
+	$(MAKE) plot ARGS="$(PLOT_DISTS)"
 
 pin-show:
 	ACTION=show ./scripts/pin_conditions.sh

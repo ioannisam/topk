@@ -13,7 +13,7 @@ CASE_HEADER_RE = re.compile(r"^### Case:\s*(?P<name>.+)$")
 KV_RE = re.compile(r"^\s{2}(?P<key>[^:]+):\s*(?P<value>.+)$")
 MEASURE_KV_RE = re.compile(r"^-\s+(?P<key>[a-zA-Z0-9_]+):\s*(?P<value>.+)$")
 COMMAND_RE = re.compile(r"^Command:\s*(?P<cmd>.+)$")
-VARIANT_RE = re.compile(r"_(?P<dist>uniform|normal|sorted|reverse)_s(?P<seed>\d+)_rep(?P<rep>\d+)_(?P<src>[a-z]+)$")
+VARIANT_RE = re.compile(r"_(?P<dist>[a-z]+)_s(?P<seed>\d+)_rep(?P<rep>\d+)_(?P<src>[a-z]+)$")
 MEASUREMENT_NAME_RE = re.compile(
     r"^\d{8}_\d{6}_(?P<backend>cpu|gpu|npu)_(?P<dtype>int|uint|float|double|half)_"
     r"(?P<algorithm>bitonic|map_reduce|gt)_"

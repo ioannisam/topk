@@ -23,7 +23,7 @@ constexpr int kHalfMax = 65504;
 constexpr const char* kUsage = "Usage: ./topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] "
 							   "[algo=bitonic|map_reduce|gt] [run=full|trunc|both] [debug=true|false] "
 							   "[threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>] "
-							   "[dist=uniform|normal|sorted|reverse]";
+							   "[dist=uniform|normal|trimodal|sorted|reverse|adversarial]";
 
 DataType parse_dtype(const std::string& token);
 Algorithm parse_algorithm(const std::string& token);
@@ -249,13 +249,20 @@ Distribution parse_distribution(const std::string& token) {
 	if (token == "normal" || token == "gaussian") {
 		return Distribution::Normal;
 	}
+	if (token == "trimodal") {
+		return Distribution::Trimodal;
+	}
 	if (token == "sorted") {
 		return Distribution::Sorted;
 	}
 	if (token == "reverse") {
 		return Distribution::Reverse;
 	}
-	throw std::invalid_argument("Unsupported distribution. Use one of: uniform, normal, sorted, reverse");
+	if (token == "adversarial") {
+		return Distribution::Adversarial;
+	}
+	throw std::invalid_argument(
+		"Unsupported distribution. Use one of: uniform, normal, trimodal, sorted, reverse, adversarial");
 }
 
 } // namespace
