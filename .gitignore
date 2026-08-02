@@ -1,12 +1,10 @@
-bench/results
-
+build
+doc/notes
 npu_venv
 .venv
 mlir-aie
-.python-version
-__pycache__
-build
-.ruff_cache
 tmp*
 *.pdf
-doc/notes
+.python-version
+__pycache__
+.ruff_cache

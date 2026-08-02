@@ -1,0 +1,18 @@
+GPU measurement
+Command: /home/ioannis/Development/Thesis/build/GPU/topk q=21 k=256 mode=max dtype=half algo=map_reduce run=trunc debug=false threads=8 seed=21000419 verify=false min=0 max=1000000000 dist=uniform
+- gpu_index: 0
+- sample_interval_ms: 100
+- sample_count: 7
+- host_rapl_available: yes
+- elapsed_seconds: 0.662030
+- board_energy_joules: 14.760123
+- board_average_watts: 22.295233
+- host_energy_joules: 5.703425
+- energy_joules: 20.463548
+- average_watts: 30.910282
+- board_baseline_watts: 10.849444
+- net_board_energy_joules: 7.577461
+- baseline_watts: 17.221318
+- net_energy_joules: 9.062511
+- net_average_watts: 13.688964
+- command_exit_code: 0
