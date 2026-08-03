@@ -206,6 +206,7 @@ ab-test:
 
 thesis:
 	@echo "=== Compiling Thesis ==="
+	cd $(THESIS_DIR) && mkdir -p build/frontmatter build/chapters build/appendices
 	cd $(THESIS_DIR) && latexmk -pdf -interaction=nonstopmode -file-line-error -outdir=build main.tex
 	cd $(THESIS_DIR) && cp build/main.pdf .
 

@@ -22,22 +22,35 @@
 
 \begin{document}
 
-\include{cover}
+\include{frontmatter/cover}
 
 \title{Επιτάχυνση επιλογής \tl{top-k} σε ετερογενή συστήματα \tl{CPU}, \tl{GPU} και \tl{NPU}}
 \author{Ιωάννης Μιχάλαινας \\
 \href{mailto:ioannisam@ece.auth.gr}{\tl{ioannisam@ece.auth.gr}}}
 \maketitle
 
+\include{frontmatter/abstract}
+\include{frontmatter/acknowledgements}
+
 \tableofcontents
 \thispagestyle{empty}
 
-% \include{chapter1}
-% \include{chapter1}
-% \include{chapter3}
+\listoffigures
+\listoftables
+
+\include{chapters/introduction}
+\include{chapters/background}
+\include{chapters/methodology}
+\include{chapters/cpu}
+\include{chapters/gpu}
+\include{chapters/npu}
+\include{chapters/evaluation}
+\include{chapters/conclusions}
 
 \appendix
-\include{acronyms}
+\include{appendices/acronyms}
+\include{appendices/glossary}
+\include{appendices/reproducibility}
 
 \selectlanguage{english}
 
