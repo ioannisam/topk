@@ -7,6 +7,8 @@ import sys
 import time
 from datetime import datetime
 
+from environment import capture_environment
+
 
 def find_root_dir():
     current_dir = os.path.abspath(os.path.dirname(__file__))
@@ -125,7 +127,13 @@ def main():
         os.makedirs(args.energy_out_dir, exist_ok=True)
 
     json_data = {
-        "metadata": {"timestamp": run_id, "backends": backends, "types": types, "config": vars(args)},
+        "metadata": {
+            "timestamp": run_id,
+            "backends": backends,
+            "types": types,
+            "config": vars(args),
+            "environment": capture_environment(ROOT_DIR),
+        },
         "results": [],
         "summary": {"total_pass": 0, "total_fail": 0, "skipped_backends": []},
     }

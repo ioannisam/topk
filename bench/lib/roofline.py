@@ -9,6 +9,8 @@ import sys
 import time
 from datetime import datetime
 
+from environment import capture_environment
+
 
 def find_root_dir():
     current_dir = os.path.abspath(os.path.dirname(__file__))
@@ -98,6 +100,7 @@ def main():
 
     json_data = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "environment": capture_environment(ROOT_DIR),
         "experiment": args.exp,
         "bytes": args.bytes,
         "ops": args.ops,
