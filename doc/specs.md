@@ -3,7 +3,7 @@
 ## System Information
 * **Host Model:** Lenovo Legion 5 15AHP10
 * **Operating System:** Arch Linux x86_64
-* **Kernel:** Linux 7.1.4-arch1-1 (re-check with `make specs`; this drifts on every kernel update)
+* **Kernel:** Linux 7.1.5-arch1-2 (re-check with `make specs`; this drifts on every kernel update)
 * **Desktop Environment:** KDE Plasma 6.6.3 on Wayland
 * **System RAM:** ~32 GB DDR5 installed (`MemTotal` 32138656 kB ≈ 30.6 GiB usable), upgraded from ~16 GB by adding a second module.
   * **Configuration:** Dual-channel, confirmed by `dmidecode -t memory`: two 16 GiB DDR5 SODIMMs (mixed vendors) on CHANNEL A and CHANNEL B, both at a configured 5600 MT/s. Matches the measured ~2× jump in sustained DRAM bandwidth.
@@ -27,8 +27,8 @@
 
 ## GPU: NVIDIA GeForce RTX 5060 (Laptop)
 * **Model:** NVIDIA GeForce RTX 5060 Laptop GPU
-* **Driver:** 595.58.03
-* **CUDA Version:** 13.2
+* **Driver:** 610.43.03
+* **CUDA Version:** 13.3 (`nvcc` 13.3.73)
 * **VRAM:** 8151 MiB (~8 GB)
 * **Power Limits (validated):**
   * Default/Requested: 50.00 W
@@ -39,7 +39,8 @@
 ## NPU: AMD XDNA (Ryzen AI)
 * **Runtime Device:** RyzenAI-npu1 at BDF `0000:66:00.1`
 * **Kernel Driver Module:** `amdxdna` loaded (in-tree, so its version tracks the running kernel)
-* **NPU Firmware Version:** 1.5.2.380
+* **NPU Firmware Version:** 1.5.5.391
+* **XRT Version:** 2.21.75
 * **Architecture / TOPS figures:** Keep as vendor claims unless tied to an AMD official source in this document.
 * **Memory:** Likely shares system DDR5 memory
 
