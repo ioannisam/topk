@@ -523,7 +523,12 @@ def main() -> int:
                         collect_output(out_b)
 
         if "roof-utilization" in requested:
-            outs = roof_utilization.plot(records, roofline_points, out_memory, args.agg)
+            outs: list[str] = []
+            for current_k in sorted({r.k for r in records_fan if r.k is not None}):
+                records_k = [r for r in records if r.k == current_k]
+                if not records_k:
+                    continue
+                outs.extend(roof_utilization.plot(records_k, roofline_points, out_memory, args.agg, k=current_k))
             for out in outs:
                 collect_output(out)
             if not outs:

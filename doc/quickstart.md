@@ -186,7 +186,10 @@ Notes:
     `roofline-kernels` places each run at its measured (compare-ops/byte, compare-ops/s)
     against both roofs. Riding the sloped roof means bandwidth bound, riding the flat roof
     means compute bound, and sitting well below both means the limit is latency, dispatch,
-    or occupancy. `roof-utilization` reports the same thing as percent-of-roof against N.
+    or occupancy. `roof-utilization` reports the same thing as percent-of-roof against N,
+    one figure per `--fanout-k` value: utilization falls by more than an order of magnitude
+    from `k=8` to `k=131072`, so a single k-averaged figure reads a run that is genuinely at
+    the wall as roughly half of it.
   - The `cmp` kernel uses four vector-wide rotating chains on purpose: a single dependent
     chain measures latency rather than throughput and lands roughly 10x low, which would
     wrongly make kernels look compute bound.

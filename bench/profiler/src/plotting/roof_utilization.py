@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from collections import defaultdict
-from typing import Iterable
+from typing import Iterable, Optional
 
 from ..models import CaseRecord, RooflinePoint
 from .common import aggregate_value, plt, select_time_ms, style_axes
@@ -22,12 +22,17 @@ def plot(
     out_dir: str,
     agg: str = "mean",
     metric: str = "algorithmic",
+    k: Optional[int] = None,
 ) -> list[str]:
     """Per backend, how much of each measured roof the kernels actually reach.
 
     Distance to the bandwidth roof and distance to the compare-exchange roof together classify
     the bound: near the memory roof is memory bound, near the compute roof is compute bound,
     and far from both means the limiter is latency, dispatch, or occupancy.
+
+    Utilization collapses by more than an order of magnitude between the smallest and largest k,
+    so the caller slices by k the way the bandwidth plots do: averaged over the whole k grid, a
+    run that is genuinely at the wall reads as roughly half of it.
     """
     point_list = list(roofline_points)
     ladders = bandwidth_ladders(point_list)
@@ -103,9 +108,10 @@ def plot(
 
         ax.set_xscale("log", base=2)
         ax.set_yscale("log")
+        suffix = f", K={k}" if k is not None else ""
         style_axes(
             ax,
-            f"{backend.upper()}: Roof Utilization vs. Input Size (N)",
+            f"{backend.upper()}: Roof Utilization vs. Input Size (N{suffix})",
             "Input Size N (elements)",
             "Percent of measured roof (%)",
         )
@@ -113,7 +119,8 @@ def plot(
         fig.tight_layout()
 
         os.makedirs(out_dir, exist_ok=True)
-        out_file = os.path.join(out_dir, f"{backend}_roof_utilization.png")
+        stem = f"{backend}_roof_utilization" if k is None else f"{backend}_roof_utilization_k{k}"
+        out_file = os.path.join(out_dir, f"{stem}.png")
         fig.savefig(out_file, dpi=160)
         plt.close(fig)
         written.append(out_file)
