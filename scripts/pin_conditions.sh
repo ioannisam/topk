@@ -41,7 +41,13 @@ case "${ACTION}" in
     restore)
         set_governor schedutil || set_governor ondemand
         set_boost 1
-        command -v nvidia-smi >/dev/null 2>&1 && sudo nvidia-smi -pm 0 >/dev/null 2>&1 && echo "GPU persistence -> off"
+        if command -v nvidia-smi >/dev/null 2>&1; then
+            default_w="$(nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')"
+            if [[ "${default_w}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+                sudo nvidia-smi -pl "${default_w}" >/dev/null 2>&1 && echo "GPU power cap  -> ${default_w} W (default)"
+            fi
+            sudo nvidia-smi -pm 0 >/dev/null 2>&1 && echo "GPU persistence -> off"
+        fi
         echo
         report
         exit 0
