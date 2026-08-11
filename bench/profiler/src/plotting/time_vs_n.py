@@ -8,7 +8,9 @@ from ..models import CaseRecord
 from .common import aggregate_value, error_bounds, label_with_algorithm, plt, select_time_ms, style_axes, save_k_figure
 
 
-def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) -> Optional[list[str]]:
+def plot(
+    records: list[CaseRecord], out_path: str, agg: str, error_bars: str, metric: str = "algorithmic"
+) -> Optional[list[str]]:
     # Grouped by: K -> label -> N -> list of times
     grouped: dict[int, dict[str, dict[int, list[float]]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 
@@ -19,7 +21,7 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
         if rec.n is None or rec.k is None:
             continue
         label = label_with_algorithm(rec.backend, rec.algorithm, include_algorithm)
-        time_ms = select_time_ms(rec, "algorithmic")
+        time_ms = select_time_ms(rec, metric)
         if time_ms is None or time_ms <= 0:
             continue
 
@@ -59,7 +61,8 @@ def plot(records: list[CaseRecord], out_path: str, agg: str, error_bars: str) ->
 
         ax.set_xscale("log", base=2)
         ax.set_yscale("log")
-        style_axes(ax, f"Algorithmic Runtime vs Input Size (K = {k})", "N (log2 scale)", "Time (ms, log scale)")
+        basis = "Algorithmic" if metric == "algorithmic" else "End-to-end"
+        style_axes(ax, f"{basis} Runtime vs Input Size (K = {k})", "N (log2 scale)", "Time (ms, log scale)")
         ax.legend(title="Configuration", loc="upper left")
         fig.tight_layout()
 

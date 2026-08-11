@@ -373,18 +373,19 @@ def main() -> int:
             print(f"Wrote measurement CSV: {csv_path}")
 
         if "time-vs-n" in requested:
-            out = time_vs_n.plot(
-                records_no_gt_fan,
-                os.path.join(out_time, "time_vs_n.png"),
-                args.agg,
-                args.error_bars,
-            )
-            if out:
-                collect_output(out)
-            else:
-                print(f"Skipped time-vs-n ({dtype_dir}): no timing points found.")
+            for metric, tag in (("algorithmic", "algo"), ("end-to-end", "e2e")):
+                out = time_vs_n.plot(
+                    records_no_gt_fan,
+                    os.path.join(out_time, f"time_vs_n_{tag}.png"),
+                    args.agg,
+                    args.error_bars,
+                    metric,
+                )
+                if out:
+                    collect_output(out)
+                else:
+                    print(f"Skipped time-vs-n {tag} ({dtype_dir}): no timing points found.")
 
-        # HAS GT - Gets full 'records'
         if "time-vs-n-algo-compare" in requested:
             out = time_vs_n_algo_compare.plot(
                 records_fan,
