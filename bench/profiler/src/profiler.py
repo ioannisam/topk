@@ -542,7 +542,7 @@ def main() -> int:
 
         if "roofline-kernels" in requested:
             out = roofline.plot_kernels(
-                records,
+                records_fan,
                 roofline_points,
                 os.path.join(out_memory, "roofline_kernels.png"),
                 title=f"Top-k Kernels on the Measured Roofline ({dtype_dir})",

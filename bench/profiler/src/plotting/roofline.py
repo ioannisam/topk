@@ -6,7 +6,7 @@ from collections import defaultdict
 from typing import Iterable, Optional
 
 from ..models import CaseRecord, RooflinePoint
-from .common import plt, select_time_ms, style_axes
+from .common import plt, save_k_figure, select_time_ms, style_axes
 
 BACKEND_COLORS = {
     "cpu": "#4269D0",
@@ -16,8 +16,6 @@ BACKEND_COLORS = {
 
 STREAM_KERNELS = ("read", "fma", "cmp")
 
-# Below this the working set is too small to keep every thread busy, so the point measures
-# available parallelism rather than a bandwidth ceiling.
 LADDER_MIN_BYTES = 1024 * 1024
 
 
@@ -121,8 +119,8 @@ def plot_kernels(
     out_path: str,
     metric: str = "algorithmic",
     title: str = "Top-k Kernels on the Measured Roofline",
-) -> Optional[str]:
-    """Place each top-k run at its measured (compare-ops/byte, compare-ops/s).
+) -> Optional[list[str]]:
+    """Place each top-k run at its measured (compare-ops/byte, compare-ops/s), one figure per k.
 
     This is the figure that answers compute-vs-memory bound: a point riding the sloped roof is
     bandwidth limited, one riding the flat roof is compute limited, one well below either is
@@ -135,24 +133,59 @@ def plot_kernels(
     if not bw_ceilings or not cmp_ceilings:
         return None
 
-    grouped: dict[tuple[str, str], list[tuple[float, float]]] = defaultdict(list)
-    for r in records:
-        time_ms = select_time_ms(r, metric)
-        if not r.bytes_moved or not r.compare_ops or time_ms is None or time_ms <= 0:
-            continue
-        intensity = r.compare_ops / r.bytes_moved
-        rate = r.compare_ops / (time_ms * 1e6)
-        grouped[(r.backend, r.algorithm)].append((intensity, rate))
-
-    if not grouped:
+    usable = [
+        r for r in records if r.bytes_moved and r.compare_ops and r.n and r.k and (select_time_ms(r, metric) or 0) > 0
+    ]
+    if not usable:
         return None
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    largest_n = max(r.n for r in usable)
 
-    all_ai = [ai for series in grouped.values() for ai, _ in series]
-    ai_lo = min(all_ai) / 4.0
-    ai_hi = max(all_ai) * 4.0
+    by_k: dict[int, dict[tuple[str, str], list[tuple[float, float]]]] = defaultdict(lambda: defaultdict(list))
+    for r in usable:
+        if r.n != largest_n:
+            continue
+        time_ms = select_time_ms(r, metric)
+        intensity = r.compare_ops / r.bytes_moved
+        rate = r.compare_ops / (time_ms * 1e6)
+        by_k[r.k][(r.backend, r.algorithm)].append((intensity, rate))
 
+    if not by_k:
+        return None
+
+    base_dir = os.path.dirname(out_path) or "."
+    base_name, ext = os.path.splitext(os.path.basename(out_path))
+    outputs: list[str] = []
+
+    for k, grouped in sorted(by_k.items()):
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        all_ai = [ai for series in grouped.values() for ai, _ in series]
+        ai_lo = min(all_ai) / 4.0
+        ai_hi = max(all_ai) * 4.0
+
+        _draw_roofs(ax, bw_ceilings, cmp_ceilings, cache_bw, ai_lo, ai_hi)
+        _draw_kernels(ax, grouped)
+
+        ax.set_xscale("log", base=2)
+        ax.set_yscale("log", base=10)
+        style_axes(
+            ax,
+            f"{title} (N = 2^{largest_n.bit_length() - 1}, K = {k})",
+            "Operational Intensity (compare-ops / byte moved)",
+            "Attained Rate (Gcmp/s)",
+        )
+        # Outside the axes: with the roofs drawn the upper area is not free, and a legend this
+        # size overlapping the data was hiding the points it labels.
+        ax.legend(fontsize=8, loc="center left", bbox_to_anchor=(1.02, 0.5), borderaxespad=0)
+        fig.tight_layout()
+
+        outputs.append(save_k_figure(fig, base_dir, base_name, k, ext, bbox_inches="tight"))
+
+    return outputs
+
+
+def _draw_roofs(ax, bw_ceilings, cmp_ceilings, cache_bw, ai_lo: float, ai_hi: float) -> None:
     for backend in sorted(bw_ceilings):
         peak_bw = bw_ceilings[backend]
         peak_cmp = cmp_ceilings.get(backend)
@@ -182,6 +215,8 @@ def plot_kernels(
                 label=f"{backend.upper()} cache roof ({peak_cache:.0f} GB/s)",
             )
 
+
+def _draw_kernels(ax, grouped) -> None:
     for (backend, algo), series in sorted(grouped.items()):
         ordered = sorted(series)
         ax.plot(
@@ -189,7 +224,7 @@ def plot_kernels(
             [y for _, y in ordered],
             linestyle="none",
             marker=ALGO_MARKERS.get(algo, "D"),
-            markersize=7,
+            markersize=9,
             markerfacecolor=backend_color(backend),
             markeredgecolor="white",
             markeredgewidth=1.2,
@@ -197,22 +232,6 @@ def plot_kernels(
             zorder=3,
             label=f"{backend} - {algo}",
         )
-
-    ax.set_xscale("log", base=2)
-    ax.set_yscale("log", base=10)
-    style_axes(
-        ax,
-        title,
-        "Operational Intensity (compare-ops / byte moved)",
-        "Attained Rate (Gcmp/s)",
-    )
-    ax.legend(fontsize=8, loc="lower right")
-    fig.tight_layout()
-
-    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    fig.savefig(out_path, dpi=160)
-    plt.close(fig)
-    return out_path
 
 
 def plot(
