@@ -178,7 +178,7 @@ def plot_sensitivity(
         floor = min(0.5, min(observed) * 0.8)
         ceiling = max(2.0, max(observed) * 2.2)
 
-        fig, ax = plt.subplots(figsize=(max(10, 1.6 * len(combos)), 6))
+        fig, ax = plt.subplots(figsize=(max(10, 1.1 * len(combos)), 5.5))
         width = 0.8 / max(1, len(dists))
         for idx, dist in enumerate(dists):
             xs = [i + (idx - (len(dists) - 1) / 2) * width for i in range(len(combos))]
@@ -193,7 +193,7 @@ def plot_sensitivity(
                     f"{value:.2f}",
                     ha="center",
                     va="bottom",
-                    fontsize=7,
+                    fontsize=10,
                     rotation=90,
                 )
 
