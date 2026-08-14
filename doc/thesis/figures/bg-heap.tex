@@ -1,0 +1,68 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        % (a) the threshold test
+        \node[panel, font=\scriptsize\bfseries] at (-0.55,1.55) {(α) το κατώφλι της ρίζας, $k=4$};
+
+        \node[blkreg, minimum width=0.66cm] (r)  at (1.55,0.85) {$6$};
+        \node[blkreg, minimum width=0.66cm] (c1) at (0.85,-0.05) {$8$};
+        \node[blkreg, minimum width=0.66cm] (c2) at (2.25,-0.05) {$7$};
+        \node[blkreg, minimum width=0.66cm] (c3) at (0.15,-0.95) {$9$};
+        \draw[flowmute, -] (r) -- (c1);
+        \draw[flowmute, -] (r) -- (c2);
+        \draw[flowmute, -] (c1) -- (c3);
+        \node[notemute, font=\tiny, anchor=east] at (1.18,0.85) {ρίζα $=$ κατώφλι};
+        \node[notemute, font=\tiny, anchor=north, align=center] at (1.55,-1.42)
+            {σωρός ελαχίστου με τα\\ \tl{k} καλύτερα (ως τώρα)};
+
+        \node[lanedrop] (x1) at (4.30,0.85) {$3$};
+        \node[note, font=\tiny, anchor=west] at (4.68,0.85) {$3 \le 6$};
+        \draw[flowmute, dashed, dash pattern=on 2pt off 1.6pt] (x1) -- (r);
+        \node[note, font=\scriptsize, anchor=west, text=figregD, align=left] at (6.30,0.85)
+            {απόρριψη:\\ \emph{μία} σύγκριση};
+
+        \node[lanereg] (x2) at (4.30,-0.95) {$11$};
+        \node[note, font=\tiny, anchor=west] at (4.68,-0.95) {$11 > 6$};
+        \draw[flow] (x2) -- (r);
+        \node[note, font=\scriptsize, anchor=west, text=figdrmD, align=left] at (6.30,-0.95)
+            {αντικατάσταση ρίζας\\ και κατολίσθηση: $O(\log k)$};
+
+        % (b) map-reduce
+        \begin{scope}[yshift=-3.55cm]
+            \node[panel, font=\scriptsize\bfseries] at (-0.55,1.10) {(β) το σχήμα \tl{map-reduce}};
+
+            \foreach \i in {0,1,2,3} {
+                \pgfmathsetmacro{\xc}{1.05+\i*1.85}
+                \node[blk, minimum width=1.55cm, minimum height=0.40cm] (ch\i) at (\xc,0.52)
+                    {\tiny τμήμα $\i$};
+                \node[blkreg, minimum width=0.85cm, minimum height=0.38cm] (hp\i) at (\xc,-0.42)
+                    {\tiny σωρός \tl{k}};
+                \draw[flow] (ch\i.south) -- (hp\i.north);
+            }
+            \node[rowlab, font=\tiny] at (ch0.west) {\tl{map}};
+
+            \node[blkreg, minimum width=1.55cm, minimum height=0.40cm] (mg) at (3.83,-1.45)
+                {\tiny τελικά \tl{k}};
+            \foreach \i in {0,1,2,3} { \draw[flowmute] (hp\i.south) -- (mg.north); }
+            \node[rowlab, font=\tiny] at (0.10,-1.45) {\tl{reduce}};
+
+            \node[note, font=\scriptsize, anchor=west, align=left] at (7.70,-0.42)
+                {καμία επικοινωνία\\ στη φάση \tl{map}};
+            \node[note, font=\scriptsize, anchor=west, align=left, text=figdrmD] at (7.70,-1.45)
+                {κάθε σωρός φιλτράρει μόνο\\ αφού δει \tl{k} στοιχεία};
+        \end{scope}
+
+    \end{tikzpicture}
+    \caption{Η επιλογή με σωρούς και η παραλληλοποίησή της. Στο (α) ο σωρός
+    ελαχίστου συγκρατεί τα \tl{k} καλύτερα στοιχεία που έχουν εξεταστεί, οπότε η
+    ρίζα του, δηλαδή το μικρότερο από αυτά, λειτουργεί ως κατώφλι εισόδου. Ένα
+    νέο στοιχείο απορρίπτεται με \emph{μία} σύγκριση, ενώ μόνο όσα υπερβαίνουν το
+    κατώφλι κοστίζουν αναδιάταξη $O(\log k)$. Η ασυμμετρία αυτή είναι που κάνει
+    τον αλγόριθμο ταχύτατο σε τυχαία είσοδο και αργό σε αύξουσα. Στο (β) η
+    είσοδος διαμερίζεται και κάθε εργάτης διατηρεί δικό του σωρό χωρίς κανέναν
+    συγχρονισμό· τα μερικά αποτελέσματα συγχωνεύονται στο τέλος. Επειδή όμως κάθε
+    σωρός πρέπει πρώτα να γεμίσει για να αρχίσει να φιλτράρει, το πλήθος των
+    εργατών που συνεισφέρουν πραγματικά φράσσεται από τον λόγο $n/k$.}
+    \label{fig:bg-heap}
+\end{figure}

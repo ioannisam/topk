@@ -1,0 +1,46 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        \def\bh{0.48cm}
+
+        \node[rowlab, font=\scriptsize] at (-0.08,0.85) {\tl{host}: κωδικοποίηση};
+        \node[rowlab, font=\scriptsize] at (-0.08,0.00) {\tl{NPU}: 8 πυρήνες \tl{AIE}};
+        \node[rowlab, font=\scriptsize] at (-0.08,-0.85) {\tl{host}: συγχώνευση};
+
+        \foreach \b/\lab in {0/1,1/2,2/3} {
+            \pgfmathsetmacro{\xs}{\b*2.30}
+            \node[blkdrm, minimum width=2.30cm, minimum height=\bh, anchor=west]
+                at (\xs,0.85) {\scriptsize $b_{\lab}$};
+            \pgfmathsetmacro{\xc}{\xs+2.30}
+            \node[blknpu, minimum width=1.25cm, minimum height=\bh, anchor=west]
+                at (\xc,0.00) {\scriptsize $b_{\lab}$};
+            \pgfmathsetmacro{\xm}{\xs+4.60}
+            \node[blknpu, minimum width=0.90cm, minimum height=\bh, anchor=west]
+                at (\xm,-0.85) {\scriptsize $b_{\lab}$};
+        }
+
+        \node[notemute, font=\tiny] at (4.08,0.00) {αδράνεια};
+        \node[notemute, font=\tiny] at (6.20,-0.85) {αδράνεια};
+
+        \draw[dashed, draw=figmute, line width=0.4pt] (2.30,1.22) -- (2.30,-1.22);
+        \draw[dashed, draw=figmute, line width=0.4pt] (4.60,1.22) -- (4.60,-1.22);
+
+        \draw[bracemirror] (0,-1.22) -- (2.30,-1.22);
+        \node[note, font=\scriptsize, anchor=north] at (1.15,-1.38) {περίοδος = πλατύτερο στάδιο};
+
+        \draw[flow] (0,-2.05) -- (10.30,-2.05);
+        \node[notemute, font=\tiny, anchor=north east] at (10.30,-2.12) {χρόνος};
+
+    \end{tikzpicture}
+    \caption{Η διοχέτευση τριών σταδίων της εκφόρτωσης. Ενώ τα πλακίδια
+    επεξεργάζονται την παρτίδα $b_i$, ο \tl{host} κωδικοποιεί ήδη την $b_{i+1}$ στον
+    δεύτερο \tl{buffer} και συγχωνεύει τα αποτελέσματα της $b_{i-1}$. Επειδή τα τρία
+    στάδια επικαλύπτονται, ο συνολικός χρόνος δεν είναι το άθροισμά τους αλλά το
+    γινόμενο του πλήθους των παρτίδων επί τη διάρκεια του πλατύτερου σταδίου. Στη
+    συγκεκριμένη υλοποίηση το στάδιο αυτό είναι η κωδικοποίηση στον \tl{host}: μόνο
+    αυτό εκτελείται χωρίς διακοπή, ενώ τα υπόλοιπα δύο μένουν αδρανή για μέρος κάθε
+    περιόδου. Καμία περαιτέρω επιτάχυνση του πυρήνα \tl{AIE} δεν μπορεί επομένως να
+    μειώσει τον συνολικό χρόνο.}
+    \label{fig:npu-pipeline}
+\end{figure}

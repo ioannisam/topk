@@ -1,0 +1,47 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=2.45cm, y=1.25cm]
+
+        \foreach \c in {0,1,2,3} {
+            \node[blknpu, minimum width=1.30cm, minimum height=0.58cm] (r3\c) at (\c,2.10) {$(\c,3)$};
+            \node[blknpu, minimum width=1.30cm, minimum height=0.58cm] (r2\c) at (\c,1.20) {$(\c,2)$};
+            \node[blkdrop, minimum width=0.55cm, minimum height=0.44cm] (r1\c) at (\c,0.41) {\tiny \tl{mem}};
+            \node[blknpu, minimum width=1.90cm, minimum height=0.48cm] (r0\c) at (\c,-0.34) {\tl{shim} $(\c,0)$};
+        }
+
+        \foreach \c in {0,1,2,3} {
+            \draw[flowmute] ([xshift=-12pt]r0\c.north) -- ([xshift=-12pt]r2\c.south);
+            \draw[flowmute] ([xshift=12pt]r2\c.south) -- ([xshift=12pt]r0\c.north);
+            \draw[flowmute] ([xshift=-26pt]r0\c.north) -- ([xshift=-26pt]r3\c.south);
+            \draw[flowmute] ([xshift=26pt]r3\c.south) -- ([xshift=26pt]r0\c.north);
+        }
+
+        \node[blkdrm, minimum width=9.4cm, minimum height=0.48cm] (ddr) at (1.5,-1.22)
+            {κύρια μνήμη \tl{DDR5} (κοινή με τον \tl{host})};
+        \foreach \c in {0,1,2,3} { \draw[flowmute] (r0\c.south) -- (r0\c.south|-ddr.north); }
+
+        \draw[brace] (-0.30,2.50) -- (3.30,2.50);
+        \node[notemute, font=\tiny, anchor=south] at (1.5,2.62)
+            {8 υπολογιστικά πλακίδια: 4 στήλες $\times$ 2 πυρήνες};
+
+        \node[notemute, anchor=west, align=left] at (3.42,1.65)
+            {\tl{object\_fifo}\\ βάθος 2\\ (διπλή ενταμίευση)};
+        \node[notemute, anchor=west, align=left] at (3.42,0.41) {δεν χρησιμοποιείται};
+        \node[notemute, anchor=west, align=left] at (3.42,-0.34) {διεπαφή προς \tl{DDR}};
+
+        \node[note, anchor=north, align=center] at (1.5,-1.62)
+            {Ανά πυρήνα: 128 τεμάχια $\times$ 1024 στοιχεία \tl{int32}.
+             Ανά παρτίδα: $8 \times 128 \times 1024 = 1\,048\,576$ στοιχεία.};
+
+    \end{tikzpicture}
+    \caption{Η τοπολογία πλακιδίων της υλοποίησης και οι ουρές \tl{object\_fifo} που
+    τα συνδέουν. Κάθε στήλη διαθέτει ένα πλακίδιο διεπαφής (\tl{shim}) που
+    επικοινωνεί με την κύρια μνήμη και δύο υπολογιστικά πλακίδια, καθένα από τα
+    οποία συνδέεται με το \tl{shim} της στήλης του μέσω ενός ζεύγους ουρών βάθους
+    δύο: μία για την είσοδο και μία για την έξοδο. Το βάθος δύο επιτρέπει στον
+    πυρήνα να επεξεργάζεται ένα τεμάχιο ενώ το επόμενο μεταφέρεται. Τα πλακίδια
+    μνήμης της ενδιάμεσης σειράς δεν χρησιμοποιούνται, καθώς κάθε πυρήνας
+    καταναλώνει ξένο προς τους υπόλοιπους τμήμα της εισόδου και δεν απαιτείται
+    διαμοιρασμός ή αναδιανομή δεδομένων μεταξύ τους.}
+    \label{fig:npu-topology}
+\end{figure}

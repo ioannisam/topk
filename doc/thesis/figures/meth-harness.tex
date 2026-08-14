@@ -1,0 +1,46 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        \node[blk, minimum width=11.4cm, minimum height=0.52cm] (driver) at (0,3.30)
+            {οδηγός σαρώσεων (μία διεργασία ανά περίπτωση)};
+        \node[notemute, font=\tiny, anchor=west] at (5.85,3.30) {επίπεδο 3};
+
+        \node[blkreg, minimum width=3.4cm, minimum height=0.52cm] (ecpu) at (-3.9,1.95) {εκτελέσιμο \tl{CPU}};
+        \node[blkcac, minimum width=3.4cm, minimum height=0.52cm] (egpu) at (0,1.95) {εκτελέσιμο \tl{GPU}};
+        \node[blknpu, minimum width=3.4cm, minimum height=0.52cm] (enpu) at (3.9,1.95) {εκτελέσιμο \tl{NPU}};
+        \node[notemute, font=\tiny, anchor=west] at (5.85,1.95) {επίπεδο 2};
+
+        \draw[flowmute] (driver.south-|ecpu.north) -- (ecpu.north);
+        \draw[flowmute] (driver.south-|egpu.north) -- (egpu.north);
+        \draw[flowmute] (driver.south-|enpu.north) -- (enpu.north);
+
+        \node[blkaie, minimum width=11.4cm, minimum height=1.05cm, align=center] (core) at (0,0.50)
+            {κοινός πυρήνας \tl{C++}\\[1pt]
+             \tiny παράμετροι $\cdot$ παραγωγή εισόδου $\cdot$ χρονοδιάγραμμα επιπέδων $\cdot$ βρόχος προθέρμανσης
+             και μέτρησης $\cdot$ \\[1pt] \tiny μετρητές ενέργειας $\cdot$ καταμέτρηση κίνησης $\cdot$ έλεγχος ορθότητας $\cdot$ εκτύπωση αναφοράς};
+        \node[notemute, font=\tiny, anchor=west] at (5.85,0.50) {επίπεδο 1};
+
+        \draw[flowmute] (ecpu.south) -- (ecpu.south|-core.north);
+        \draw[flowmute] (egpu.south) -- (egpu.south|-core.north);
+        \draw[flowmute] (enpu.south) -- (enpu.south|-core.north);
+
+        \node[blk, minimum width=4.4cm, minimum height=0.48cm] (report) at (0,-1.00)
+            {κείμενο αναφοράς};
+        \draw[flow] (core.south) -- (report.north);
+
+        \node[blk, minimum width=11.4cm, minimum height=0.52cm] (analysis) at (0,-2.15)
+            {ανάλυση (πίνακες και διαγράμματα)};
+        \node[notemute, font=\tiny, anchor=west] at (5.85,-2.15) {επίπεδο 4};
+        \draw[flow] (report.south) -- (analysis.north);
+
+    \end{tikzpicture}
+    \caption{Τα τέσσερα επίπεδα της υποδομής μετρήσεων. Η διαδικασία της μέτρησης
+    ορίζεται μία μόνο φορά, στον κοινό πυρήνα του πρώτου επιπέδου και οι τρεις
+    υλοποιήσεις παρέχουν αποκλειστικά τη συνάρτηση που εκτελεί τον υπολογισμό.
+    Καμία δεν ελέγχει τον τρόπο με τον οποίο μετριέται η ίδια, οπότε καμία δεν
+    μπορεί να χρονομετρεί, ακούσια, κάτι διαφορετικό από τις υπόλοιπες. Η ανάλυση
+    του τέταρτου επιπέδου διαβάζει το ίδιο κείμενο αναφοράς που διαβάζει και ο
+    χρήστης, χωρίς χωριστή διαδρομή εξόδου προς τα εργαλεία.}
+    \label{fig:meth-harness}
+\end{figure}

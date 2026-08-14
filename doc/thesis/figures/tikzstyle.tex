@@ -1,0 +1,46 @@
+\definecolor{figink}{HTML}{1A1A1A}
+\definecolor{figmute}{HTML}{8A8A8A}
+\definecolor{figregD}{HTML}{3F6F3F}
+\definecolor{figregF}{HTML}{DFECDF}
+\definecolor{figcacD}{HTML}{9A7420}
+\definecolor{figcacF}{HTML}{F7EBD2}
+\definecolor{figdrmD}{HTML}{9E4040}
+\definecolor{figdrmF}{HTML}{F5DEDE}
+\definecolor{figaieD}{HTML}{2C5F8D}
+\definecolor{figaieF}{HTML}{DCE8F3}
+\definecolor{fignpuD}{HTML}{63498C}
+\definecolor{fignpuF}{HTML}{E6DEF1}
+\definecolor{figdropF}{HTML}{ECECEC}
+
+\tikzset{
+    lane/.style={draw=figink, line width=0.4pt, minimum width=0.72cm,
+                 minimum height=0.52cm, inner sep=0pt, font=\scriptsize},
+    lanereg/.style={lane, fill=figregF, draw=figregD},
+    lanecac/.style={lane, fill=figcacF, draw=figcacD},
+    lanedrm/.style={lane, fill=figdrmF, draw=figdrmD},
+    laneaie/.style={lane, fill=figaieF, draw=figaieD},
+    lanedrop/.style={lane, fill=figdropF, draw=figmute, text=figmute},
+    rowlab/.style={anchor=east, font=\scriptsize, text=figink, xshift=-4pt},
+    idxlab/.style={anchor=north, font=\tiny, text=figmute},
+    blk/.style={draw=figink, line width=0.5pt, rounded corners=1.4pt,
+                inner sep=3pt, font=\scriptsize, align=center},
+    blkreg/.style={blk, fill=figregF, draw=figregD},
+    blkcac/.style={blk, fill=figcacF, draw=figcacD},
+    blkdrm/.style={blk, fill=figdrmF, draw=figdrmD},
+    blkaie/.style={blk, fill=figaieF, draw=figaieD},
+    blknpu/.style={blk, fill=fignpuF, draw=fignpuD},
+    blkdrop/.style={blk, fill=figdropF, draw=figmute, text=figmute},
+    flow/.style={-{Stealth[length=4pt,width=3.4pt]}, line width=0.5pt, draw=figink},
+    flowmute/.style={flow, draw=figmute, line width=0.4pt},
+    brace/.style={decorate, decoration={brace, amplitude=4pt}, line width=0.4pt, draw=figink},
+    bracemirror/.style={decorate, decoration={brace, amplitude=4pt, mirror}, line width=0.4pt, draw=figink},
+    note/.style={font=\scriptsize, text=figink, align=left},
+    notemute/.style={font=\scriptsize, text=figmute, align=left},
+    panel/.style={font=\footnotesize\bfseries, text=figink, anchor=west},
+}
+
+\newcommand{\lanerow}[4]{%
+    \foreach \laneval [count=\lanei from 0] in {#3} {%
+        \node[#4] (#2\lanei) at (\lanei, #1) {$\laneval$};%
+    }%
+}

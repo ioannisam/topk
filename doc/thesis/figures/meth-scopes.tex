@@ -1,0 +1,56 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        \def\segh{0.52}
+
+        % CPU
+        \node[rowlab, font=\footnotesize] at (-0.08,0) {\tl{CPU}};
+        \node[blkreg, minimum width=10.6cm, minimum height=\segh cm, anchor=west] (c1) at (0,0) {υπολογισμός \tl{top-k}};
+        \draw[brace] (0,0.36) -- (10.6,0.36);
+        \node[notemute, font=\tiny, anchor=south] at (5.3,0.50) {\tl{end-to-end}};
+        \draw[bracemirror] (0,-0.36) -- (10.6,-0.36);
+        \node[notemute, font=\tiny, anchor=north] at (5.3,-0.50) {\tl{algo} --- ταυτίζεται};
+
+        \begin{scope}[yshift=-2.15cm]
+            % GPU
+            \node[rowlab, font=\footnotesize] at (-0.08,0) {\tl{GPU}};
+            \node[blkcac, minimum width=1.9cm, minimum height=\segh cm, anchor=west] (g1) at (0,0) {δέσμευση};
+            \node[blkdrm, minimum width=2.0cm, minimum height=\segh cm, anchor=west] (g2) at (1.9,0) {\tl{H2D}};
+            \node[blkcac, minimum width=3.9cm, minimum height=\segh cm, anchor=west] (g3) at (3.9,0) {πυρήνες (γράφος \tl{CUDA})};
+            \node[blkdrm, minimum width=1.5cm, minimum height=\segh cm, anchor=west] (g4) at (7.8,0) {\tl{D2H}};
+            \node[blkcac, minimum width=1.3cm, minimum height=\segh cm, anchor=west] (g5) at (9.3,0) {αποδ.};
+            \draw[brace] (0,0.36) -- (10.6,0.36);
+            \node[notemute, font=\tiny, anchor=south] at (5.3,0.50) {\tl{end-to-end} --- ρολόι \tl{host}};
+            \draw[bracemirror] (3.9,-0.36) -- (7.8,-0.36);
+            \node[notemute, font=\tiny, anchor=north] at (5.85,-0.50) {\tl{algo} --- συμβάντα \tl{CUDA}};
+        \end{scope}
+
+        \begin{scope}[yshift=-4.30cm]
+            % NPU
+            \node[rowlab, font=\footnotesize] at (-0.08,0) {\tl{NPU}};
+            \node[blknpu, minimum width=0.9cm, minimum height=\segh cm, anchor=west] (n0) at (0,0) {\tiny \tl{XRT}};
+            \node[blknpu, minimum width=1.5cm, minimum height=\segh cm, anchor=west] (n1) at (0.9,0) {\tl{buffers}};
+            \node[blkdrm, minimum width=2.4cm, minimum height=\segh cm, anchor=west] (n2) at (2.4,0) {κωδικοποίηση};
+            \node[blknpu, minimum width=2.2cm, minimum height=\segh cm, anchor=west] (n3) at (4.8,0) {\tl{AIE}};
+            \node[blkdrm, minimum width=1.7cm, minimum height=\segh cm, anchor=west] (n4) at (7.0,0) {συγχών.};
+            \node[blkdrm, minimum width=1.0cm, minimum height=\segh cm, anchor=west] (n5) at (8.7,0) {διόρθ.};
+            \node[blknpu, minimum width=0.9cm, minimum height=\segh cm, anchor=west] (n6) at (9.7,0) {\tiny επιστρ.};
+            \draw[brace] (0,0.36) -- (10.6,0.36);
+            \node[notemute, font=\tiny, anchor=south] at (5.3,0.50) {\tl{end-to-end} --- ρολόι \tl{host}};
+            \draw[bracemirror] (0.9,-0.36) -- (9.7,-0.36);
+            \node[notemute, font=\tiny, anchor=north] at (5.3,-0.50) {\tl{algo} --- περιοχή εκφόρτωσης, ρολόι \tl{host}};
+        \end{scope}
+
+    \end{tikzpicture}
+    \caption{Τα δύο πεδία μέτρησης ανά αρχιτεκτονική. Στον επεξεργαστή τα δύο πεδία
+    ταυτίζονται εξ ορισμού. Στη μονάδα γραφικών το \tl{algo} απομονώνει αυστηρά την
+    εκτέλεση των πυρήνων μέσω συμβάντων της συσκευής και αφήνει εκτός τις μεταφορές
+    και τις δεσμεύσεις. Στη μονάδα νευρωνικής επεξεργασίας δεν υπάρχει μετρητής
+    συσκευής, οπότε το \tl{algo} ορίζεται από ρολόι του \tl{host} γύρω από ολόκληρη
+    την περιοχή της εκφόρτωσης: περιλαμβάνει τη δέσμευση των \tl{buffers}, την
+    κωδικοποίηση της εισόδου, την εκτέλεση στα πλακίδια, τη συγχώνευση των μερικών
+    αποτελεσμάτων και την τελική διόρθωση. Το μέγεθος αυτό δεν πρέπει επομένως να
+    διαβάζεται ως ο χρόνος υπολογισμού των πλακιδίων \tl{AIE}.}
+    \label{fig:meth-scopes}
+\end{figure}

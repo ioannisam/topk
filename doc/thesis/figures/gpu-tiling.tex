@@ -1,0 +1,74 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        % (a) sorted block fits the tile: layers fuse into one pass
+        \node[panel] at (-1.05,1.30) {(α) $k' \le$ πλακίδιο};
+
+        \node[blkdrm, minimum width=7.20cm, minimum height=0.42cm] (g1) at (3.60,0.72)
+            {\tiny καθολική μνήμη};
+
+        \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] (t1a) at (0.90,-0.55) {};
+        \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] (t1b) at (2.70,-0.55) {};
+        \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] (t1c) at (4.50,-0.55) {};
+        \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] (t1d) at (6.30,-0.55) {};
+
+        \foreach \n in {t1a,t1b,t1c,t1d} {
+            \node[notemute, font=\tiny] at (\n) {πλακίδιο};
+        }
+
+        \draw[flow] (0.90,0.50) -- (0.90,-0.01);
+        \draw[flow] (2.70,0.50) -- (2.70,-0.01);
+        \draw[flow] (4.50,0.50) -- (4.50,-0.01);
+        \draw[flow] (6.30,0.50) -- (6.30,-0.01);
+
+        \node[note, font=\scriptsize, anchor=west] at (7.55,-0.55)
+            {ένα πέρασμα:\\ όλα τα επίπεδα\\ συγχωνεύονται};
+
+        \draw[bracemirror] (0.10,-1.30) -- (1.70,-1.30);
+        \node[notemute, font=\tiny, anchor=north] at (0.90,-1.52) {$k'$};
+
+        \begin{scope}[yshift=-3.35cm]
+            % (b) block exceeds the tile: distant layers spill to global memory
+            \node[panel] at (-1.05,1.30) {(β) $k' >$ πλακίδιο};
+
+            \node[blkdrm, minimum width=7.20cm, minimum height=0.42cm] at (3.60,0.72)
+                {\tiny καθολική μνήμη};
+
+            \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] at (0.90,-0.55) {};
+            \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] at (2.70,-0.55) {};
+            \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] at (4.50,-0.55) {};
+            \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] at (6.30,-0.55) {};
+            \foreach \x in {0.90,2.70,4.50,6.30} {
+                \node[notemute, font=\tiny] at (\x,-0.55) {πλακίδιο};
+            }
+
+            \foreach \x in {0.90,2.70,4.50,6.30} {
+                \draw[flow] (\x-0.18,0.50) -- (\x-0.18,-0.01);
+                \draw[flow] (\x+0.18,-0.01) -- (\x+0.18,0.50);
+            }
+
+            \node[note, font=\scriptsize, anchor=west] at (7.55,-0.55)
+                {πολλά περάσματα:\\ τα επίπεδα με μεγάλη\\ απόσταση δεν χωρούν};
+
+            \draw[bracemirror] (0.10,-1.30) -- (7.10,-1.30);
+            \node[notemute, font=\tiny, anchor=north] at (3.60,-1.52) {$k'$};
+        \end{scope}
+
+        \node[note, anchor=north, align=center] at (3.60,-6.05)
+            {Η μετρούμενη κίνηση περνά από $7n$ σε $25n$ έως $56n$ όταν
+             το $k'$ ξεπεράσει το πλακίδιο.};
+
+    \end{tikzpicture}
+    \caption{Η σχέση του ταξινομημένου μπλοκ με το πλακίδιο της κοινής μνήμης. Ένα
+    επίπεδο μπορεί να εκτελεστεί χωρίς επιστροφή στην καθολική μνήμη μόνο αν η
+    απόσταση των στοιχείων που συγκρίνει χωρά στο πλακίδιο. Όσο τα ταξινομημένα
+    μπλοκ μεγέθους $k'$ χωρούν σε αυτό (α), σχεδόν όλα τα επίπεδα συγχωνεύονται σε
+    ένα πέρασμα και η κίνηση δεδομένων ταυτίζεται με εκείνη του επεξεργαστή. Όταν
+    το $k'$ ξεπεράσει το μέγεθος του πλακιδίου (β), τα επίπεδα με μεγάλη απόσταση
+    εκτελούνται με ξεχωριστά περάσματα πάνω από την καθολική μνήμη και η κίνηση
+    πολλαπλασιάζεται. Για ακεραίους των 32 \tl{bit} το πλακίδιο είναι 8192
+    στοιχεία, οπότε η μετάβαση συμβαίνει μεταξύ των δύο μεγαλύτερων τιμών του
+    \tl{k} που εξετάστηκαν.}
+    \label{fig:gpu-tiling}
+\end{figure}

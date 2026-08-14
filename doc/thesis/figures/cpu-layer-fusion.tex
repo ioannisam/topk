@@ -1,0 +1,71 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.28cm, y=1.0cm]
+
+        % (a) naive transfer: one global pass per layer
+        \node[panel] at (-1.75,1.30) {(α) άμεση μεταφορά};
+
+        \foreach \i/\lab in {0/{$2^{20}$},1/{$2^{19}$},2/{$\cdots$},3/{$32$},4/{$16$},5/{$8$},6/{$4$},7/{$2$},8/{$1$}} {
+            \node[lane, minimum width=1.02cm] (a\i) at (\i,0.35) {\lab};
+        }
+        \node[rowlab] at (a0.west) {επίπεδο ($j$)};
+
+        \node[blkdrm, minimum width=11.7cm, minimum height=0.46cm] (adram) at (4,-1.10) {κύρια μνήμη};
+        \foreach \i in {0,...,8} {
+            \draw[flowmute] ([xshift=-3pt]a\i.south) -- ([xshift=-3pt]a\i.south|-adram.north);
+            \draw[flowmute] ([xshift=3pt]a\i.south|-adram.north) -- ([xshift=3pt]a\i.south);
+        }
+        \node[note, anchor=north] at (4,-1.48) {εννέα περάσματα, $2n$ το καθένα};
+
+        \begin{scope}[yshift=-4.05cm]
+
+            % (b) fused: layers grouped by distance j into a single pass
+            \node[panel] at (-1.75,1.62) {(β) συγχώνευση επιπέδων};
+
+            \foreach \i/\lab in {0/{$2^{20}$},1/{$2^{19}$},2/{$\cdots$}} {
+                \node[lanedrm, minimum width=1.02cm] (b\i) at (\i,0.35) {\lab};
+            }
+            \node[lanecac, minimum width=1.02cm] (b3) at (3,0.35) {$32$};
+            \foreach \i/\lab in {4/{$16$},5/{$8$},6/{$4$},7/{$2$},8/{$1$}} {
+                \node[lanereg, minimum width=1.02cm] (b\i) at (\i,0.35) {\lab};
+            }
+            \node[rowlab] at (b0.west) {επίπεδο ($j$)};
+
+            \draw[brace] (-0.44,0.66) -- (2.44,0.66);
+            \draw[brace] (2.56,0.66) -- (3.44,0.66);
+            \draw[brace] (3.56,0.66) -- (8.44,0.66);
+            \node[notemute, font=\tiny] at (1.0,1.02) {$j>$ τμήμα};
+            \node[notemute, font=\tiny] at (3.0,1.02) {$j\le$ τμήμα};
+            \node[notemute, font=\tiny] at (6.0,1.02) {$j<W$};
+
+            \node[blkdrm, minimum width=11.7cm, minimum height=0.46cm] (bdram) at (4,-1.10) {κύρια μνήμη};
+
+            \foreach \i in {0,1,2} {
+                \draw[flowmute] ([xshift=-3pt]b\i.south) -- ([xshift=-3pt]b\i.south|-bdram.north);
+                \draw[flowmute] ([xshift=3pt]b\i.south|-bdram.north) -- ([xshift=3pt]b\i.south);
+            }
+            \draw[flowmute] ([xshift=-3pt]b3.south) -- ([xshift=-3pt]b3.south|-bdram.north);
+            \draw[flowmute] ([xshift=3pt]b3.south|-bdram.north) -- ([xshift=3pt]b3.south);
+            \draw[flowmute] ([xshift=-3pt]b6.south) -- ([xshift=-3pt]b6.south|-bdram.north);
+            \draw[flowmute] ([xshift=3pt]b6.south|-bdram.north) -- ([xshift=3pt]b6.south);
+
+            \node[blkcac, minimum width=1.15cm, minimum height=0.40cm] at (3,-0.42) {\tiny τμήμα};
+            \node[blkreg, minimum width=1.35cm, minimum height=0.40cm] at (6,-0.42) {\tiny καταχ.};
+
+            \node[note, anchor=north] at (4,-1.48) {πέντε περάσματα};
+        \end{scope}
+
+    \end{tikzpicture}
+    \caption{Η συγχώνευση διαδοχικών επιπέδων σε ένα πέρασμα· κάθε ζεύγος βελών
+    είναι μία ανάγνωση και μία εγγραφή ολόκληρου του πίνακα. Στην άμεση μεταφορά
+    (α) κάθε επίπεδο του χρονοδιαγράμματος είναι ξεχωριστό πέρασμα, με ελάχιστο
+    υπολογισμό ανάμεσα σε δύο διαδοχικές διαδρομές προς τη μνήμη. Στη συγχωνευμένη
+    υλοποίηση (β) η απόσταση $j$ καθορίζει πού μπορεί να εκτελεστεί το επίπεδο: για
+    $j$ μικρότερο του πλάτους $W$ του καταχωρητή τα δύο στοιχεία κάθε σύγκρισης
+    βρίσκονται ήδη στον ίδιο καταχωρητή και ολόκληρη η ακολουθία εκτελείται ως μία
+    φόρτωση και μία αποθήκευση· για $j$ έως το μέγεθος του τμήματος η ακολουθία
+    εκτελείται τμήμα προς τμήμα, με το τμήμα να παραμένει στην κρυφή μνήμη για όλα
+    τα επίπεδα· μόνο τα επίπεδα με πολύ μεγάλο $j$ διατηρούν ξεχωριστό πέρασμα. Οι
+    αριθμοί του σχήματος είναι ενδεικτικοί.}
+    \label{fig:cpu-layer-fusion}
+\end{figure}

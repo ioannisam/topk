@@ -1,0 +1,80 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        \newcommand{\distframe}[3]{%
+            \begin{scope}[shift={(#1,#2)}]
+                \draw[draw=figmute, line width=0.4pt] (0,0) rectangle (3.05,1.30);
+                \node[panel, font=\scriptsize\bfseries, anchor=south west] at (0,1.36) {#3};
+            \end{scope}}
+
+        % uniform
+        \distframe{0}{0}{\tl{uniform}}
+        \begin{scope}[shift={(0,0)}]
+            \foreach \i in {0,...,60} {
+                \pgfmathsetmacro{\xx}{0.05+\i*0.049}
+                \pgfmathsetmacro{\yy}{0.10+1.10*rnd}
+                \fill[figaieD, opacity=0.75] (\xx,\yy) circle (0.60pt);
+            }
+        \end{scope}
+
+        % trimodal
+        \distframe{3.55}{0}{\tl{trimodal}}
+        \begin{scope}[shift={(3.55,0)}]
+            \foreach \i in {0,...,60} {
+                \pgfmathsetmacro{\xx}{0.05+\i*0.049}
+                \pgfmathsetmacro{\pick}{int(random(0,2))}
+                \pgfmathsetmacro{\ctr}{ifthenelse(\pick==0,0.20,ifthenelse(\pick==1,0.50,0.80))}
+                \pgfmathsetmacro{\yy}{0.10+1.10*(\ctr+0.035*(rnd-0.5)*2)}
+                \fill[figaieD, opacity=0.75] (\xx,\yy) circle (0.60pt);
+            }
+        \end{scope}
+
+        % sorted
+        \distframe{5.325}{-2.15}{\tl{sorted}}
+        \begin{scope}[shift={(5.325,-2.15)}]
+            \draw[figaieD, line width=0.9pt] (0.05,0.12) -- (3.00,1.20);
+            \node[note, font=\tiny, anchor=north west, text=figdrmD] at (0.06,-0.06)
+                {δυσμενέστερη για σωρό};
+        \end{scope}
+
+        % reverse
+        \distframe{1.775}{-2.15}{\tl{reverse}}
+        \begin{scope}[shift={(1.775,-2.15)}]
+            \draw[figaieD, line width=0.9pt] (0.05,1.20) -- (3.00,0.12);
+            \node[note, font=\tiny, anchor=north west, text=figregD] at (0.06,-0.06)
+                {ευνοϊκότερη για σωρό};
+        \end{scope}
+
+        % adversarial
+        \distframe{7.10}{0}{\tl{adversarial}}
+        \begin{scope}[shift={(7.10,0)}]
+            \foreach \i in {0,...,60} {
+                \pgfmathsetmacro{\xx}{0.05+\i*0.049}
+                \pgfmathsetmacro{\yy}{0.10+0.55*rnd}
+                \fill[figaieD, opacity=0.55] (\xx,\yy) circle (0.60pt);
+            }
+            \draw[dashed, draw=figmute, line width=0.35pt] (0.05,0.68) -- (3.00,0.68);
+            \foreach \s in {1,...,7} {
+                \pgfmathsetmacro{\xx}{0.05+\s*0.40}
+                \pgfmathsetmacro{\yy}{0.70+0.52*\s/7}
+                \draw[figdrmD, line width=0.35pt, opacity=0.55] (\xx,0.12) -- (\xx,\yy);
+                \fill[figdrmD] (\xx,\yy) circle (0.8pt);
+            }
+        \end{scope}
+
+
+    \end{tikzpicture}
+    \caption{Οι πέντε κατανομές εισόδου, με την τιμή κάθε στοιχείου συναρτήσει της
+    θέσης του στον πίνακα. Η \tl{uniform} και η \tl{trimodal} δεν έχουν καμία
+    διάταξη: διαφέρουν μόνο ως προς το ποιες τιμές εμφανίζονται, με τη δεύτερη να
+    συγκεντρώνει τις τιμές γύρω από τρία κέντρα. Οι δύο διατεταγμένες κατανομές
+    είναι τα άκρα για την επιλογή με σωρό, καθώς στην αύξουσα κάθε νέο στοιχείο
+    υπερβαίνει τη ρίζα ενώ στη φθίνουσα κανένα δεν την υπερβαίνει μετά τα πρώτα
+    \tl{k}. Η \tl{adversarial} διατηρεί τη δυσμενή συμπεριφορά χωρίς να είναι
+    ταξινομημένη: το σώμα των τιμών παραμένει στο κάτω ήμισυ του εύρους, ενώ σε
+    τακτά διαστήματα παρεμβάλλονται μεμονωμένες αιχμές των οποίων η τιμή αυξάνει
+    γραμμικά κατά μήκος του πίνακα· η διακεκομμένη γραμμή σημειώνει τη μέση τιμή
+    του εύρους.}
+    \label{fig:meth-dists}
+\end{figure}

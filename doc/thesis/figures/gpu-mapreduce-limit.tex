@@ -1,0 +1,52 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        % (a) chunk larger than k: the heap fills and the threshold engages
+        \node[panel] at (-2.15,1.05) {(α) $n/P \ge k$};
+
+        \foreach \t in {0,1,2,3} {
+            \pgfmathsetmacro{\yy}{0.45-\t*0.44}
+            \node[blkcac, minimum width=0.95cm, minimum height=0.34cm, anchor=west] at (0,\yy) {};
+            \node[blkreg, minimum width=6.05cm, minimum height=0.34cm, anchor=west] at (1.00,\yy) {};
+            \node[rowlab, font=\tiny] at (-0.06,\yy) {νήμα \the\numexpr\t+1\relax};
+        }
+        \node[notemute, font=\tiny, anchor=south] at (0.48,0.68) {γέμισμα ($k$)};
+        \node[notemute, font=\tiny, anchor=south] at (4.02,0.68) {φιλτράρισμα με κατώφλι};
+        \node[note, font=\scriptsize, anchor=west] at (7.35,-0.42)
+            {ο σωρός γεμίζει,\\ το κατώφλι ενεργοποιείται};
+
+        \begin{scope}[yshift=-3.15cm]
+            % (b) chunk smaller than k: no heap ever fills, nothing is rejected
+            \node[panel] at (-2.15,1.05) {(β) $n/P < k$};
+
+            \foreach \t in {0,1,2,3,4,5,6,7} {
+                \pgfmathsetmacro{\yy}{0.45-\t*0.22}
+                \node[blkcac, minimum width=0.62cm, minimum height=0.16cm, anchor=west, inner sep=1pt] at (0,\yy) {};
+            }
+            \node[rowlab, font=\tiny] at (-0.06,0.45) {νήμα 1};
+            \node[rowlab, font=\tiny] at (-0.06,-1.09) {νήμα $P$};
+
+            \draw[dashed, draw=figdrmD, line width=0.5pt] (0.95,0.68) -- (0.95,-1.32);
+            \node[notemute, font=\tiny, anchor=south west, text=figdrmD] at (0.99,0.62) {$k$};
+
+            \node[note, font=\scriptsize, anchor=west] at (7.35,-0.35)
+                {το τμήμα κάθε νήματος είναι\\ μικρότερο από $k$: ο σωρός\\ δεν γεμίζει ποτέ, κανένα\\ στοιχείο δεν απορρίπτεται};
+        \end{scope}
+
+        \node[note, anchor=north, align=center] at (3.6,-4.95)
+            {Η ωφέλιμη παραλληλία φράσσεται επομένως στο $P \le n/k$,
+             ανεξάρτητα από το μέγεθος του πλέγματος.};
+
+    \end{tikzpicture}
+    \caption{Το όριο παραλληλίας του \tl{map-reduce} για μεγάλα \tl{k}. Κάθε νήμα
+    διατηρεί δικό του σωρό μεγέθους \tl{k} και μπορεί να απορρίψει στοιχεία μόνο
+    αφού ο σωρός γεμίσει, δηλαδή μόνο αφού δει τουλάχιστον \tl{k} στοιχεία. Όταν
+    το τμήμα που αναλογεί σε κάθε νήμα είναι μεγαλύτερο από \tl{k} (α), το κατώφλι
+    ενεργοποιείται νωρίς και το υπόλοιπο του τμήματος φιλτράρεται. Όταν όμως το
+    πλήθος των νημάτων αυξηθεί τόσο ώστε το τμήμα να γίνει μικρότερο από \tl{k}
+    (β), κανένας σωρός δεν γεμίζει και το φιλτράρισμα δεν ενεργοποιείται ποτέ.
+    Πρόκειται για ιδιότητα του αλγορίθμου και όχι της υλοποίησης: ούτε το μέγεθος
+    του πλέγματος ούτε η διάταξη του χώρου εργασίας μπορούν να την άρουν.}
+    \label{fig:gpu-mapreduce-limit}
+\end{figure}

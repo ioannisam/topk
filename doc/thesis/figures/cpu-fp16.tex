@@ -1,0 +1,44 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        \foreach \i in {0,...,15} {
+            \pgfmathsetmacro{\xm}{2.2+0.275*\i+0.1375}
+            \node[lane, minimum width=0.275cm, minimum height=0.40cm] (m\i) at (\xm,1.30) {};
+            \pgfmathsetmacro{\xr}{0.55*\i+0.275}
+            \node[lanereg, minimum width=0.55cm, minimum height=0.40cm] (r\i) at (\xr,0.35) {};
+            \node[lanereg, minimum width=0.55cm, minimum height=0.40cm] (s\i) at (\xr,-0.60) {};
+            \node[lane, minimum width=0.275cm, minimum height=0.40cm] (o\i) at (\xm,-1.55) {};
+            \draw[flowmute] (m\i.south) -- (r\i.north);
+            \draw[flowmute] (r\i.south) -- (s\i.north);
+            \draw[flowmute] (s\i.south) -- (o\i.north);
+        }
+
+        \node[rowlab, font=\scriptsize] at (0,1.30) {μνήμη};
+        \node[rowlab, font=\scriptsize] at (r0.west) {καταχωρητής};
+        \node[rowlab, font=\scriptsize] at (s0.west) {καταχωρητής};
+        \node[rowlab, font=\scriptsize] at (0,-1.55) {μνήμη};
+
+        \node[notemute, font=\tiny, anchor=west] at (9.05,1.30) {$16 \times 16$ \tl{bit}};
+        \node[notemute, font=\tiny, anchor=west] at (9.05,0.83) {\tl{vcvtph2ps}};
+        \node[notemute, font=\tiny, anchor=west] at (9.05,0.35) {$16 \times 32$ \tl{bit}};
+        \node[notemute, font=\tiny, anchor=west] at (9.05,-0.12) {\tl{min} / \tl{max}};
+        \node[notemute, font=\tiny, anchor=west] at (9.05,-0.60) {$16 \times 32$ \tl{bit}};
+        \node[notemute, font=\tiny, anchor=west] at (9.05,-1.08) {\tl{vcvtps2ph}};
+        \node[notemute, font=\tiny, anchor=west] at (9.05,-1.55) {$16 \times 16$ \tl{bit}};
+
+        \node[note, anchor=north, align=center] at (4.4,-1.95)
+            {Πλάτος σε στοιχεία: 16, όσο και για την απλή ακρίβεια $\Rightarrow$ ίδιος ρυθμός συγκρίσεων.\\
+             Κίνηση δεδομένων: τα μισά \tl{bytes} ανά στοιχείο $\Rightarrow$ μισή κίνηση προς τη μνήμη.};
+
+    \end{tikzpicture}
+    \caption{Η διαδρομή της μισής ακρίβειας. Τα δεδομένα παραμένουν σε 16 \tl{bit}
+    στη μνήμη, όπου καταλαμβάνουν τον μισό χώρο, και μετατρέπονται σε απλή ακρίβεια
+    μόνο όσο διαρκεί ο υπολογισμός. Η προσέγγιση είναι ακριβής και όχι
+    προσεγγιστική: κάθε τιμή μισής ακρίβειας αναπαρίσταται επακριβώς σε απλή, και
+    οι μόνες πράξεις που εκτελούνται είναι το ελάχιστο και το μέγιστο, οι οποίες
+    επιλέγουν μία από τις δύο εισόδους αντί να υπολογίζουν νέα τιμή, οπότε καμία
+    στρογγυλοποίηση δεν μεσολαβεί. Το πλάτος του καταχωρητή σε στοιχεία παραμένει
+    δεκαέξι, ενώ η κίνηση δεδομένων υποδιπλασιάζεται.}
+    \label{fig:cpu-fp16}
+\end{figure}
