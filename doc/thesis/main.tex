@@ -5,7 +5,7 @@
 \usepackage[english,greek]{babel}
 \usepackage{amsmath,amsfonts,amssymb}
 \usepackage[parfill]{parskip}
-\usepackage[unicode]{hyperref}
+\usepackage[unicode,hidelinks]{hyperref}
 \usepackage{bookmark}
 \usepackage{cite}
 \usepackage{graphicx}
@@ -20,17 +20,20 @@
 \graphicspath{{assets/}{../../bench/results/plots/}}
 \input{figures/tikzstyle}
 
+\emergencystretch=3em
+
+\newcommand{\greekmonth}{%
+    \ifcase\month\or Ιανουάριος\or Φεβρουάριος\or Μάρτιος\or Απρίλιος\or
+    Μάιος\or Ιούνιος\or Ιούλιος\or Αύγουστος\or Σεπτέμβριος\or Οκτώβριος\or
+    Νοέμβριος\or Δεκέμβριος\fi}
+\newcommand{\thesisdate}{\greekmonth\ \the\year}
+
 \def\tl{\textlatin}
 \def\tg{\textgreek}
 
 \begin{document}
 
 \include{frontmatter/cover}
-
-\title{Επιτάχυνση επιλογής \tl{top-k} σε ετερογενή συστήματα \tl{CPU}, \tl{GPU} και \tl{NPU}}
-\author{Ιωάννης Μιχάλαινας \\
-\href{mailto:ioannisam@ece.auth.gr}{\tl{ioannisam@ece.auth.gr}}}
-\maketitle
 
 \include{frontmatter/abstract}
 \include{frontmatter/acknowledgements}
