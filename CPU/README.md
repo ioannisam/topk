@@ -9,7 +9,7 @@ It supports:
 
 ## Layout
 
-- `include/algorithm.hpp` + `src/algorithm.cpp`: CPU parallel network execution kernels
+- `include/algorithm.hpp` + `src/bitonic.cpp` + `src/map_reduce.cpp` + `src/ground_truth.cpp`: CPU parallel network execution kernels
 - `include/reporting.hpp` + `src/reporting.cpp`: CPU-specific configuration/debug reporting hooks
 - `include/runner.hpp` + `src/runner.cpp`: CPU backend hook wiring into shared top-k pipeline
 - `src/main.cpp`: CLI entrypoint and error handling (uses shared common parser)
@@ -43,7 +43,7 @@ cmake -S . -B build \
 ## Run
 
 ```bash
-./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [algo=bitonic|map_reduce|gt] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>] [dist=uniform|normal|sorted|reverse]
+./build/topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] [algo=bitonic|map_reduce|gt] [run=full|trunc|both] [debug=true|false] [threads=<num>] [seed=<seed>] [verify=true|false] [min=<int>] [max=<int>] [dist=uniform|normal|trimodal|sorted|reverse|adversarial]
 ```
 
 Only `key=value` arguments are accepted. Required key: `q`.
@@ -61,7 +61,7 @@ Arguments are accepted in any order, but examples below use the canonical order 
 - `threads=<num>` optionally overrides execution threads
 - `dtype=<type>` selects value type: `int`, `uint`, `float`, `double`, `half` (half requires compiler support)
 - `algo=<name>` chooses backend algorithm: `bitonic` (default), `map_reduce`, or `gt` (std::partial_sort top-k baseline)
-- `dist=<name>` selects input distribution: `uniform` (default), `normal`, `sorted`, `reverse`
+- `dist=<name>` selects input distribution: `uniform` (default), `normal`, `trimodal`, `sorted`, `reverse`, `adversarial`
 
 Example:
 

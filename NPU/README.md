@@ -8,7 +8,7 @@ Current design is offload-only:
 
 ## Layout
 
-- `include/algorithm.hpp` + `src/algorithm.cpp`: NPU offload orchestration, stride-packing fallback, and runtime queries
+- `include/algorithm.hpp` + `src/bitonic.cpp` + `src/map_reduce.cpp` + `src/ground_truth.cpp`: NPU offload orchestration, stride-packing fallback, and runtime queries
 - `include/reporting.hpp` + `src/reporting.cpp`: NPU-specific configuration/debug reporting hooks
 - `include/runner.hpp` + `src/runner.cpp`: NPU backend hook wiring into shared top-k pipeline
 - `src/main.cpp`: CLI entrypoint and error handling (uses shared common parser)
