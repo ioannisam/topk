@@ -77,6 +77,7 @@ run_suite() {
             local xclbin_path="${ROOT_BUILD_DIR}/${BACKEND_DIR}/${algo}.xclbin"
             if [[ ! -f "${xclbin_path}" ]]; then
                 echo "   [!] Skipping: Missing xclbin for ${algo} at ${xclbin_path}"
+                echo "${size_name} ${q} ${k} ${algo} ${dtype} ERROR ERROR" >> "${out_file}"
                 continue
             fi
             export NPU_OFFLOAD_XCLBIN="${xclbin_path}"
