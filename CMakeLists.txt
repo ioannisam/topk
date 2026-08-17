@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.24)
 project(topk LANGUAGES CXX)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -32,6 +32,9 @@ add_library(common STATIC
 )
 target_include_directories(common PUBLIC common/include)
 target_compile_features(common PUBLIC cxx_std_20)
+
+find_package(Threads REQUIRED)
+target_link_libraries(common PUBLIC Threads::Threads)
 
 if (TOPK_BUILD_GPU)
 	find_package(CUDAToolkit)
