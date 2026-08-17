@@ -67,12 +67,6 @@ template <typename T> inline T from_key(std::int32_t key) {
 		return v;
 	} else if constexpr (sizeof(T) == 2) {
 		return static_cast<T>(from_key<float>(key));
-	} else if constexpr (sizeof(T) == 8) {
-		const std::uint64_t mono = static_cast<std::uint64_t>(static_cast<std::uint32_t>(key) ^ 0x80000000u) << 32;
-		const std::uint64_t u = (mono & 0x8000000000000000ull) ? (mono & 0x7FFFFFFFFFFFFFFFull) : (~mono);
-		T v;
-		std::memcpy(&v, &u, 8);
-		return v;
 	} else {
 		return static_cast<T>(key);
 	}
