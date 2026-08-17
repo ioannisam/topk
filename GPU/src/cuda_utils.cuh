@@ -65,4 +65,82 @@ template <typename T> struct DeviceBuffer {
 	}
 };
 
+struct StreamGuard {
+	cudaStream_t handle = nullptr;
+
+	StreamGuard() {
+		CUDA_CHECK(cudaStreamCreate(&handle));
+	}
+	~StreamGuard() {
+		if (handle != nullptr) {
+			cudaStreamDestroy(handle);
+		}
+	}
+	StreamGuard(const StreamGuard&) = delete;
+	StreamGuard& operator=(const StreamGuard&) = delete;
+
+	cudaStream_t get() const {
+		return handle;
+	}
+};
+
+struct EventGuard {
+	cudaEvent_t handle = nullptr;
+
+	EventGuard() {
+		CUDA_CHECK(cudaEventCreate(&handle));
+	}
+	~EventGuard() {
+		if (handle != nullptr) {
+			cudaEventDestroy(handle);
+		}
+	}
+	EventGuard(const EventGuard&) = delete;
+	EventGuard& operator=(const EventGuard&) = delete;
+
+	cudaEvent_t get() const {
+		return handle;
+	}
+};
+
+struct GraphGuard {
+	cudaGraph_t handle = nullptr;
+
+	GraphGuard() = default;
+	~GraphGuard() {
+		if (handle != nullptr) {
+			cudaGraphDestroy(handle);
+		}
+	}
+	GraphGuard(const GraphGuard&) = delete;
+	GraphGuard& operator=(const GraphGuard&) = delete;
+
+	cudaGraph_t* addr() {
+		return &handle;
+	}
+	cudaGraph_t get() const {
+		return handle;
+	}
+};
+
+struct GraphExecGuard {
+	cudaGraphExec_t handle = nullptr;
+
+	GraphExecGuard() = default;
+	~GraphExecGuard() {
+		if (handle != nullptr) {
+			cudaGraphExecDestroy(handle);
+		}
+	}
+	GraphExecGuard(const GraphExecGuard&) = delete;
+	GraphExecGuard& operator=(const GraphExecGuard&) = delete;
+
+	cudaGraphExec_t* addr() {
+		return &handle;
+	}
+	cudaGraphExec_t get() const {
+		return handle;
+	}
+};
+
 } // namespace gpu::utils

@@ -260,6 +260,7 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(d_input.get(), n, static_cast<int>(k), want_max,
 																d_thread_workspaces.get(), d_thread_counts.get(),
 																d_block_outputs.get());
+	CUDA_CHECK(cudaGetLastError());
 
 	CUDA_CHECK(cudaEventRecord(stop));
 	CUDA_CHECK(cudaEventSynchronize(stop));

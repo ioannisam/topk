@@ -151,6 +151,7 @@ int execute(const Config& cfg) {
 		for (int i = 0; i < 16; ++i) {
 			fma_kernel<<<grid_size, kBlockSize>>>(d_src, d_out, n, 8);
 		}
+		CUDA_CHECK(cudaGetLastError());
 		CUDA_CHECK(cudaDeviceSynchronize());
 	}
 
@@ -159,11 +160,13 @@ int execute(const Config& cfg) {
 	if (common::roofline::includes(cfg.experiment, Experiment::Stream)) {
 		points.push_back(measure("read", 0, n, read_bytes, static_cast<double>(n), [&]() {
 			fma_kernel<<<grid_size, kBlockSize>>>(d_src, d_out, n, 0);
+			CUDA_CHECK(cudaGetLastError());
 			CUDA_CHECK(cudaDeviceSynchronize());
 			return 0.0;
 		}));
 		points.push_back(measure("copy", 0, n, 2.0 * read_bytes, 0.0, [&]() {
 			copy_kernel<<<grid_size, kBlockSize>>>(d_src, d_dst, n);
+			CUDA_CHECK(cudaGetLastError());
 			CUDA_CHECK(cudaDeviceSynchronize());
 			return 0.0;
 		}));
@@ -174,12 +177,14 @@ int execute(const Config& cfg) {
 			const double flops = static_cast<double>(n) * (2.0 * static_cast<double>(ops) + 1.0);
 			points.push_back(measure("fma", ops, n, read_bytes, flops, [&]() {
 				fma_kernel<<<grid_size, kBlockSize>>>(d_src, d_out, n, ops);
+				CUDA_CHECK(cudaGetLastError());
 				CUDA_CHECK(cudaDeviceSynchronize());
 				return 0.0;
 			}));
 			const double cmp_ops = common::roofline::compare_exchange_count(n, ops);
 			points.push_back(measure("cmp", ops, n, read_bytes, cmp_ops, [&]() {
 				cmp_kernel<<<grid_size, kBlockSize>>>(d_src, d_out, n, ops);
+				CUDA_CHECK(cudaGetLastError());
 				CUDA_CHECK(cudaDeviceSynchronize());
 				return 0.0;
 			}));
@@ -196,6 +201,7 @@ int execute(const Config& cfg) {
 			const double moved = static_cast<double>(elems) * sizeof(float) * static_cast<double>(repeats);
 			points.push_back(measure("cache_read", 0, elems, moved, 0.0, [&]() {
 				repeat_read_kernel<<<grid_size, kBlockSize>>>(d_src, d_out, elems, static_cast<int>(repeats));
+				CUDA_CHECK(cudaGetLastError());
 				CUDA_CHECK(cudaDeviceSynchronize());
 				return 0.0;
 			}));
@@ -235,6 +241,7 @@ int execute(const Config& cfg) {
 
 		points.push_back(measure("latency_launch", 0, 1, 0.0, 0.0, [&]() {
 			fma_kernel<<<1, kBlockSize>>>(d_src, d_out, 0, 0);
+			CUDA_CHECK(cudaGetLastError());
 			CUDA_CHECK(cudaDeviceSynchronize());
 			return 0.0;
 		}));

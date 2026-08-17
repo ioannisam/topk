@@ -180,8 +180,6 @@ template <typename T> class GpuGroundTruthHooks final : public common::topk::Gro
 
 				if (k > 0 && k < temp.size())
 					temp.resize(k);
-				else if (k == 0)
-					temp.clear();
 
 				return common::benchmark::TimedValueWithStats<std::vector<T>, double>{elapsed_wall_ms, algo_ms,
 																					  std::move(temp), algo_ms};

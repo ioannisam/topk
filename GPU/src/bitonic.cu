@@ -18,6 +18,10 @@ namespace gpu::bitonic {
 namespace {
 
 using gpu::utils::DeviceBuffer;
+using gpu::utils::EventGuard;
+using gpu::utils::GraphExecGuard;
+using gpu::utils::GraphGuard;
+using gpu::utils::StreamGuard;
 
 constexpr std::size_t BITONIC_BLOCK_SIZE = 256;
 constexpr std::size_t BITONIC_TILE_LARGE = 8192;		  // working set > L2 (DRAM bound)
@@ -183,13 +187,12 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 						   double& out_elapsed_ms, std::size_t& out_launches, std::size_t& out_comparators,
 						   std::size_t& out_final_n, double& out_bytes) {
 
-	cudaStream_t stream;
-	CUDA_CHECK(cudaStreamCreate(&stream));
-
-	cudaEvent_t start{};
-	cudaEvent_t stop{};
-	CUDA_CHECK(cudaEventCreate(&start));
-	CUDA_CHECK(cudaEventCreate(&stop));
+	StreamGuard stream_guard;
+	EventGuard start_guard;
+	EventGuard stop_guard;
+	const cudaStream_t stream = stream_guard.get();
+	const cudaEvent_t start = start_guard.get();
+	const cudaEvent_t stop = stop_guard.get();
 
 	CUDA_CHECK(cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal));
 
@@ -319,15 +322,17 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 	}
 	flush_large();
 
-	cudaGraph_t graph;
-	CUDA_CHECK(cudaStreamEndCapture(stream, &graph));
+	GraphGuard graph_guard;
+	CUDA_CHECK(cudaStreamEndCapture(stream, graph_guard.addr()));
+	const cudaGraph_t graph = graph_guard.get();
 
-	cudaGraphExec_t instance;
+	GraphExecGuard instance_guard;
 #if __CUDACC_VER_MAJOR__ >= 12
-	CUDA_CHECK(cudaGraphInstantiate(&instance, graph, 0));
+	CUDA_CHECK(cudaGraphInstantiate(instance_guard.addr(), graph, 0));
 #else
-	CUDA_CHECK(cudaGraphInstantiate(&instance, graph, nullptr, nullptr, 0));
+	CUDA_CHECK(cudaGraphInstantiate(instance_guard.addr(), graph, nullptr, nullptr, 0));
 #endif
+	const cudaGraphExec_t instance = instance_guard.get();
 
 	common::energy::Scope energy_scope(common::energy::Channel::Algo);
 	CUDA_CHECK(cudaEventRecord(start, stream));
@@ -340,12 +345,6 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 	float elapsed_ms_f = 0.0f;
 	CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms_f, start, stop));
 	out_elapsed_ms = static_cast<double>(elapsed_ms_f);
-
-	CUDA_CHECK(cudaGraphExecDestroy(instance));
-	CUDA_CHECK(cudaGraphDestroy(graph));
-	CUDA_CHECK(cudaEventDestroy(start));
-	CUDA_CHECK(cudaEventDestroy(stop));
-	CUDA_CHECK(cudaStreamDestroy(stream));
 
 	return current_src;
 }
