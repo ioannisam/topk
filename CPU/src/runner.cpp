@@ -57,7 +57,7 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 			auto t0 = std::chrono::high_resolution_clock::now();
 			common::energy::FullScope energy_scope;
 
-			cpu::bitonic::run_topk(temp, layers, context.ex_threads, &bytes_moved);
+			cpu::bitonic::run_topk(temp, layers, context.ex_threads, &bytes_moved, &actual_workers);
 
 			energy_scope.close();
 			auto t1 = std::chrono::high_resolution_clock::now();
@@ -75,11 +75,12 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::BitonicRunStats& stats) override {
-		cpu::reporting::print_bitonic_debug_metrics(cfg, context.hw_threads, context.ex_threads, stats);
+		cpu::reporting::print_bitonic_debug_metrics(cfg, context.hw_threads, actual_workers, stats);
 	}
 
   private:
 	Context context;
+	std::size_t actual_workers = 0;
 };
 
 // ==========================================
@@ -126,7 +127,7 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
-		cpu::reporting::print_map_reduce_debug_metrics(cfg, context.hw_threads, context.ex_threads, stats);
+		cpu::reporting::print_map_reduce_debug_metrics(cfg, context.hw_threads, stats);
 	}
 
   private:

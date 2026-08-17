@@ -595,11 +595,15 @@ template <typename T> double group_traffic_bytes(const std::vector<Group>& group
 
 template <typename T>
 void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers,
-			  double* out_bytes) {
+			  double* out_bytes, std::size_t* out_workers) {
 	const std::size_t n = data.size();
 
 	workers = std::min<std::size_t>(workers, cpu::kMaxWorkers);
 	workers = std::min(workers, std::max<std::size_t>(1, n >> 16));
+
+	if (out_workers != nullptr) {
+		*out_workers = workers;
+	}
 
 	std::size_t max_layer_k = 0;
 	for (const auto& layer : layers) {
@@ -748,18 +752,18 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 }
 
 template void run_topk<std::int32_t>(std::vector<std::int32_t>& data, const std::vector<common::bitonic::Layer>& layers,
-									 std::size_t workers, double* out_bytes);
+									 std::size_t workers, double* out_bytes, std::size_t* out_workers);
 template void run_topk<std::uint32_t>(std::vector<std::uint32_t>& data,
 									  const std::vector<common::bitonic::Layer>& layers, std::size_t workers,
-									  double* out_bytes);
+									  double* out_bytes, std::size_t* out_workers);
 template void run_topk<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
-							  std::size_t workers, double* out_bytes);
+							  std::size_t workers, double* out_bytes, std::size_t* out_workers);
 template void run_topk<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers,
-							   std::size_t workers, double* out_bytes);
+							   std::size_t workers, double* out_bytes, std::size_t* out_workers);
 
 #if defined(__FLT16_MANT_DIG__)
 template void run_topk<_Float16>(std::vector<_Float16>& data, const std::vector<common::bitonic::Layer>& layers,
-								 std::size_t workers, double* out_bytes);
+								 std::size_t workers, double* out_bytes, std::size_t* out_workers);
 #endif
 
 } // namespace cpu::bitonic

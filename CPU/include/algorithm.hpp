@@ -15,7 +15,7 @@ namespace cpu::bitonic {
 
 template <typename T>
 void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers,
-			  double* out_bytes = nullptr);
+			  double* out_bytes = nullptr, std::size_t* out_workers = nullptr);
 
 } // namespace cpu::bitonic
 

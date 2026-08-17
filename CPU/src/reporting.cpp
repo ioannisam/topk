@@ -19,7 +19,7 @@ void print_bitonic_debug_metrics(const common::config::Config& cfg, std::size_t 
 	common::reporting::print_key_value("Execution threads used", ex_threads);
 }
 
-void print_map_reduce_debug_metrics(const common::config::Config& cfg, std::size_t hw_threads, std::size_t ex_threads,
+void print_map_reduce_debug_metrics(const common::config::Config& cfg, std::size_t hw_threads,
 									const common::topk::MapReduceRunStats& stats) {
 	if (!cfg.debug_output) {
 		return;
@@ -27,7 +27,7 @@ void print_map_reduce_debug_metrics(const common::config::Config& cfg, std::size
 
 	common::reporting::print_section_header("Debug Metrics");
 	common::reporting::print_key_value("Hardware threads available", hw_threads);
-	common::reporting::print_key_value("Execution threads used", ex_threads);
+	common::reporting::print_key_value("Execution threads used", stats.tiles_used);
 	common::reporting::print_key_value("Tiles used", stats.tiles_used);
 	common::reporting::print_key_value("Aggregated candidates", stats.aggregated_candidates);
 }
