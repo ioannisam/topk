@@ -218,7 +218,7 @@ clean-results:
 	@if [ "$(FORCE)" = "1" ]; then \
 		./bench/clean.sh; \
 	else \
-		printf "This deletes bench/results/{raw,derived,plots} - measurement data, not in git.\n"; \
+		printf "This deletes bench/results/{raw,derived,plots} - tracked in git, but any regenerated or uncommitted data will be lost.\n"; \
 		printf "Continue? [y/N] "; \
 		read ans; \
 		case "$$ans" in [yY]|[yY][eE][sS]) ./bench/clean.sh ;; *) echo "Aborted." ;; esac; \

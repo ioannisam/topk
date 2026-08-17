@@ -16,7 +16,7 @@ def plot(
         if compare_n is not None and rec.n != compare_n:
             continue
         watts = select_power_watts(rec, metric)
-        if watts is not None and watts >= 0:
+        if watts is not None and watts > 0:
             power_by_source[rec.source].append(watts)
 
     if not power_by_source:

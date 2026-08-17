@@ -16,7 +16,7 @@ def plot(
         if compare_n is not None and rec.n != compare_n:
             continue
         energy = select_energy_joules(rec, metric)
-        if energy is not None and energy >= 0:
+        if energy is not None and energy > 0:
             energy_by_source[rec.source].append(energy)
 
     if not energy_by_source:
