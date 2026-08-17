@@ -90,6 +90,7 @@ def parse_args():
     parser.add_argument("--threads", type=int, default=0, help="CPU worker threads (0 = hardware concurrency).")
     parser.add_argument("--seed", type=int, default=42, help="Input generation seed.")
     parser.add_argument("--cooldown", type=int, default=10, help="Seconds to idle between backends.")
+    parser.add_argument("--timeout-seconds", type=float, default=600.0, help="Per-backend subprocess timeout")
     parser.add_argument("--output-json", default=os.path.join(ROOT_DIR, "bench/results/raw/roofline/roofline.json"))
     parser.add_argument("--output-raw", default=os.path.join(ROOT_DIR, "bench/results/raw/roofline/roofline.txt"))
     return parser.parse_args()
@@ -139,7 +140,16 @@ def main():
 
         print(f"=== roofline: {backend} ===")
         print("  " + " ".join(cmd))
-        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=args.timeout_seconds)
+        except subprocess.TimeoutExpired as exc:
+            stdout = exc.stdout or ""
+            stderr = (exc.stderr or "") + f"\ntimed out after {args.timeout_seconds}s"
+            raw_chunks.append(f"===== {backend} =====\n{stdout}{stderr}")
+            print(f"  failed (timeout after {args.timeout_seconds}s)")
+            json_data["failures"].append({"backend": backend, "reason": stderr.strip()})
+            continue
+
         raw_chunks.append(f"===== {backend} =====\n{result.stdout}{result.stderr}")
 
         if result.returncode != 0:

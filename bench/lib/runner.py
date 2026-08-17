@@ -59,7 +59,7 @@ def extract_field_watts(report_text, key):
 
 def capture_baseline_report(measure_cmd):
     try:
-        result = subprocess.run(measure_cmd, capture_output=True, text=True)
+        result = subprocess.run(measure_cmd, capture_output=True, text=True, timeout=30)
     except Exception:
         return ""
     return result.stdout
@@ -100,6 +100,12 @@ def parse_args():
     parser.add_argument("--min", type=int, default=0)
     parser.add_argument("--max", type=int, default=1000)
     parser.add_argument("--verify", choices=["true", "false"], default="true")
+    parser.add_argument(
+        "--case-timeout-seconds",
+        type=float,
+        default=900.0,
+        help="Per-case subprocess timeout (gpu map_reduce at k=131072, q=24 already takes ~185s)",
+    )
     parser.add_argument("--output-raw", default=os.path.join(ROOT_DIR, "bench/results/raw/cases/output.txt"))
     parser.add_argument("--output-json", default=os.path.join(ROOT_DIR, "bench/results/raw/cases/output.json"))
     return parser.parse_args()
@@ -315,10 +321,22 @@ def main():
                                         if energy_mode == "gpu" and gpu_board_baseline_w is not None:
                                             run_cmd += ["--board-baseline-watts", str(gpu_board_baseline_w)]
                                         run_cmd += ["--", binary_path] + case_args
-                                    result = subprocess.run(run_cmd, capture_output=True, text=True, env=case_env)
+                                    try:
+                                        result = subprocess.run(
+                                            run_cmd,
+                                            capture_output=True,
+                                            text=True,
+                                            env=case_env,
+                                            timeout=args.case_timeout_seconds,
+                                        )
+                                        stdout = result.stdout
+                                        stderr = result.stderr
+                                        returncode = result.returncode
+                                    except subprocess.TimeoutExpired as exc:
+                                        stdout = exc.stdout or ""
+                                        stderr = (exc.stderr or "") + f"\ntimed out after {args.case_timeout_seconds}s"
+                                        returncode = -1
 
-                                    stdout = result.stdout
-                                    stderr = result.stderr
                                     label = f"{base_case_name} {dist} seed={seed}" + (
                                         f" rep={rep}" if args.repeats > 1 else ""
                                     )
@@ -326,7 +344,7 @@ def main():
                                     case_status = "FAIL"
                                     case_reason = "non-zero exit"
 
-                                    if result.returncode == 0:
+                                    if returncode == 0:
                                         if args.verify == "true" and expected_marker not in stdout:
                                             case_reason = "PASS marker missing"
                                             print(f"    [FAIL] {label} (algo={algo}) ({case_reason})")
@@ -375,7 +393,7 @@ def main():
                                             "reason": case_reason,
                                             "command": " ".join(run_cmd),
                                             "energy_file": energy_case_file,
-                                            "exit_code": result.returncode,
+                                            "exit_code": returncode,
                                             "stdout": stdout.strip(),
                                             "stderr": stderr.strip(),
                                         }
