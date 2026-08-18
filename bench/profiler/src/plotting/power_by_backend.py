@@ -32,7 +32,7 @@ def plot(
         if rec.k is None or rec.n is None:
             continue
         watts = select_power_watts(rec, metric)
-        if watts is None or watts < 0:
+        if watts is None or watts <= 0:
             continue
         base_label = rec.backend if rec.backend else rec.source
         label = label_with_algorithm(base_label, rec.algorithm, include_algorithm)
