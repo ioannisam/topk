@@ -1,0 +1,16 @@
+RAPL measurement
+Command: /home/ioannis/Development/Thesis/build/NPU/topk q=19 k=4096 mode=max dtype=uint algo=gt run=trunc debug=false threads=8 seed=19004253 verify=false min=0 max=1000000000 dist=uniform
+- energy_path: /sys/class/powercap/intel-rapl:0/energy_uj
+- wrapped: no
+- core_available: yes
+- elapsed_seconds: 0.133555
+- energy_joules: 1.073706
+- average_watts: 8.039448
+- core_energy_joules: 0.025329
+- core_average_watts: 0.189653
+- baseline_watts: 4.871461
+- net_energy_joules: 0.423100
+- net_average_watts: 3.167987
+- core_baseline_watts: 0.021416
+- net_core_energy_joules: 0.022469
+- command_exit_code: 0

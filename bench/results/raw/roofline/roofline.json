@@ -1,5 +1,17 @@
 {
-  "generated_at": "2026-08-02T17:43:10",
+  "generated_at": "2026-08-17T21:46:36",
+  "environment": {
+    "git_revision": "6b87986a953a-dirty",
+    "hostname": "legion",
+    "os": "Arch Linux",
+    "kernel": "7.1.5-arch1-2",
+    "cpu": "AMD Ryzen 7 260 w/ Radeon 780M Graphics",
+    "gcc": "16.1.1",
+    "nvidia_driver": "610.43.03",
+    "cuda": "13.3.73",
+    "xrt": "2.21.75",
+    "npu_firmware": "1.5.5.391"
+  },
   "experiment": "all",
   "bytes": "256M",
   "ops": "0,1,2,4,8,16,32,64,128,256",
@@ -13,13 +25,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 67108864.0,
-      "ms_mean": 4.792808,
-      "ms_stdev": 0.024617,
-      "ms_min": 4.735852,
-      "gbytes_per_s": 56.6816,
-      "gops_per_s": 14.1704,
+      "ms_mean": 4.789442,
+      "ms_stdev": 0.030949,
+      "ms_min": 4.741731,
+      "gbytes_per_s": 56.6113,
+      "gops_per_s": 14.1528,
       "operational_intensity": 0.25,
-      "joules_per_iter": 0.098591
+      "joules_per_iter": 0.106197
     },
     {
       "backend": "cpu",
@@ -28,13 +40,13 @@
       "elements": 67108864,
       "bytes_moved": 536870912.0,
       "ops": 0.0,
-      "ms_mean": 15.184965,
-      "ms_stdev": 0.079326,
-      "ms_min": 15.069521,
-      "gbytes_per_s": 35.6263,
+      "ms_mean": 15.205654,
+      "ms_stdev": 0.05472,
+      "ms_min": 15.049376,
+      "gbytes_per_s": 35.674,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.279459
+      "joules_per_iter": 0.301023
     },
     {
       "backend": "cpu",
@@ -43,13 +55,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 67108864.0,
-      "ms_mean": 4.82139,
-      "ms_stdev": 0.178795,
-      "ms_min": 4.764165,
-      "gbytes_per_s": 56.3447,
-      "gops_per_s": 14.0862,
+      "ms_mean": 4.786843,
+      "ms_stdev": 0.020745,
+      "ms_min": 4.745678,
+      "gbytes_per_s": 56.5642,
+      "gops_per_s": 14.141,
       "operational_intensity": 0.25,
-      "joules_per_iter": 0.101034
+      "joules_per_iter": 0.107863
     },
     {
       "backend": "cpu",
@@ -58,13 +70,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.806774,
-      "ms_stdev": 0.015181,
-      "ms_min": 4.751461,
-      "gbytes_per_s": 56.4954,
+      "ms_mean": 4.809606,
+      "ms_stdev": 0.020259,
+      "ms_min": 4.762289,
+      "gbytes_per_s": 56.3669,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.102769
+      "joules_per_iter": 0.112068
     },
     {
       "backend": "cpu",
@@ -73,13 +85,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 201326592.0,
-      "ms_mean": 4.815754,
-      "ms_stdev": 0.168194,
-      "ms_min": 4.759727,
-      "gbytes_per_s": 56.3972,
-      "gops_per_s": 42.2979,
+      "ms_mean": 4.809419,
+      "ms_stdev": 0.030244,
+      "ms_min": 4.754605,
+      "gbytes_per_s": 56.458,
+      "gops_per_s": 42.3435,
       "operational_intensity": 0.75,
-      "joules_per_iter": 0.104262
+      "joules_per_iter": 0.10507
     },
     {
       "backend": "cpu",
@@ -88,13 +100,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 33554432.0,
-      "ms_mean": 4.838408,
-      "ms_stdev": 0.019883,
-      "ms_min": 4.798039,
-      "gbytes_per_s": 55.9469,
-      "gops_per_s": 6.9934,
+      "ms_mean": 4.835071,
+      "ms_stdev": 0.022306,
+      "ms_min": 4.79494,
+      "gbytes_per_s": 55.9831,
+      "gops_per_s": 6.9979,
       "operational_intensity": 0.125,
-      "joules_per_iter": 0.113306
+      "joules_per_iter": 0.119737
     },
     {
       "backend": "cpu",
@@ -103,13 +115,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 335544320.0,
-      "ms_mean": 4.789067,
-      "ms_stdev": 0.023604,
-      "ms_min": 4.746463,
-      "gbytes_per_s": 56.5548,
-      "gops_per_s": 70.6936,
+      "ms_mean": 4.794917,
+      "ms_stdev": 0.023581,
+      "ms_min": 4.745508,
+      "gbytes_per_s": 56.5662,
+      "gops_per_s": 70.7078,
       "operational_intensity": 1.25,
-      "joules_per_iter": 0.101308
+      "joules_per_iter": 0.113852
     },
     {
       "backend": "cpu",
@@ -118,13 +130,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 67108864.0,
-      "ms_mean": 4.961387,
-      "ms_stdev": 0.227229,
-      "ms_min": 4.815302,
-      "gbytes_per_s": 55.7463,
-      "gops_per_s": 13.9366,
+      "ms_mean": 4.874867,
+      "ms_stdev": 0.038271,
+      "ms_min": 4.826107,
+      "gbytes_per_s": 55.6215,
+      "gops_per_s": 13.9054,
       "operational_intensity": 0.25,
-      "joules_per_iter": 0.119562
+      "joules_per_iter": 0.125391
     },
     {
       "backend": "cpu",
@@ -133,13 +145,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 603979776.0,
-      "ms_mean": 4.79051,
-      "ms_stdev": 0.011071,
-      "ms_min": 4.755108,
-      "gbytes_per_s": 56.452,
-      "gops_per_s": 127.017,
+      "ms_mean": 4.803692,
+      "ms_stdev": 0.025605,
+      "ms_min": 4.761688,
+      "gbytes_per_s": 56.374,
+      "gops_per_s": 126.8415,
       "operational_intensity": 2.25,
-      "joules_per_iter": 0.110482
+      "joules_per_iter": 0.117863
     },
     {
       "backend": "cpu",
@@ -148,13 +160,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 134217728.0,
-      "ms_mean": 4.928877,
-      "ms_stdev": 0.185361,
-      "ms_min": 4.810202,
-      "gbytes_per_s": 55.8054,
-      "gops_per_s": 27.9027,
+      "ms_mean": 4.893373,
+      "ms_stdev": 0.040406,
+      "ms_min": 4.828371,
+      "gbytes_per_s": 55.5954,
+      "gops_per_s": 27.7977,
       "operational_intensity": 0.5,
-      "joules_per_iter": 0.127706
+      "joules_per_iter": 0.132841
     },
     {
       "backend": "cpu",
@@ -163,13 +175,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 1140850688.0,
-      "ms_mean": 4.834957,
-      "ms_stdev": 0.056348,
-      "ms_min": 4.790585,
-      "gbytes_per_s": 56.034,
-      "gops_per_s": 238.1443,
+      "ms_mean": 4.83883,
+      "ms_stdev": 0.028438,
+      "ms_min": 4.782626,
+      "gbytes_per_s": 56.1272,
+      "gops_per_s": 238.5406,
       "operational_intensity": 4.25,
-      "joules_per_iter": 0.120207
+      "joules_per_iter": 0.125899
     },
     {
       "backend": "cpu",
@@ -178,13 +190,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 268435456.0,
-      "ms_mean": 5.038649,
-      "ms_stdev": 0.280827,
-      "ms_min": 4.824228,
-      "gbytes_per_s": 55.6432,
-      "gops_per_s": 55.6432,
+      "ms_mean": 4.918946,
+      "ms_stdev": 0.073773,
+      "ms_min": 4.837939,
+      "gbytes_per_s": 55.4855,
+      "gops_per_s": 55.4855,
       "operational_intensity": 1.0,
-      "joules_per_iter": 0.133963
+      "joules_per_iter": 0.138657
     },
     {
       "backend": "cpu",
@@ -193,13 +205,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 2214592512.0,
-      "ms_mean": 4.983578,
-      "ms_stdev": 0.144744,
-      "ms_min": 4.877729,
-      "gbytes_per_s": 55.0329,
-      "gops_per_s": 454.0212,
+      "ms_mean": 4.963428,
+      "ms_stdev": 0.095837,
+      "ms_min": 4.877673,
+      "gbytes_per_s": 55.0335,
+      "gops_per_s": 454.0264,
       "operational_intensity": 8.25,
-      "joules_per_iter": 0.140274
+      "joules_per_iter": 0.147673
     },
     {
       "backend": "cpu",
@@ -208,13 +220,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 536870912.0,
-      "ms_mean": 5.017472,
-      "ms_stdev": 0.119394,
-      "ms_min": 4.87304,
-      "gbytes_per_s": 55.0858,
-      "gops_per_s": 110.1717,
+      "ms_mean": 5.052975,
+      "ms_stdev": 0.211185,
+      "ms_min": 4.912528,
+      "gbytes_per_s": 54.643,
+      "gops_per_s": 109.2861,
       "operational_intensity": 2.0,
-      "joules_per_iter": 0.145364
+      "joules_per_iter": 0.153562
     },
     {
       "backend": "cpu",
@@ -223,13 +235,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 4362076160.0,
-      "ms_mean": 5.337104,
-      "ms_stdev": 0.252192,
-      "ms_min": 5.222333,
-      "gbytes_per_s": 51.4014,
-      "gops_per_s": 835.2735,
+      "ms_mean": 5.274557,
+      "ms_stdev": 0.029059,
+      "ms_min": 5.217075,
+      "gbytes_per_s": 51.4532,
+      "gops_per_s": 836.1153,
       "operational_intensity": 16.25,
-      "joules_per_iter": 0.185692
+      "joules_per_iter": 0.187922
     },
     {
       "backend": "cpu",
@@ -238,13 +250,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 1073741824.0,
-      "ms_mean": 5.265925,
-      "ms_stdev": 0.276238,
-      "ms_min": 5.163544,
-      "gbytes_per_s": 51.9867,
-      "gops_per_s": 207.9467,
+      "ms_mean": 5.231208,
+      "ms_stdev": 0.20476,
+      "ms_min": 5.165028,
+      "gbytes_per_s": 51.9717,
+      "gops_per_s": 207.8869,
       "operational_intensity": 4.0,
-      "joules_per_iter": 0.177999
+      "joules_per_iter": 0.182917
     },
     {
       "backend": "cpu",
@@ -253,13 +265,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 8657043456.0,
-      "ms_mean": 12.618101,
-      "ms_stdev": 0.740125,
-      "ms_min": 12.426575,
-      "gbytes_per_s": 21.6017,
-      "gops_per_s": 696.6556,
+      "ms_mean": 12.559444,
+      "ms_stdev": 0.499858,
+      "ms_min": 12.432866,
+      "gbytes_per_s": 21.5908,
+      "gops_per_s": 696.3031,
       "operational_intensity": 32.25,
-      "joules_per_iter": 0.350649
+      "joules_per_iter": 0.359539
     },
     {
       "backend": "cpu",
@@ -268,13 +280,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 2147483648.0,
-      "ms_mean": 9.834366,
-      "ms_stdev": 0.742445,
-      "ms_min": 9.572524,
-      "gbytes_per_s": 28.0423,
-      "gops_per_s": 224.3383,
+      "ms_mean": 9.592828,
+      "ms_stdev": 0.011677,
+      "ms_min": 9.571183,
+      "gbytes_per_s": 28.0462,
+      "gops_per_s": 224.3697,
       "operational_intensity": 8.0,
-      "joules_per_iter": 0.288014
+      "joules_per_iter": 0.300457
     },
     {
       "backend": "cpu",
@@ -283,13 +295,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 17246978048.0,
-      "ms_mean": 30.750738,
-      "ms_stdev": 2.988695,
-      "ms_min": 29.663142,
-      "gbytes_per_s": 9.0495,
-      "gops_per_s": 581.4279,
+      "ms_mean": 30.135366,
+      "ms_stdev": 1.518611,
+      "ms_min": 29.741489,
+      "gbytes_per_s": 9.0256,
+      "gops_per_s": 579.8963,
       "operational_intensity": 64.25,
-      "joules_per_iter": 0.751822
+      "joules_per_iter": 0.765193
     },
     {
       "backend": "cpu",
@@ -298,13 +310,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 4294967296.0,
-      "ms_mean": 18.748883,
-      "ms_stdev": 0.926963,
-      "ms_min": 18.468432,
-      "gbytes_per_s": 14.5348,
-      "gops_per_s": 232.5572,
+      "ms_mean": 18.536299,
+      "ms_stdev": 0.034556,
+      "ms_min": 18.490031,
+      "gbytes_per_s": 14.5178,
+      "gops_per_s": 232.2856,
       "operational_intensity": 16.0,
-      "joules_per_iter": 0.485841
+      "joules_per_iter": 0.495542
     },
     {
       "backend": "cpu",
@@ -313,13 +325,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 34426847232.0,
-      "ms_mean": 66.777883,
-      "ms_stdev": 4.070835,
-      "ms_min": 65.468307,
-      "gbytes_per_s": 4.1002,
-      "gops_per_s": 525.8552,
+      "ms_mean": 65.924792,
+      "ms_stdev": 1.145801,
+      "ms_min": 65.448238,
+      "gbytes_per_s": 4.1015,
+      "gops_per_s": 526.0164,
       "operational_intensity": 128.25,
-      "joules_per_iter": 1.523844
+      "joules_per_iter": 1.541756
     },
     {
       "backend": "cpu",
@@ -328,13 +340,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 8589934592.0,
-      "ms_mean": 37.092647,
-      "ms_stdev": 2.301369,
-      "ms_min": 36.331812,
-      "gbytes_per_s": 7.3884,
-      "gops_per_s": 236.4301,
+      "ms_mean": 36.420882,
+      "ms_stdev": 0.037754,
+      "ms_min": 36.361452,
+      "gbytes_per_s": 7.3824,
+      "gops_per_s": 236.2374,
       "operational_intensity": 32.0,
-      "joules_per_iter": 0.913471
+      "joules_per_iter": 0.915333
     },
     {
       "backend": "cpu",
@@ -343,13 +355,13 @@
       "elements": 8192,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 1.139952,
-      "ms_stdev": 0.017097,
-      "ms_min": 1.106901,
-      "gbytes_per_s": 242.5108,
+      "ms_mean": 1.151288,
+      "ms_stdev": 0.017238,
+      "ms_min": 1.113982,
+      "gbytes_per_s": 240.9693,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.022699
+      "joules_per_iter": 0.02333
     },
     {
       "backend": "cpu",
@@ -358,13 +370,13 @@
       "elements": 16384,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.888497,
-      "ms_stdev": 0.012375,
-      "ms_min": 0.868435,
-      "gbytes_per_s": 309.1025,
+      "ms_mean": 0.89845,
+      "ms_stdev": 0.014398,
+      "ms_min": 0.879666,
+      "gbytes_per_s": 305.1561,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.018484
+      "joules_per_iter": 0.019012
     },
     {
       "backend": "cpu",
@@ -373,13 +385,13 @@
       "elements": 32768,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.725057,
-      "ms_stdev": 0.019107,
-      "ms_min": 0.701242,
-      "gbytes_per_s": 382.8,
+      "ms_mean": 0.743448,
+      "ms_stdev": 0.01303,
+      "ms_min": 0.721432,
+      "gbytes_per_s": 372.087,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.017173
+      "joules_per_iter": 0.017509
     },
     {
       "backend": "cpu",
@@ -388,13 +400,13 @@
       "elements": 65536,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.687266,
-      "ms_stdev": 0.0195,
-      "ms_min": 0.659153,
-      "gbytes_per_s": 407.243,
+      "ms_mean": 0.727904,
+      "ms_stdev": 0.014142,
+      "ms_min": 0.703398,
+      "gbytes_per_s": 381.6267,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.017138
+      "joules_per_iter": 0.017102
     },
     {
       "backend": "cpu",
@@ -403,13 +415,13 @@
       "elements": 131072,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.688553,
-      "ms_stdev": 0.035621,
-      "ms_min": 0.652872,
-      "gbytes_per_s": 411.1609,
+      "ms_mean": 0.721966,
+      "ms_stdev": 0.012893,
+      "ms_min": 0.697658,
+      "gbytes_per_s": 384.7665,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.017754
+      "joules_per_iter": 0.017093
     },
     {
       "backend": "cpu",
@@ -418,13 +430,13 @@
       "elements": 262144,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.678301,
-      "ms_stdev": 0.022074,
-      "ms_min": 0.647132,
-      "gbytes_per_s": 414.8079,
+      "ms_mean": 0.719538,
+      "ms_stdev": 0.016264,
+      "ms_min": 0.687829,
+      "gbytes_per_s": 390.2648,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.018834
+      "joules_per_iter": 0.01878
     },
     {
       "backend": "cpu",
@@ -433,13 +445,13 @@
       "elements": 524288,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.678752,
-      "ms_stdev": 0.03541,
-      "ms_min": 0.64099,
-      "gbytes_per_s": 418.7826,
+      "ms_mean": 0.714872,
+      "ms_stdev": 0.018567,
+      "ms_min": 0.685284,
+      "gbytes_per_s": 391.7142,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.018712
+      "joules_per_iter": 0.017437
     },
     {
       "backend": "cpu",
@@ -448,13 +460,13 @@
       "elements": 1048576,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.668311,
-      "ms_stdev": 0.025162,
-      "ms_min": 0.637082,
-      "gbytes_per_s": 421.3515,
+      "ms_mean": 0.715306,
+      "ms_stdev": 0.021883,
+      "ms_min": 0.652544,
+      "gbytes_per_s": 411.3676,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.016226
+      "joules_per_iter": 0.018954
     },
     {
       "backend": "cpu",
@@ -463,13 +475,13 @@
       "elements": 2097152,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.684861,
-      "ms_stdev": 0.031061,
-      "ms_min": 0.642753,
-      "gbytes_per_s": 417.6339,
+      "ms_mean": 0.725154,
+      "ms_stdev": 0.020614,
+      "ms_min": 0.684743,
+      "gbytes_per_s": 392.0237,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.020225
+      "joules_per_iter": 0.01876
     },
     {
       "backend": "cpu",
@@ -478,13 +490,13 @@
       "elements": 4194304,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.775345,
-      "ms_stdev": 0.025571,
-      "ms_min": 0.729014,
-      "gbytes_per_s": 368.2171,
+      "ms_mean": 0.794782,
+      "ms_stdev": 0.029566,
+      "ms_min": 0.743483,
+      "gbytes_per_s": 361.0512,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.023496
+      "joules_per_iter": 0.023603
     },
     {
       "backend": "cpu",
@@ -493,13 +505,13 @@
       "elements": 8388608,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 1.678194,
-      "ms_stdev": 0.261006,
-      "ms_min": 1.220634,
-      "gbytes_per_s": 219.9148,
+      "ms_mean": 1.84407,
+      "ms_stdev": 0.222124,
+      "ms_min": 1.404021,
+      "gbytes_per_s": 191.1905,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.045592
+      "joules_per_iter": 0.049372
     },
     {
       "backend": "cpu",
@@ -508,13 +520,13 @@
       "elements": 16777216,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 3.731957,
-      "ms_stdev": 0.066702,
-      "ms_min": 3.632919,
-      "gbytes_per_s": 73.8897,
+      "ms_mean": 3.753168,
+      "ms_stdev": 0.066873,
+      "ms_min": 3.611657,
+      "gbytes_per_s": 74.3247,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.083039
+      "joules_per_iter": 0.085745
     },
     {
       "backend": "cpu",
@@ -523,13 +535,13 @@
       "elements": 33554432,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.775097,
-      "ms_stdev": 0.033708,
-      "ms_min": 4.625937,
-      "gbytes_per_s": 58.0283,
+      "ms_mean": 4.771217,
+      "ms_stdev": 0.026595,
+      "ms_min": 4.671518,
+      "gbytes_per_s": 57.4621,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.100717
+      "joules_per_iter": 0.102968
     },
     {
       "backend": "cpu",
@@ -538,13 +550,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.792294,
-      "ms_stdev": 0.018268,
-      "ms_min": 4.744038,
-      "gbytes_per_s": 56.5837,
+      "ms_mean": 4.783756,
+      "ms_stdev": 0.014146,
+      "ms_min": 4.749703,
+      "gbytes_per_s": 56.5163,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.098797
+      "joules_per_iter": 0.102922
     },
     {
       "backend": "gpu",
@@ -553,13 +565,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 67108864.0,
-      "ms_mean": 0.858283,
-      "ms_stdev": 0.038105,
-      "ms_min": 0.835704,
-      "gbytes_per_s": 321.2088,
-      "gops_per_s": 80.3022,
+      "ms_mean": 0.84817,
+      "ms_stdev": 0.027136,
+      "ms_min": 0.82814,
+      "gbytes_per_s": 324.1426,
+      "gops_per_s": 81.0357,
       "operational_intensity": 0.25,
-      "joules_per_iter": 0.045864
+      "joules_per_iter": 0.049791
     },
     {
       "backend": "gpu",
@@ -568,13 +580,13 @@
       "elements": 67108864,
       "bytes_moved": 536870912.0,
       "ops": 0.0,
-      "ms_mean": 1.752211,
-      "ms_stdev": 0.009408,
-      "ms_min": 1.737382,
-      "gbytes_per_s": 309.0114,
+      "ms_mean": 1.75612,
+      "ms_stdev": 0.007533,
+      "ms_min": 1.736959,
+      "gbytes_per_s": 309.0867,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.094887
+      "joules_per_iter": 0.103133
     },
     {
       "backend": "gpu",
@@ -583,13 +595,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 67108864.0,
-      "ms_mean": 0.792063,
-      "ms_stdev": 0.002462,
-      "ms_min": 0.786201,
-      "gbytes_per_s": 341.4336,
-      "gops_per_s": 85.3584,
+      "ms_mean": 0.791231,
+      "ms_stdev": 0.002376,
+      "ms_min": 0.78553,
+      "gbytes_per_s": 341.7253,
+      "gops_per_s": 85.4313,
       "operational_intensity": 0.25,
-      "joules_per_iter": 0.041574
+      "joules_per_iter": 0.044363
     },
     {
       "backend": "gpu",
@@ -598,13 +610,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.7977,
-      "ms_stdev": 0.004897,
-      "ms_min": 0.788215,
-      "gbytes_per_s": 340.5612,
+      "ms_mean": 0.799123,
+      "ms_stdev": 0.005088,
+      "ms_min": 0.791351,
+      "gbytes_per_s": 339.2116,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.04587
+      "joules_per_iter": 0.046725
     },
     {
       "backend": "gpu",
@@ -613,13 +625,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 201326592.0,
-      "ms_mean": 0.791431,
-      "ms_stdev": 0.002071,
-      "ms_min": 0.78567,
-      "gbytes_per_s": 341.6644,
-      "gops_per_s": 256.2483,
+      "ms_mean": 0.79126,
+      "ms_stdev": 0.002084,
+      "ms_min": 0.78563,
+      "gbytes_per_s": 341.6818,
+      "gops_per_s": 256.2613,
       "operational_intensity": 0.75,
-      "joules_per_iter": 0.043528
+      "joules_per_iter": 0.044004
     },
     {
       "backend": "gpu",
@@ -628,13 +640,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 33554432.0,
-      "ms_mean": 0.793435,
-      "ms_stdev": 0.002505,
-      "ms_min": 0.787153,
-      "gbytes_per_s": 341.0207,
-      "gops_per_s": 42.6276,
+      "ms_mean": 0.793656,
+      "ms_stdev": 0.002143,
+      "ms_min": 0.786892,
+      "gbytes_per_s": 341.1338,
+      "gops_per_s": 42.6417,
       "operational_intensity": 0.125,
-      "joules_per_iter": 0.046043
+      "joules_per_iter": 0.044141
     },
     {
       "backend": "gpu",
@@ -643,13 +655,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 335544320.0,
-      "ms_mean": 0.791578,
-      "ms_stdev": 0.002199,
-      "ms_min": 0.786011,
-      "gbytes_per_s": 341.5162,
-      "gops_per_s": 426.8952,
+      "ms_mean": 0.790859,
+      "ms_stdev": 0.002532,
+      "ms_min": 0.78578,
+      "gbytes_per_s": 341.6166,
+      "gops_per_s": 427.0207,
       "operational_intensity": 1.25,
-      "joules_per_iter": 0.044447
+      "joules_per_iter": 0.044415
     },
     {
       "backend": "gpu",
@@ -658,13 +670,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 67108864.0,
-      "ms_mean": 0.793054,
-      "ms_stdev": 0.002199,
-      "ms_min": 0.787573,
-      "gbytes_per_s": 340.8388,
-      "gops_per_s": 85.2097,
+      "ms_mean": 0.793322,
+      "ms_stdev": 0.002518,
+      "ms_min": 0.787303,
+      "gbytes_per_s": 340.9557,
+      "gops_per_s": 85.2389,
       "operational_intensity": 0.25,
-      "joules_per_iter": 0.044633
+      "joules_per_iter": 0.046565
     },
     {
       "backend": "gpu",
@@ -673,13 +685,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 603979776.0,
-      "ms_mean": 0.791177,
-      "ms_stdev": 0.002466,
-      "ms_min": 0.786071,
-      "gbytes_per_s": 341.4901,
-      "gops_per_s": 768.3527,
+      "ms_mean": 0.790757,
+      "ms_stdev": 0.002359,
+      "ms_min": 0.785851,
+      "gbytes_per_s": 341.5857,
+      "gops_per_s": 768.5678,
       "operational_intensity": 2.25,
-      "joules_per_iter": 0.046758
+      "joules_per_iter": 0.047237
     },
     {
       "backend": "gpu",
@@ -688,13 +700,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 134217728.0,
-      "ms_mean": 0.795663,
-      "ms_stdev": 0.003155,
-      "ms_min": 0.789297,
-      "gbytes_per_s": 340.0944,
-      "gops_per_s": 170.0472,
+      "ms_mean": 0.796104,
+      "ms_stdev": 0.00344,
+      "ms_min": 0.790239,
+      "gbytes_per_s": 339.6889,
+      "gops_per_s": 169.8445,
       "operational_intensity": 0.5,
-      "joules_per_iter": 0.042843
+      "joules_per_iter": 0.042759
     },
     {
       "backend": "gpu",
@@ -703,13 +715,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 1140850688.0,
-      "ms_mean": 0.794129,
-      "ms_stdev": 0.002304,
-      "ms_min": 0.788726,
-      "gbytes_per_s": 340.3406,
-      "gops_per_s": 1446.4474,
+      "ms_mean": 0.793598,
+      "ms_stdev": 0.002143,
+      "ms_min": 0.787834,
+      "gbytes_per_s": 340.7259,
+      "gops_per_s": 1448.0851,
       "operational_intensity": 4.25,
-      "joules_per_iter": 0.048748
+      "joules_per_iter": 0.04304
     },
     {
       "backend": "gpu",
@@ -718,13 +730,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 268435456.0,
-      "ms_mean": 0.86288,
-      "ms_stdev": 0.009999,
-      "ms_min": 0.842606,
-      "gbytes_per_s": 318.5777,
-      "gops_per_s": 318.5777,
+      "ms_mean": 0.863632,
+      "ms_stdev": 0.010163,
+      "ms_min": 0.842316,
+      "gbytes_per_s": 318.6874,
+      "gops_per_s": 318.6874,
       "operational_intensity": 1.0,
-      "joules_per_iter": 0.049352
+      "joules_per_iter": 0.04757
     },
     {
       "backend": "gpu",
@@ -733,13 +745,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 2214592512.0,
-      "ms_mean": 0.835048,
-      "ms_stdev": 0.023714,
-      "ms_min": 0.805628,
-      "gbytes_per_s": 333.2003,
-      "gops_per_s": 2748.9021,
+      "ms_mean": 0.843224,
+      "ms_stdev": 0.023165,
+      "ms_min": 0.803063,
+      "gbytes_per_s": 334.2645,
+      "gops_per_s": 2757.6822,
       "operational_intensity": 8.25,
-      "joules_per_iter": 0.049057
+      "joules_per_iter": 0.045349
     },
     {
       "backend": "gpu",
@@ -748,13 +760,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 536870912.0,
-      "ms_mean": 0.991748,
-      "ms_stdev": 0.034111,
-      "ms_min": 0.976798,
-      "gbytes_per_s": 274.8116,
-      "gops_per_s": 549.6233,
+      "ms_mean": 0.980132,
+      "ms_stdev": 0.013231,
+      "ms_min": 0.954525,
+      "gbytes_per_s": 281.2241,
+      "gops_per_s": 562.4482,
       "operational_intensity": 2.0,
-      "joules_per_iter": 0.055973
+      "joules_per_iter": 0.055151
     },
     {
       "backend": "gpu",
@@ -763,13 +775,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 4362076160.0,
-      "ms_mean": 1.27019,
-      "ms_stdev": 0.041009,
-      "ms_min": 1.082496,
-      "gbytes_per_s": 247.9782,
-      "gops_per_s": 4029.6464,
+      "ms_mean": 1.271628,
+      "ms_stdev": 0.015513,
+      "ms_min": 1.239734,
+      "gbytes_per_s": 216.5267,
+      "gops_per_s": 3518.5581,
       "operational_intensity": 16.25,
-      "joules_per_iter": 0.074216
+      "joules_per_iter": 0.072912
     },
     {
       "backend": "gpu",
@@ -778,13 +790,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 1073741824.0,
-      "ms_mean": 1.321081,
-      "ms_stdev": 0.051414,
-      "ms_min": 1.217018,
-      "gbytes_per_s": 220.5682,
-      "gops_per_s": 882.2728,
+      "ms_mean": 1.33245,
+      "ms_stdev": 0.064326,
+      "ms_min": 1.207484,
+      "gbytes_per_s": 222.3097,
+      "gops_per_s": 889.239,
       "operational_intensity": 4.0,
-      "joules_per_iter": 0.075553
+      "joules_per_iter": 0.079923
     },
     {
       "backend": "gpu",
@@ -793,13 +805,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 8657043456.0,
-      "ms_mean": 1.798662,
-      "ms_stdev": 0.234222,
-      "ms_min": 1.697617,
-      "gbytes_per_s": 158.1249,
-      "gops_per_s": 5099.5268,
+      "ms_mean": 1.793778,
+      "ms_stdev": 0.175121,
+      "ms_min": 1.627456,
+      "gbytes_per_s": 164.9418,
+      "gops_per_s": 5319.3717,
       "operational_intensity": 32.25,
-      "joules_per_iter": 0.101014
+      "joules_per_iter": 0.10598
     },
     {
       "backend": "gpu",
@@ -808,13 +820,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 2147483648.0,
-      "ms_mean": 1.568351,
-      "ms_stdev": 0.038579,
-      "ms_min": 1.492934,
-      "gbytes_per_s": 179.804,
-      "gops_per_s": 1438.4317,
+      "ms_mean": 1.557999,
+      "ms_stdev": 0.030773,
+      "ms_min": 1.510517,
+      "gbytes_per_s": 177.711,
+      "gops_per_s": 1421.6878,
       "operational_intensity": 8.0,
-      "joules_per_iter": 0.087626
+      "joules_per_iter": 0.087432
     },
     {
       "backend": "gpu",
@@ -823,13 +835,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 17246978048.0,
-      "ms_mean": 2.075116,
-      "ms_stdev": 0.225526,
-      "ms_min": 1.837018,
-      "gbytes_per_s": 146.1257,
-      "gops_per_s": 9388.5732,
+      "ms_mean": 2.07485,
+      "ms_stdev": 0.271528,
+      "ms_min": 1.846302,
+      "gbytes_per_s": 145.3909,
+      "gops_per_s": 9341.3635,
       "operational_intensity": 64.25,
-      "joules_per_iter": 0.11809
+      "joules_per_iter": 0.117764
     },
     {
       "backend": "gpu",
@@ -838,13 +850,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 4294967296.0,
-      "ms_mean": 1.786925,
-      "ms_stdev": 0.034906,
-      "ms_min": 1.733093,
-      "gbytes_per_s": 154.8881,
-      "gops_per_s": 2478.2094,
+      "ms_mean": 1.796655,
+      "ms_stdev": 0.033327,
+      "ms_min": 1.741687,
+      "gbytes_per_s": 154.1238,
+      "gops_per_s": 2465.9811,
       "operational_intensity": 16.0,
-      "joules_per_iter": 0.101066
+      "joules_per_iter": 0.101765
     },
     {
       "backend": "gpu",
@@ -853,13 +865,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 34426847232.0,
-      "ms_mean": 3.058139,
-      "ms_stdev": 0.126511,
-      "ms_min": 2.970078,
-      "gbytes_per_s": 90.3799,
-      "gops_per_s": 11591.2266,
+      "ms_mean": 3.079655,
+      "ms_stdev": 0.145679,
+      "ms_min": 2.965052,
+      "gbytes_per_s": 90.5331,
+      "gops_per_s": 11610.8747,
       "operational_intensity": 128.25,
-      "joules_per_iter": 0.174226
+      "joules_per_iter": 0.177046
     },
     {
       "backend": "gpu",
@@ -868,13 +880,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 8589934592.0,
-      "ms_mean": 3.176964,
-      "ms_stdev": 0.107738,
-      "ms_min": 2.92869,
-      "gbytes_per_s": 91.6572,
-      "gops_per_s": 2933.0296,
+      "ms_mean": 3.177361,
+      "ms_stdev": 0.088917,
+      "ms_min": 2.843556,
+      "gbytes_per_s": 94.4013,
+      "gops_per_s": 3020.8424,
       "operational_intensity": 32.0,
-      "joules_per_iter": 0.182321
+      "joules_per_iter": 0.182338
     },
     {
       "backend": "gpu",
@@ -883,13 +895,13 @@
       "elements": 8192,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 2.760921,
-      "ms_stdev": 0.281182,
-      "ms_min": 2.57547,
-      "gbytes_per_s": 104.2278,
+      "ms_mean": 2.764823,
+      "ms_stdev": 0.294219,
+      "ms_min": 2.586187,
+      "gbytes_per_s": 103.7958,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.160592
+      "joules_per_iter": 0.16064
     },
     {
       "backend": "gpu",
@@ -898,13 +910,13 @@
       "elements": 16384,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 1.433959,
-      "ms_stdev": 0.018089,
-      "ms_min": 1.404458,
-      "gbytes_per_s": 191.131,
+      "ms_mean": 1.436205,
+      "ms_stdev": 0.01378,
+      "ms_min": 1.404691,
+      "gbytes_per_s": 191.0993,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.081048
+      "joules_per_iter": 0.083341
     },
     {
       "backend": "gpu",
@@ -913,13 +925,13 @@
       "elements": 32768,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.800119,
-      "ms_stdev": 0.003005,
-      "ms_min": 0.794397,
-      "gbytes_per_s": 337.911,
+      "ms_mean": 0.799084,
+      "ms_stdev": 0.001931,
+      "ms_min": 0.789758,
+      "gbytes_per_s": 339.8958,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.043785
+      "joules_per_iter": 0.044275
     },
     {
       "backend": "gpu",
@@ -928,13 +940,13 @@
       "elements": 65536,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.48737,
-      "ms_stdev": 0.003166,
-      "ms_min": 0.479167,
-      "gbytes_per_s": 560.2127,
+      "ms_mean": 0.48298,
+      "ms_stdev": 0.005254,
+      "ms_min": 0.476345,
+      "gbytes_per_s": 563.5316,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.026257
+      "joules_per_iter": 0.029289
     },
     {
       "backend": "gpu",
@@ -943,13 +955,13 @@
       "elements": 131072,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.327984,
-      "ms_stdev": 0.001796,
-      "ms_min": 0.322523,
-      "gbytes_per_s": 832.2986,
+      "ms_mean": 0.330114,
+      "ms_stdev": 0.002534,
+      "ms_min": 0.324212,
+      "gbytes_per_s": 827.9627,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.015056
+      "joules_per_iter": 0.019065
     },
     {
       "backend": "gpu",
@@ -958,13 +970,13 @@
       "elements": 262144,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.248969,
-      "ms_stdev": 0.003453,
-      "ms_min": 0.241512,
-      "gbytes_per_s": 1111.4788,
+      "ms_mean": 0.248559,
+      "ms_stdev": 0.001311,
+      "ms_min": 0.243733,
+      "gbytes_per_s": 1101.3505,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.012001
+      "joules_per_iter": 0.011821
     },
     {
       "backend": "gpu",
@@ -973,13 +985,13 @@
       "elements": 524288,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.202802,
-      "ms_stdev": 0.00182,
-      "ms_min": 0.198151,
-      "gbytes_per_s": 1354.7015,
+      "ms_mean": 0.202932,
+      "ms_stdev": 0.002537,
+      "ms_min": 0.195804,
+      "gbytes_per_s": 1370.9396,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.009854
+      "joules_per_iter": 0.01193
     },
     {
       "backend": "gpu",
@@ -988,13 +1000,13 @@
       "elements": 1048576,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.183513,
-      "ms_stdev": 0.00575,
-      "ms_min": 0.175218,
-      "gbytes_per_s": 1532.0084,
+      "ms_mean": 0.182759,
+      "ms_stdev": 0.004302,
+      "ms_min": 0.176178,
+      "gbytes_per_s": 1523.6605,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.005713
+      "joules_per_iter": 0.009581
     },
     {
       "backend": "gpu",
@@ -1003,13 +1015,13 @@
       "elements": 2097152,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.181119,
-      "ms_stdev": 0.004237,
-      "ms_min": 0.172633,
-      "gbytes_per_s": 1554.9487,
+      "ms_mean": 0.179664,
+      "ms_stdev": 0.004868,
+      "ms_min": 0.170557,
+      "gbytes_per_s": 1573.8753,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.009346
+      "joules_per_iter": 0.007591
     },
     {
       "backend": "gpu",
@@ -1018,13 +1030,13 @@
       "elements": 4194304,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.223821,
-      "ms_stdev": 0.004314,
-      "ms_min": 0.215183,
-      "gbytes_per_s": 1247.4752,
+      "ms_mean": 0.223803,
+      "ms_stdev": 0.002926,
+      "ms_min": 0.215381,
+      "gbytes_per_s": 1246.3284,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.009805
+      "joules_per_iter": 0.009991
     },
     {
       "backend": "gpu",
@@ -1033,13 +1045,13 @@
       "elements": 8388608,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.372224,
-      "ms_stdev": 0.010315,
-      "ms_min": 0.358752,
-      "gbytes_per_s": 748.248,
+      "ms_mean": 0.370503,
+      "ms_stdev": 0.002128,
+      "ms_min": 0.364507,
+      "gbytes_per_s": 736.4343,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.021452
+      "joules_per_iter": 0.017396
     },
     {
       "backend": "gpu",
@@ -1048,13 +1060,13 @@
       "elements": 16777216,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.50271,
-      "ms_stdev": 0.009812,
-      "ms_min": 0.483515,
-      "gbytes_per_s": 555.175,
+      "ms_mean": 0.504284,
+      "ms_stdev": 0.010008,
+      "ms_min": 0.493848,
+      "gbytes_per_s": 543.5589,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.02843
+      "joules_per_iter": 0.026385
     },
     {
       "backend": "gpu",
@@ -1063,13 +1075,13 @@
       "elements": 33554432,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.672131,
-      "ms_stdev": 0.012887,
-      "ms_min": 0.652972,
-      "gbytes_per_s": 411.098,
+      "ms_mean": 0.663117,
+      "ms_stdev": 0.012031,
+      "ms_min": 0.647493,
+      "gbytes_per_s": 414.5766,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.03621
+      "joules_per_iter": 0.036258
     },
     {
       "backend": "gpu",
@@ -1078,13 +1090,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 0.941027,
-      "ms_stdev": 0.008677,
-      "ms_min": 0.930561,
-      "gbytes_per_s": 288.4663,
+      "ms_mean": 0.948658,
+      "ms_stdev": 0.007105,
+      "ms_min": 0.933104,
+      "gbytes_per_s": 287.6801,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.053152
+      "joules_per_iter": 0.053155
     },
     {
       "backend": "gpu",
@@ -1093,13 +1105,13 @@
       "elements": 8192,
       "bytes_moved": 32768.0,
       "ops": 0.0,
-      "ms_mean": 0.051273,
-      "ms_stdev": 0.00121,
-      "ms_min": 0.050354,
-      "gbytes_per_s": 0.6508,
+      "ms_mean": 0.052263,
+      "ms_stdev": 0.00197,
+      "ms_min": 0.051155,
+      "gbytes_per_s": 0.6406,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.000259
+      "joules_per_iter": 0.000568
     },
     {
       "backend": "gpu",
@@ -1108,13 +1120,13 @@
       "elements": 8192,
       "bytes_moved": 32768.0,
       "ops": 0.0,
-      "ms_mean": 0.057203,
-      "ms_stdev": 0.001073,
-      "ms_min": 0.055895,
-      "gbytes_per_s": 0.5862,
+      "ms_mean": 0.057885,
+      "ms_stdev": 0.001145,
+      "ms_min": 0.056756,
+      "gbytes_per_s": 0.5773,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.002029
+      "joules_per_iter": 0.004552
     },
     {
       "backend": "gpu",
@@ -1123,13 +1135,13 @@
       "elements": 8192,
       "bytes_moved": 32768.0,
       "ops": 0.0,
-      "ms_mean": 0.060161,
-      "ms_stdev": 0.002422,
-      "ms_min": 0.058309,
-      "gbytes_per_s": 0.562,
+      "ms_mean": 0.060458,
+      "ms_stdev": 0.001305,
+      "ms_min": 0.059521,
+      "gbytes_per_s": 0.5505,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.002029
+      "joules_per_iter": 0.000465
     },
     {
       "backend": "gpu",
@@ -1138,13 +1150,13 @@
       "elements": 8192,
       "bytes_moved": 32768.0,
       "ops": 0.0,
-      "ms_mean": 0.057778,
-      "ms_stdev": 0.001938,
-      "ms_min": 0.056566,
-      "gbytes_per_s": 0.5793,
+      "ms_mean": 0.058192,
+      "ms_stdev": 0.001517,
+      "ms_min": 0.057347,
+      "gbytes_per_s": 0.5714,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.004266
+      "joules_per_iter": 0.004277
     },
     {
       "backend": "gpu",
@@ -1153,13 +1165,13 @@
       "elements": 16384,
       "bytes_moved": 65536.0,
       "ops": 0.0,
-      "ms_mean": 0.052344,
-      "ms_stdev": 0.001951,
-      "ms_min": 0.051266,
-      "gbytes_per_s": 1.2784,
+      "ms_mean": 0.053451,
+      "ms_stdev": 0.0028,
+      "ms_min": 0.052047,
+      "gbytes_per_s": 1.2592,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.000405
+      "joules_per_iter": 0.00224
     },
     {
       "backend": "gpu",
@@ -1168,13 +1180,13 @@
       "elements": 16384,
       "bytes_moved": 65536.0,
       "ops": 0.0,
-      "ms_mean": 0.060257,
-      "ms_stdev": 0.00194,
-      "ms_min": 0.05882,
-      "gbytes_per_s": 1.1142,
+      "ms_mean": 0.060557,
+      "ms_stdev": 0.00114,
+      "ms_min": 0.05938,
+      "gbytes_per_s": 1.1037,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.004265
+      "joules_per_iter": 0.00224
     },
     {
       "backend": "gpu",
@@ -1183,13 +1195,13 @@
       "elements": 16384,
       "bytes_moved": 65536.0,
       "ops": 0.0,
-      "ms_mean": 0.063848,
-      "ms_stdev": 0.001513,
-      "ms_min": 0.062487,
-      "gbytes_per_s": 1.0488,
+      "ms_mean": 0.06403,
+      "ms_stdev": 0.001586,
+      "ms_min": 0.063047,
+      "gbytes_per_s": 1.0395,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.000625
+      "joules_per_iter": 0.00448
     },
     {
       "backend": "gpu",
@@ -1198,13 +1210,13 @@
       "elements": 16384,
       "bytes_moved": 65536.0,
       "ops": 0.0,
-      "ms_mean": 0.059444,
-      "ms_stdev": 0.001114,
-      "ms_min": 0.05859,
-      "gbytes_per_s": 1.1186,
+      "ms_mean": 0.060924,
+      "ms_stdev": 0.001669,
+      "ms_min": 0.059581,
+      "gbytes_per_s": 1.0999,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.00244
+      "joules_per_iter": 0.002225
     },
     {
       "backend": "gpu",
@@ -1213,13 +1225,13 @@
       "elements": 32768,
       "bytes_moved": 131072.0,
       "ops": 0.0,
-      "ms_mean": 0.052796,
-      "ms_stdev": 0.000975,
-      "ms_min": 0.052398,
-      "gbytes_per_s": 2.5015,
+      "ms_mean": 0.054333,
+      "ms_stdev": 0.001001,
+      "ms_min": 0.05387,
+      "gbytes_per_s": 2.4331,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.002234
+      "joules_per_iter": 0.004497
     },
     {
       "backend": "gpu",
@@ -1228,13 +1240,13 @@
       "elements": 32768,
       "bytes_moved": 131072.0,
       "ops": 0.0,
-      "ms_mean": 0.064494,
-      "ms_stdev": 0.00198,
-      "ms_min": 0.063238,
-      "gbytes_per_s": 2.0727,
+      "ms_mean": 0.065762,
+      "ms_stdev": 0.000997,
+      "ms_min": 0.06507,
+      "gbytes_per_s": 2.0143,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.002247
+      "joules_per_iter": 0.002452
     },
     {
       "backend": "gpu",
@@ -1243,13 +1255,13 @@
       "elements": 32768,
       "bytes_moved": 131072.0,
       "ops": 0.0,
-      "ms_mean": 0.071296,
-      "ms_stdev": 0.001763,
-      "ms_min": 0.06967,
-      "gbytes_per_s": 1.8813,
+      "ms_mean": 0.075088,
+      "ms_stdev": 0.003206,
+      "ms_min": 0.071563,
+      "gbytes_per_s": 1.8316,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.004265
+      "joules_per_iter": 0.00287
     },
     {
       "backend": "gpu",
@@ -1258,13 +1270,13 @@
       "elements": 32768,
       "bytes_moved": 131072.0,
       "ops": 0.0,
-      "ms_mean": 0.064423,
-      "ms_stdev": 0.001428,
-      "ms_min": 0.063779,
-      "gbytes_per_s": 2.0551,
+      "ms_mean": 0.06567,
+      "ms_stdev": 0.001213,
+      "ms_min": 0.064349,
+      "gbytes_per_s": 2.0369,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.004476
+      "joules_per_iter": 0.00245
     },
     {
       "backend": "gpu",
@@ -1273,13 +1285,13 @@
       "elements": 65536,
       "bytes_moved": 262144.0,
       "ops": 0.0,
-      "ms_mean": 0.056027,
-      "ms_stdev": 0.001352,
-      "ms_min": 0.055434,
-      "gbytes_per_s": 4.7289,
+      "ms_mean": 0.057391,
+      "ms_stdev": 0.001074,
+      "ms_min": 0.056795,
+      "gbytes_per_s": 4.6156,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.002238
+      "joules_per_iter": 0.000203
     },
     {
       "backend": "gpu",
@@ -1288,13 +1300,13 @@
       "elements": 65536,
       "bytes_moved": 262144.0,
       "ops": 0.0,
-      "ms_mean": 0.075315,
-      "ms_stdev": 0.001341,
-      "ms_min": 0.07465,
-      "gbytes_per_s": 3.5116,
+      "ms_mean": 0.076125,
+      "ms_stdev": 0.000783,
+      "ms_min": 0.075099,
+      "gbytes_per_s": 3.4906,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.002029
+      "joules_per_iter": 0.002462
     },
     {
       "backend": "gpu",
@@ -1303,13 +1315,13 @@
       "elements": 65536,
       "bytes_moved": 262144.0,
       "ops": 0.0,
-      "ms_mean": 0.086823,
-      "ms_stdev": 0.00194,
-      "ms_min": 0.084288,
-      "gbytes_per_s": 3.1101,
+      "ms_mean": 0.094029,
+      "ms_stdev": 0.006758,
+      "ms_min": 0.086951,
+      "gbytes_per_s": 3.0148,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.004703
+      "joules_per_iter": 0.002461
     },
     {
       "backend": "gpu",
@@ -1318,13 +1330,13 @@
       "elements": 65536,
       "bytes_moved": 262144.0,
       "ops": 0.0,
-      "ms_mean": 0.075405,
-      "ms_stdev": 0.001706,
-      "ms_min": 0.073859,
-      "gbytes_per_s": 3.5492,
+      "ms_mean": 0.076716,
+      "ms_stdev": 0.001375,
+      "ms_min": 0.075771,
+      "gbytes_per_s": 3.4597,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.002677
+      "joules_per_iter": 0.004494
     },
     {
       "backend": "gpu",
@@ -1333,13 +1345,13 @@
       "elements": 131072,
       "bytes_moved": 524288.0,
       "ops": 0.0,
-      "ms_mean": 0.062423,
-      "ms_stdev": 0.001465,
-      "ms_min": 0.061535,
-      "gbytes_per_s": 8.5202,
+      "ms_mean": 0.063922,
+      "ms_stdev": 0.001214,
+      "ms_min": 0.063198,
+      "gbytes_per_s": 8.296,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.002241
+      "joules_per_iter": 0.002246
     },
     {
       "backend": "gpu",
@@ -1348,13 +1360,13 @@
       "elements": 131072,
       "bytes_moved": 524288.0,
       "ops": 0.0,
-      "ms_mean": 0.090865,
-      "ms_stdev": 0.001658,
-      "ms_min": 0.089858,
-      "gbytes_per_s": 5.8346,
+      "ms_mean": 0.092081,
+      "ms_stdev": 0.001385,
+      "ms_min": 0.090679,
+      "gbytes_per_s": 5.7818,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.002702
+      "joules_per_iter": 0.004965
     },
     {
       "backend": "gpu",
@@ -1363,13 +1375,13 @@
       "elements": 131072,
       "bytes_moved": 524288.0,
       "ops": 0.0,
-      "ms_mean": 0.119505,
-      "ms_stdev": 0.004874,
-      "ms_min": 0.11263,
-      "gbytes_per_s": 4.655,
+      "ms_mean": 0.121518,
+      "ms_stdev": 0.006702,
+      "ms_min": 0.11327,
+      "gbytes_per_s": 4.6287,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.006991
+      "joules_per_iter": 0.007006
     },
     {
       "backend": "gpu",
@@ -1378,13 +1390,13 @@
       "elements": 131072,
       "bytes_moved": 524288.0,
       "ops": 0.0,
-      "ms_mean": 0.09602,
-      "ms_stdev": 0.001831,
-      "ms_min": 0.09085,
-      "gbytes_per_s": 5.7709,
+      "ms_mean": 0.095195,
+      "ms_stdev": 0.002636,
+      "ms_min": 0.0912,
+      "gbytes_per_s": 5.7488,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.002673
+      "joules_per_iter": 0.006765
     },
     {
       "backend": "gpu",
@@ -1393,13 +1405,13 @@
       "elements": 262144,
       "bytes_moved": 1048576.0,
       "ops": 0.0,
-      "ms_mean": 0.102671,
-      "ms_stdev": 0.004089,
-      "ms_min": 0.078607,
-      "gbytes_per_s": 13.3395,
+      "ms_mean": 0.10252,
+      "ms_stdev": 0.004017,
+      "ms_min": 0.079047,
+      "gbytes_per_s": 13.2652,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.004667
+      "joules_per_iter": 0.004789
     },
     {
       "backend": "gpu",
@@ -1408,13 +1420,13 @@
       "elements": 262144,
       "bytes_moved": 1048576.0,
       "ops": 0.0,
-      "ms_mean": 0.127213,
-      "ms_stdev": 0.002216,
-      "ms_min": 0.126156,
-      "gbytes_per_s": 8.3117,
+      "ms_mean": 0.127708,
+      "ms_stdev": 0.001212,
+      "ms_min": 0.126906,
+      "gbytes_per_s": 8.2626,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.00642
+      "joules_per_iter": 0.005392
     },
     {
       "backend": "gpu",
@@ -1423,13 +1435,13 @@
       "elements": 262144,
       "bytes_moved": 1048576.0,
       "ops": 0.0,
-      "ms_mean": 0.191926,
-      "ms_stdev": 0.008493,
-      "ms_min": 0.178504,
-      "gbytes_per_s": 5.8742,
+      "ms_mean": 0.190674,
+      "ms_stdev": 0.010225,
+      "ms_min": 0.173412,
+      "gbytes_per_s": 6.0467,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.010437
+      "joules_per_iter": 0.007514
     },
     {
       "backend": "gpu",
@@ -1438,13 +1450,13 @@
       "elements": 262144,
       "bytes_moved": 1048576.0,
       "ops": 0.0,
-      "ms_mean": 0.128955,
-      "ms_stdev": 0.004591,
-      "ms_min": 0.126196,
-      "gbytes_per_s": 8.3091,
+      "ms_mean": 0.127726,
+      "ms_stdev": 0.001497,
+      "ms_min": 0.126855,
+      "gbytes_per_s": 8.2659,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.006257
+      "joules_per_iter": 0.006982
     },
     {
       "backend": "gpu",
@@ -1453,13 +1465,13 @@
       "elements": 524288,
       "bytes_moved": 2097152.0,
       "ops": 0.0,
-      "ms_mean": 0.176072,
-      "ms_stdev": 0.004314,
-      "ms_min": 0.153417,
-      "gbytes_per_s": 13.6696,
+      "ms_mean": 0.175906,
+      "ms_stdev": 0.003973,
+      "ms_min": 0.152614,
+      "gbytes_per_s": 13.7415,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.007083
+      "joules_per_iter": 0.009875
     },
     {
       "backend": "gpu",
@@ -1468,13 +1480,13 @@
       "elements": 524288,
       "bytes_moved": 2097152.0,
       "ops": 0.0,
-      "ms_mean": 0.199361,
-      "ms_stdev": 0.001146,
-      "ms_min": 0.198451,
-      "gbytes_per_s": 10.5676,
+      "ms_mean": 0.200247,
+      "ms_stdev": 0.000829,
+      "ms_min": 0.19941,
+      "gbytes_per_s": 10.5168,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.007587
+      "joules_per_iter": 0.01064
     },
     {
       "backend": "gpu",
@@ -1483,13 +1495,13 @@
       "elements": 524288,
       "bytes_moved": 2097152.0,
       "ops": 0.0,
-      "ms_mean": 0.253359,
-      "ms_stdev": 0.001554,
-      "ms_min": 0.247604,
-      "gbytes_per_s": 8.4698,
+      "ms_mean": 0.252611,
+      "ms_stdev": 0.002426,
+      "ms_min": 0.247811,
+      "gbytes_per_s": 8.4627,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.011679
+      "joules_per_iter": 0.012294
     },
     {
       "backend": "gpu",
@@ -1498,13 +1510,13 @@
       "elements": 524288,
       "bytes_moved": 2097152.0,
       "ops": 0.0,
-      "ms_mean": 0.19906,
-      "ms_stdev": 0.001131,
-      "ms_min": 0.198151,
-      "gbytes_per_s": 10.5836,
+      "ms_mean": 0.199413,
+      "ms_stdev": 0.000637,
+      "ms_min": 0.198839,
+      "gbytes_per_s": 10.547,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.00742
+      "joules_per_iter": 0.012542
     },
     {
       "backend": "gpu",
@@ -1513,13 +1525,13 @@
       "elements": 1048576,
       "bytes_moved": 4194304.0,
       "ops": 0.0,
-      "ms_mean": 0.323543,
-      "ms_stdev": 0.003951,
-      "ms_min": 0.300653,
-      "gbytes_per_s": 13.9506,
+      "ms_mean": 0.323968,
+      "ms_stdev": 0.003627,
+      "ms_min": 0.306741,
+      "gbytes_per_s": 13.6738,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.01817
+      "joules_per_iter": 0.017083
     },
     {
       "backend": "gpu",
@@ -1528,13 +1540,13 @@
       "elements": 1048576,
       "bytes_moved": 4194304.0,
       "ops": 0.0,
-      "ms_mean": 0.345075,
-      "ms_stdev": 0.001123,
-      "ms_min": 0.344184,
-      "gbytes_per_s": 12.1862,
+      "ms_mean": 0.346077,
+      "ms_stdev": 0.001247,
+      "ms_min": 0.345031,
+      "gbytes_per_s": 12.1563,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.018291
+      "joules_per_iter": 0.006856
     },
     {
       "backend": "gpu",
@@ -1543,13 +1555,13 @@
       "elements": 1048576,
       "bytes_moved": 4194304.0,
       "ops": 0.0,
-      "ms_mean": 0.401961,
-      "ms_stdev": 0.003317,
-      "ms_min": 0.3952,
-      "gbytes_per_s": 10.6131,
+      "ms_mean": 0.401581,
+      "ms_stdev": 0.002467,
+      "ms_min": 0.397299,
+      "gbytes_per_s": 10.557,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.022778
+      "joules_per_iter": 0.021461
     },
     {
       "backend": "gpu",
@@ -1558,13 +1570,13 @@
       "elements": 1048576,
       "bytes_moved": 4194304.0,
       "ops": 0.0,
-      "ms_mean": 0.344441,
-      "ms_stdev": 0.001918,
-      "ms_min": 0.343433,
-      "gbytes_per_s": 12.2129,
+      "ms_mean": 0.345381,
+      "ms_stdev": 0.00208,
+      "ms_min": 0.34416,
+      "gbytes_per_s": 12.1871,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.017649
+      "joules_per_iter": 0.016599
     },
     {
       "backend": "gpu",
@@ -1573,13 +1585,13 @@
       "elements": 2097152,
       "bytes_moved": 8388608.0,
       "ops": 0.0,
-      "ms_mean": 0.618151,
-      "ms_stdev": 0.003533,
-      "ms_min": 0.598431,
-      "gbytes_per_s": 14.0177,
+      "ms_mean": 0.61875,
+      "ms_stdev": 0.005189,
+      "ms_min": 0.594425,
+      "gbytes_per_s": 14.1121,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.030951
+      "joules_per_iter": 0.030525
     },
     {
       "backend": "gpu",
@@ -1588,13 +1600,13 @@
       "elements": 2097152,
       "bytes_moved": 8388608.0,
       "ops": 0.0,
-      "ms_mean": 0.635674,
-      "ms_stdev": 0.000732,
-      "ms_min": 0.634858,
-      "gbytes_per_s": 13.2134,
+      "ms_mean": 0.636749,
+      "ms_stdev": 0.001431,
+      "ms_min": 0.635651,
+      "gbytes_per_s": 13.1969,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.032737
+      "joules_per_iter": 0.031508
     },
     {
       "backend": "gpu",
@@ -1603,13 +1615,13 @@
       "elements": 2097152,
       "bytes_moved": 8388608.0,
       "ops": 0.0,
-      "ms_mean": 0.693183,
-      "ms_stdev": 0.003309,
-      "ms_min": 0.688969,
-      "gbytes_per_s": 12.1756,
+      "ms_mean": 0.691084,
+      "ms_stdev": 0.002961,
+      "ms_min": 0.68845,
+      "gbytes_per_s": 12.1848,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.039703
+      "joules_per_iter": 0.023277
     },
     {
       "backend": "gpu",
@@ -1618,13 +1630,13 @@
       "elements": 2097152,
       "bytes_moved": 8388608.0,
       "ops": 0.0,
-      "ms_mean": 0.634409,
-      "ms_stdev": 0.002021,
-      "ms_min": 0.632814,
-      "gbytes_per_s": 13.256,
+      "ms_mean": 0.634792,
+      "ms_stdev": 0.001907,
+      "ms_min": 0.633066,
+      "gbytes_per_s": 13.2508,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.034495
+      "joules_per_iter": 0.029705
     },
     {
       "backend": "gpu",
@@ -1633,13 +1645,13 @@
       "elements": 4194304,
       "bytes_moved": 16777216.0,
       "ops": 0.0,
-      "ms_mean": 1.21971,
-      "ms_stdev": 0.00582,
-      "ms_min": 1.195257,
-      "gbytes_per_s": 14.0365,
+      "ms_mean": 1.218001,
+      "ms_stdev": 0.005061,
+      "ms_min": 1.196054,
+      "gbytes_per_s": 14.0271,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.068417
+      "joules_per_iter": 0.061675
     },
     {
       "backend": "gpu",
@@ -1648,13 +1660,13 @@
       "elements": 4194304,
       "bytes_moved": 16777216.0,
       "ops": 0.0,
-      "ms_mean": 1.2162,
-      "ms_stdev": 0.001204,
-      "ms_min": 1.215044,
-      "gbytes_per_s": 13.8079,
+      "ms_mean": 1.216717,
+      "ms_stdev": 0.00077,
+      "ms_min": 1.21582,
+      "gbytes_per_s": 13.7991,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.064554
+      "joules_per_iter": 0.063068
     },
     {
       "backend": "gpu",
@@ -1663,13 +1675,13 @@
       "elements": 4194304,
       "bytes_moved": 16777216.0,
       "ops": 0.0,
-      "ms_mean": 1.281674,
-      "ms_stdev": 0.003569,
-      "ms_min": 1.277781,
-      "gbytes_per_s": 13.13,
+      "ms_mean": 1.281195,
+      "ms_stdev": 0.003059,
+      "ms_min": 1.279018,
+      "gbytes_per_s": 13.1173,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.068858
+      "joules_per_iter": 0.067806
     },
     {
       "backend": "gpu",
@@ -1678,13 +1690,13 @@
       "elements": 4194304,
       "bytes_moved": 16777216.0,
       "ops": 0.0,
-      "ms_mean": 1.21244,
-      "ms_stdev": 0.002001,
-      "ms_min": 1.211588,
-      "gbytes_per_s": 13.8473,
+      "ms_mean": 1.213545,
+      "ms_stdev": 0.004605,
+      "ms_min": 1.212174,
+      "gbytes_per_s": 13.8406,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.048367
+      "joules_per_iter": 0.061093
     },
     {
       "backend": "gpu",
@@ -1693,13 +1705,13 @@
       "elements": 8388608,
       "bytes_moved": 33554432.0,
       "ops": 0.0,
-      "ms_mean": 2.40122,
-      "ms_stdev": 0.006937,
-      "ms_min": 2.371799,
-      "gbytes_per_s": 14.1472,
+      "ms_mean": 2.401953,
+      "ms_stdev": 0.004068,
+      "ms_min": 2.382328,
+      "gbytes_per_s": 14.0847,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.103462
+      "joules_per_iter": 0.101157
     },
     {
       "backend": "gpu",
@@ -1708,13 +1720,13 @@
       "elements": 8388608,
       "bytes_moved": 33554432.0,
       "ops": 0.0,
-      "ms_mean": 2.376255,
-      "ms_stdev": 0.000831,
-      "ms_min": 2.375346,
-      "gbytes_per_s": 14.1261,
+      "ms_mean": 2.376888,
+      "ms_stdev": 0.000693,
+      "ms_min": 2.376117,
+      "gbytes_per_s": 14.1215,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.098515
+      "joules_per_iter": 0.097718
     },
     {
       "backend": "gpu",
@@ -1723,13 +1735,13 @@
       "elements": 8388608,
       "bytes_moved": 33554432.0,
       "ops": 0.0,
-      "ms_mean": 2.464974,
-      "ms_stdev": 0.00559,
-      "ms_min": 2.460124,
-      "gbytes_per_s": 13.6393,
+      "ms_mean": 2.461706,
+      "ms_stdev": 0.002263,
+      "ms_min": 2.459412,
+      "gbytes_per_s": 13.6433,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.106655
+      "joules_per_iter": 0.106849
     },
     {
       "backend": "gpu",
@@ -1738,13 +1750,13 @@
       "elements": 8388608,
       "bytes_moved": 33554432.0,
       "ops": 0.0,
-      "ms_mean": 2.36965,
-      "ms_stdev": 0.002715,
-      "ms_min": 2.368031,
-      "gbytes_per_s": 14.1698,
+      "ms_mean": 2.369419,
+      "ms_stdev": 0.000782,
+      "ms_min": 2.368673,
+      "gbytes_per_s": 14.1659,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.086019
+      "joules_per_iter": 0.096103
     },
     {
       "backend": "gpu",
@@ -1753,13 +1765,13 @@
       "elements": 16777216,
       "bytes_moved": 67108864.0,
       "ops": 0.0,
-      "ms_mean": 4.799284,
-      "ms_stdev": 0.026111,
-      "ms_min": 4.768053,
-      "gbytes_per_s": 14.0747,
+      "ms_mean": 4.788905,
+      "ms_stdev": 0.01522,
+      "ms_min": 4.765638,
+      "gbytes_per_s": 14.0818,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.183472
+      "joules_per_iter": 0.194754
     },
     {
       "backend": "gpu",
@@ -1768,13 +1780,13 @@
       "elements": 16777216,
       "bytes_moved": 67108864.0,
       "ops": 0.0,
-      "ms_mean": 4.703714,
-      "ms_stdev": 0.012394,
-      "ms_min": 4.695648,
-      "gbytes_per_s": 14.2917,
+      "ms_mean": 4.718809,
+      "ms_stdev": 0.007873,
+      "ms_min": 4.713431,
+      "gbytes_per_s": 14.2378,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.18322
+      "joules_per_iter": 0.184248
     },
     {
       "backend": "gpu",
@@ -1783,13 +1795,13 @@
       "elements": 16777216,
       "bytes_moved": 67108864.0,
       "ops": 0.0,
-      "ms_mean": 4.84556,
-      "ms_stdev": 0.022917,
-      "ms_min": 4.823066,
-      "gbytes_per_s": 13.9142,
+      "ms_mean": 4.856213,
+      "ms_stdev": 0.00817,
+      "ms_min": 4.839746,
+      "gbytes_per_s": 13.8662,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.212942
+      "joules_per_iter": 0.208025
     },
     {
       "backend": "gpu",
@@ -1798,13 +1810,13 @@
       "elements": 16777216,
       "bytes_moved": 67108864.0,
       "ops": 0.0,
-      "ms_mean": 4.712862,
-      "ms_stdev": 0.01483,
-      "ms_min": 4.69191,
-      "gbytes_per_s": 14.3031,
+      "ms_mean": 4.702529,
+      "ms_stdev": 0.006382,
+      "ms_min": 4.697612,
+      "gbytes_per_s": 14.2857,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.193032
+      "joules_per_iter": 0.192082
     },
     {
       "backend": "gpu",
@@ -1813,13 +1825,13 @@
       "elements": 33554432,
       "bytes_moved": 134217728.0,
       "ops": 0.0,
-      "ms_mean": 9.510723,
-      "ms_stdev": 0.016768,
-      "ms_min": 9.483037,
-      "gbytes_per_s": 14.1535,
+      "ms_mean": 9.498376,
+      "ms_stdev": 0.013136,
+      "ms_min": 9.478939,
+      "gbytes_per_s": 14.1596,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.413979
+      "joules_per_iter": 0.414009
     },
     {
       "backend": "gpu",
@@ -1828,13 +1840,13 @@
       "elements": 33554432,
       "bytes_moved": 134217728.0,
       "ops": 0.0,
-      "ms_mean": 9.368941,
-      "ms_stdev": 0.0172,
-      "ms_min": 9.352884,
-      "gbytes_per_s": 14.3504,
+      "ms_mean": 9.356566,
+      "ms_stdev": 0.00498,
+      "ms_min": 9.353376,
+      "gbytes_per_s": 14.3497,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.386968
+      "joules_per_iter": 0.389626
     },
     {
       "backend": "gpu",
@@ -1843,13 +1855,13 @@
       "elements": 33554432,
       "bytes_moved": 134217728.0,
       "ops": 0.0,
-      "ms_mean": 9.609009,
-      "ms_stdev": 0.141424,
-      "ms_min": 9.551055,
-      "gbytes_per_s": 14.0527,
+      "ms_mean": 9.577996,
+      "ms_stdev": 0.007066,
+      "ms_min": 9.561382,
+      "gbytes_per_s": 14.0375,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.419796
+      "joules_per_iter": 0.418619
     },
     {
       "backend": "gpu",
@@ -1858,13 +1870,13 @@
       "elements": 33554432,
       "bytes_moved": 134217728.0,
       "ops": 0.0,
-      "ms_mean": 9.33679,
-      "ms_stdev": 0.01474,
-      "ms_min": 9.32397,
-      "gbytes_per_s": 14.3949,
+      "ms_mean": 9.329891,
+      "ms_stdev": 0.008874,
+      "ms_min": 9.314221,
+      "gbytes_per_s": 14.41,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.384633
+      "joules_per_iter": 0.385732
     },
     {
       "backend": "gpu",
@@ -1873,13 +1885,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 18.961016,
-      "ms_stdev": 0.115848,
-      "ms_min": 18.915781,
-      "gbytes_per_s": 14.1911,
+      "ms_mean": 18.927762,
+      "ms_stdev": 0.011232,
+      "ms_min": 18.897885,
+      "gbytes_per_s": 14.2045,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.8292
+      "joules_per_iter": 0.8305
     },
     {
       "backend": "gpu",
@@ -1888,13 +1900,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 18.648055,
-      "ms_stdev": 0.016913,
-      "ms_min": 18.622863,
-      "gbytes_per_s": 14.4143,
+      "ms_mean": 18.638401,
+      "ms_stdev": 0.005852,
+      "ms_min": 18.633081,
+      "gbytes_per_s": 14.4064,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.776107
+      "joules_per_iter": 0.776291
     },
     {
       "backend": "gpu",
@@ -1903,13 +1915,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 19.034252,
-      "ms_stdev": 0.009415,
-      "ms_min": 19.012031,
-      "gbytes_per_s": 14.1192,
+      "ms_mean": 19.028126,
+      "ms_stdev": 0.004895,
+      "ms_min": 19.011914,
+      "gbytes_per_s": 14.1193,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.825402
+      "joules_per_iter": 0.827993
     },
     {
       "backend": "gpu",
@@ -1918,13 +1930,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 18.587352,
-      "ms_stdev": 0.014565,
-      "ms_min": 18.561588,
-      "gbytes_per_s": 14.4619,
+      "ms_mean": 18.579978,
+      "ms_stdev": 0.004739,
+      "ms_min": 18.576836,
+      "gbytes_per_s": 14.45,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.772312
+      "joules_per_iter": 0.767057
     },
     {
       "backend": "gpu",
@@ -1933,13 +1945,13 @@
       "elements": 1,
       "bytes_moved": 0.0,
       "ops": 0.0,
-      "ms_mean": 0.055175,
-      "ms_stdev": 0.001538,
-      "ms_min": 0.054161,
+      "ms_mean": 0.055426,
+      "ms_stdev": 0.001111,
+      "ms_min": 0.05404,
       "gbytes_per_s": 0.0,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.000276
+      "joules_per_iter": 0.001526
     },
     {
       "backend": "npu",
@@ -1948,13 +1960,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 67108864.0,
-      "ms_mean": 5.098013,
-      "ms_stdev": 0.232641,
-      "ms_min": 4.973538,
-      "gbytes_per_s": 53.9727,
-      "gops_per_s": 13.4932,
+      "ms_mean": 4.993833,
+      "ms_stdev": 0.050204,
+      "ms_min": 4.948945,
+      "gbytes_per_s": 54.2409,
+      "gops_per_s": 13.5602,
       "operational_intensity": 0.25,
-      "joules_per_iter": 0.079454
+      "joules_per_iter": 0.076916
     },
     {
       "backend": "npu",
@@ -1963,13 +1975,13 @@
       "elements": 67108864,
       "bytes_moved": 536870912.0,
       "ops": 0.0,
-      "ms_mean": 13.16904,
-      "ms_stdev": 0.199999,
-      "ms_min": 12.944076,
-      "gbytes_per_s": 41.4762,
+      "ms_mean": 13.094955,
+      "ms_stdev": 0.264341,
+      "ms_min": 12.855246,
+      "gbytes_per_s": 41.7628,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.171902
+      "joules_per_iter": 0.173198
     },
     {
       "backend": "npu",
@@ -1978,13 +1990,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 2.571481,
-      "ms_stdev": 0.010912,
-      "ms_min": 2.562966,
-      "gbytes_per_s": 104.7363,
+      "ms_mean": 2.568213,
+      "ms_stdev": 0.007956,
+      "ms_min": 2.561229,
+      "gbytes_per_s": 104.8073,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.028618
+      "joules_per_iter": 0.028079
     },
     {
       "backend": "npu",
@@ -1993,13 +2005,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 2.577361,
-      "ms_stdev": 0.019184,
-      "ms_min": 2.562766,
-      "gbytes_per_s": 104.7444,
+      "ms_mean": 2.570953,
+      "ms_stdev": 0.017344,
+      "ms_min": 2.5617,
+      "gbytes_per_s": 104.788,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.027875
+      "joules_per_iter": 0.025531
     },
     {
       "backend": "npu",
@@ -2008,13 +2020,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 5.07352,
-      "ms_stdev": 0.040964,
-      "ms_min": 5.026327,
-      "gbytes_per_s": 53.4059,
+      "ms_mean": 4.963464,
+      "ms_stdev": 0.129967,
+      "ms_min": 4.893833,
+      "gbytes_per_s": 54.8518,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.076753
+      "joules_per_iter": 0.079693
     },
     {
       "backend": "npu",
@@ -2023,13 +2035,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 33554432.0,
-      "ms_mean": 7.030487,
-      "ms_stdev": 0.101722,
-      "ms_min": 6.938666,
-      "gbytes_per_s": 38.6869,
-      "gops_per_s": 4.8359,
+      "ms_mean": 6.964037,
+      "ms_stdev": 0.03225,
+      "ms_min": 6.922652,
+      "gbytes_per_s": 38.7764,
+      "gops_per_s": 4.847,
       "operational_intensity": 0.125,
-      "joules_per_iter": 0.09718
+      "joules_per_iter": 0.099581
     },
     {
       "backend": "npu",
@@ -2038,13 +2050,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 67108864.0,
-      "ms_mean": 10.974594,
-      "ms_stdev": 0.016402,
-      "ms_min": 10.944763,
-      "gbytes_per_s": 24.5264,
-      "gops_per_s": 6.1316,
+      "ms_mean": 10.942058,
+      "ms_stdev": 0.02173,
+      "ms_min": 10.908317,
+      "gbytes_per_s": 24.6083,
+      "gops_per_s": 6.1521,
       "operational_intensity": 0.25,
-      "joules_per_iter": 0.129909
+      "joules_per_iter": 0.135232
     },
     {
       "backend": "npu",
@@ -2053,13 +2065,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 134217728.0,
-      "ms_mean": 13.606024,
-      "ms_stdev": 0.031031,
-      "ms_min": 13.544108,
-      "gbytes_per_s": 19.8194,
-      "gops_per_s": 9.9097,
+      "ms_mean": 13.606065,
+      "ms_stdev": 0.013885,
+      "ms_min": 13.576094,
+      "gbytes_per_s": 19.7727,
+      "gops_per_s": 9.8863,
       "operational_intensity": 0.5,
-      "joules_per_iter": 0.159996
+      "joules_per_iter": 0.162526
     },
     {
       "backend": "npu",
@@ -2068,13 +2080,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 268435456.0,
-      "ms_mean": 16.06806,
-      "ms_stdev": 0.0216,
-      "ms_min": 16.025943,
-      "gbytes_per_s": 16.7501,
-      "gops_per_s": 16.7501,
+      "ms_mean": 16.043739,
+      "ms_stdev": 0.014484,
+      "ms_min": 16.018822,
+      "gbytes_per_s": 16.7575,
+      "gops_per_s": 16.7575,
       "operational_intensity": 1.0,
-      "joules_per_iter": 0.177979
+      "joules_per_iter": 0.186571
     },
     {
       "backend": "npu",
@@ -2083,13 +2095,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 536870912.0,
-      "ms_mean": 21.080223,
-      "ms_stdev": 0.261395,
-      "ms_min": 20.991536,
-      "gbytes_per_s": 12.7878,
-      "gops_per_s": 25.5756,
+      "ms_mean": 20.995313,
+      "ms_stdev": 0.021804,
+      "ms_min": 20.933181,
+      "gbytes_per_s": 12.8234,
+      "gops_per_s": 25.6469,
       "operational_intensity": 2.0,
-      "joules_per_iter": 0.227152
+      "joules_per_iter": 0.240564
     },
     {
       "backend": "npu",
@@ -2098,13 +2110,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 1073741824.0,
-      "ms_mean": 31.042289,
-      "ms_stdev": 0.027247,
-      "ms_min": 30.993154,
-      "gbytes_per_s": 8.6611,
-      "gops_per_s": 34.6445,
+      "ms_mean": 30.990672,
+      "ms_stdev": 0.01628,
+      "ms_min": 30.955019,
+      "gbytes_per_s": 8.6718,
+      "gops_per_s": 34.6872,
       "operational_intensity": 4.0,
-      "joules_per_iter": 0.275238
+      "joules_per_iter": 0.283084
     },
     {
       "backend": "npu",
@@ -2113,13 +2125,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 2147483648.0,
-      "ms_mean": 51.148799,
-      "ms_stdev": 0.179613,
-      "ms_min": 51.079998,
-      "gbytes_per_s": 5.2552,
-      "gops_per_s": 42.0416,
+      "ms_mean": 51.040428,
+      "ms_stdev": 0.018652,
+      "ms_min": 51.006659,
+      "gbytes_per_s": 5.2628,
+      "gops_per_s": 42.102,
       "operational_intensity": 8.0,
-      "joules_per_iter": 0.420664
+      "joules_per_iter": 0.423426
     },
     {
       "backend": "npu",
@@ -2128,13 +2140,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 4294967296.0,
-      "ms_mean": 91.279125,
-      "ms_stdev": 0.188692,
-      "ms_min": 91.205647,
-      "gbytes_per_s": 2.9432,
-      "gops_per_s": 47.091,
+      "ms_mean": 91.135936,
+      "ms_stdev": 0.022765,
+      "ms_min": 91.09847,
+      "gbytes_per_s": 2.9467,
+      "gops_per_s": 47.1464,
       "operational_intensity": 16.0,
-      "joules_per_iter": 0.727448
+      "joules_per_iter": 0.731645
     },
     {
       "backend": "npu",
@@ -2143,13 +2155,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 8589934592.0,
-      "ms_mean": 171.506366,
-      "ms_stdev": 0.040473,
-      "ms_min": 171.446665,
-      "gbytes_per_s": 1.5657,
-      "gops_per_s": 50.1027,
+      "ms_mean": 171.343227,
+      "ms_stdev": 0.241707,
+      "ms_min": 171.251427,
+      "gbytes_per_s": 1.5675,
+      "gops_per_s": 50.1598,
       "operational_intensity": 32.0,
-      "joules_per_iter": 1.342571
+      "joules_per_iter": 1.351916
     },
     {
       "backend": "npu",
@@ -2158,13 +2170,13 @@
       "elements": 8192,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.612235,
-      "ms_stdev": 0.050809,
-      "ms_min": 4.494732,
-      "gbytes_per_s": 59.7222,
+      "ms_mean": 4.53372,
+      "ms_stdev": 0.048342,
+      "ms_min": 4.443101,
+      "gbytes_per_s": 60.4162,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.030973
+      "joules_per_iter": 0.030438
     },
     {
       "backend": "npu",
@@ -2173,13 +2185,13 @@
       "elements": 16384,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.429,
-      "ms_stdev": 0.033385,
-      "ms_min": 4.375089,
-      "gbytes_per_s": 61.3554,
+      "ms_mean": 4.441643,
+      "ms_stdev": 0.030337,
+      "ms_min": 4.396605,
+      "gbytes_per_s": 61.0552,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.0326
+      "joules_per_iter": 0.033822
     },
     {
       "backend": "npu",
@@ -2188,13 +2200,13 @@
       "elements": 32768,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.43874,
-      "ms_stdev": 0.040277,
-      "ms_min": 4.391228,
-      "gbytes_per_s": 61.1299,
+      "ms_mean": 4.424195,
+      "ms_stdev": 0.032781,
+      "ms_min": 4.370336,
+      "gbytes_per_s": 61.4222,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.032975
+      "joules_per_iter": 0.034904
     },
     {
       "backend": "npu",
@@ -2203,13 +2215,13 @@
       "elements": 65536,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.451994,
-      "ms_stdev": 0.033882,
-      "ms_min": 4.399835,
-      "gbytes_per_s": 61.0103,
+      "ms_mean": 4.449359,
+      "ms_stdev": 0.03496,
+      "ms_min": 4.351712,
+      "gbytes_per_s": 61.685,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.031962
+      "joules_per_iter": 0.033308
     },
     {
       "backend": "npu",
@@ -2218,13 +2230,13 @@
       "elements": 131072,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.551565,
-      "ms_stdev": 0.036274,
-      "ms_min": 4.491246,
-      "gbytes_per_s": 59.7686,
+      "ms_mean": 4.44922,
+      "ms_stdev": 0.030185,
+      "ms_min": 4.369205,
+      "gbytes_per_s": 61.4381,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.034222
+      "joules_per_iter": 0.030706
     },
     {
       "backend": "npu",
@@ -2233,13 +2245,13 @@
       "elements": 262144,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.586948,
-      "ms_stdev": 0.04917,
-      "ms_min": 4.49861,
-      "gbytes_per_s": 59.6708,
+      "ms_mean": 4.660255,
+      "ms_stdev": 0.041534,
+      "ms_min": 4.601105,
+      "gbytes_per_s": 58.3415,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.037349
+      "joules_per_iter": 0.037437
     },
     {
       "backend": "npu",
@@ -2248,13 +2260,13 @@
       "elements": 524288,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.629873,
-      "ms_stdev": 0.048246,
-      "ms_min": 4.526992,
-      "gbytes_per_s": 59.2966,
+      "ms_mean": 4.617827,
+      "ms_stdev": 0.044133,
+      "ms_min": 4.545,
+      "gbytes_per_s": 59.0617,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.041181
+      "joules_per_iter": 0.039638
     },
     {
       "backend": "npu",
@@ -2263,13 +2275,13 @@
       "elements": 1048576,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.624922,
-      "ms_stdev": 0.05169,
-      "ms_min": 4.5467,
-      "gbytes_per_s": 59.0396,
+      "ms_mean": 4.622701,
+      "ms_stdev": 0.046088,
+      "ms_min": 4.535143,
+      "gbytes_per_s": 59.1901,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.040931
+      "joules_per_iter": 0.041263
     },
     {
       "backend": "npu",
@@ -2278,13 +2290,13 @@
       "elements": 2097152,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.703098,
-      "ms_stdev": 0.022212,
-      "ms_min": 4.668958,
-      "gbytes_per_s": 57.4937,
+      "ms_mean": 4.643255,
+      "ms_stdev": 0.032521,
+      "ms_min": 4.566931,
+      "gbytes_per_s": 58.7781,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.045882
+      "joules_per_iter": 0.046107
     },
     {
       "backend": "npu",
@@ -2293,13 +2305,13 @@
       "elements": 4194304,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.925712,
-      "ms_stdev": 0.018203,
-      "ms_min": 4.89409,
-      "gbytes_per_s": 54.8489,
+      "ms_mean": 4.908764,
+      "ms_stdev": 0.017893,
+      "ms_min": 4.86195,
+      "gbytes_per_s": 55.2115,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.049607
+      "joules_per_iter": 0.049501
     },
     {
       "backend": "npu",
@@ -2308,13 +2320,13 @@
       "elements": 8388608,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 5.026105,
-      "ms_stdev": 0.022241,
-      "ms_min": 4.983627,
-      "gbytes_per_s": 53.8635,
+      "ms_mean": 5.025742,
+      "ms_stdev": 0.024686,
+      "ms_min": 4.984066,
+      "gbytes_per_s": 53.8587,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.062984
+      "joules_per_iter": 0.065426
     },
     {
       "backend": "npu",
@@ -2323,13 +2335,13 @@
       "elements": 16777216,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 5.033826,
-      "ms_stdev": 0.028868,
-      "ms_min": 4.991242,
-      "gbytes_per_s": 53.7813,
+      "ms_mean": 4.969021,
+      "ms_stdev": 0.028279,
+      "ms_min": 4.907003,
+      "gbytes_per_s": 54.7046,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.071699
+      "joules_per_iter": 0.072782
     },
     {
       "backend": "npu",
@@ -2338,13 +2350,13 @@
       "elements": 33554432,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 5.053703,
-      "ms_stdev": 0.025091,
-      "ms_min": 5.003334,
-      "gbytes_per_s": 53.6513,
+      "ms_mean": 4.965472,
+      "ms_stdev": 0.02428,
+      "ms_min": 4.93256,
+      "gbytes_per_s": 54.4211,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.071807
+      "joules_per_iter": 0.072471
     },
     {
       "backend": "npu",
@@ -2353,13 +2365,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 5.020561,
-      "ms_stdev": 0.021968,
-      "ms_min": 4.982335,
-      "gbytes_per_s": 53.8774,
+      "ms_mean": 5.008999,
+      "ms_stdev": 0.023035,
+      "ms_min": 4.95419,
+      "gbytes_per_s": 54.1835,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.071734
+      "joules_per_iter": 0.072728
     },
     {
       "backend": "npu",
@@ -2368,13 +2380,13 @@
       "elements": 8192,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 9.215324,
-      "ms_stdev": 0.027264,
-      "ms_min": 9.159553,
-      "gbytes_per_s": 29.3066,
+      "ms_mean": 9.242745,
+      "ms_stdev": 0.042468,
+      "ms_min": 9.112763,
+      "gbytes_per_s": 29.4571,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.102687
+      "joules_per_iter": 0.108291
     },
     {
       "backend": "npu",
@@ -2383,13 +2395,13 @@
       "elements": 8192,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 21.741351,
-      "ms_stdev": 0.102171,
-      "ms_min": 21.654368,
-      "gbytes_per_s": 12.3964,
+      "ms_mean": 21.848872,
+      "ms_stdev": 0.121834,
+      "ms_min": 21.725255,
+      "gbytes_per_s": 12.3559,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.240394
+      "joules_per_iter": 0.248678
     },
     {
       "backend": "npu",
@@ -2398,13 +2410,13 @@
       "elements": 8192,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.295678,
-      "ms_stdev": 0.691487,
-      "ms_min": 3.101344,
-      "gbytes_per_s": 86.5546,
+      "ms_mean": 5.480682,
+      "ms_stdev": 1.906511,
+      "ms_min": 3.081171,
+      "gbytes_per_s": 87.1212,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.026315
+      "joules_per_iter": 0.030528
     },
     {
       "backend": "npu",
@@ -2413,13 +2425,13 @@
       "elements": 16384,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 9.002723,
-      "ms_stdev": 0.040927,
-      "ms_min": 8.920054,
-      "gbytes_per_s": 30.0935,
+      "ms_mean": 9.069071,
+      "ms_stdev": 0.107688,
+      "ms_min": 8.968194,
+      "gbytes_per_s": 29.9319,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.101881
+      "joules_per_iter": 0.108994
     },
     {
       "backend": "npu",
@@ -2428,13 +2440,13 @@
       "elements": 16384,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 20.342508,
-      "ms_stdev": 0.032903,
-      "ms_min": 20.268004,
-      "gbytes_per_s": 13.2443,
+      "ms_mean": 19.719054,
+      "ms_stdev": 0.043603,
+      "ms_min": 19.643948,
+      "gbytes_per_s": 13.665,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.228571
+      "joules_per_iter": 0.231325
     },
     {
       "backend": "npu",
@@ -2443,13 +2455,13 @@
       "elements": 16384,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.796679,
-      "ms_stdev": 1.36814,
-      "ms_min": 3.100864,
-      "gbytes_per_s": 86.568,
+      "ms_mean": 5.179133,
+      "ms_stdev": 2.000796,
+      "ms_min": 3.079278,
+      "gbytes_per_s": 87.1748,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.027929
+      "joules_per_iter": 0.029713
     },
     {
       "backend": "npu",
@@ -2458,13 +2470,13 @@
       "elements": 32768,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 8.885416,
-      "ms_stdev": 0.050852,
-      "ms_min": 8.807874,
-      "gbytes_per_s": 30.4768,
+      "ms_mean": 8.917252,
+      "ms_stdev": 0.045658,
+      "ms_min": 8.827292,
+      "gbytes_per_s": 30.4097,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.102583
+      "joules_per_iter": 0.106408
     },
     {
       "backend": "npu",
@@ -2473,13 +2485,13 @@
       "elements": 32768,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 19.707309,
-      "ms_stdev": 0.089935,
-      "ms_min": 19.604452,
-      "gbytes_per_s": 13.6926,
+      "ms_mean": 18.829046,
+      "ms_stdev": 0.038891,
+      "ms_min": 18.77858,
+      "gbytes_per_s": 14.2948,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.229324
+      "joules_per_iter": 0.224556
     },
     {
       "backend": "npu",
@@ -2488,13 +2500,13 @@
       "elements": 32768,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.222544,
-      "ms_stdev": 1.075155,
-      "ms_min": 3.065818,
-      "gbytes_per_s": 87.5575,
+      "ms_mean": 6.522436,
+      "ms_stdev": 1.951364,
+      "ms_min": 3.082143,
+      "gbytes_per_s": 87.0938,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.026188
+      "joules_per_iter": 0.03279
     },
     {
       "backend": "npu",
@@ -2503,13 +2515,13 @@
       "elements": 65536,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 8.857031,
-      "ms_stdev": 0.057125,
-      "ms_min": 8.723477,
-      "gbytes_per_s": 30.7716,
+      "ms_mean": 8.804373,
+      "ms_stdev": 0.042585,
+      "ms_min": 8.717888,
+      "gbytes_per_s": 30.7913,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.103225
+      "joules_per_iter": 0.106117
     },
     {
       "backend": "npu",
@@ -2518,13 +2530,13 @@
       "elements": 65536,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 18.87038,
-      "ms_stdev": 0.103529,
-      "ms_min": 18.797141,
-      "gbytes_per_s": 14.2807,
+      "ms_mean": 18.450364,
+      "ms_stdev": 0.148092,
+      "ms_min": 18.347709,
+      "gbytes_per_s": 14.6305,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.221154
+      "joules_per_iter": 0.225727
     },
     {
       "backend": "npu",
@@ -2533,13 +2545,13 @@
       "elements": 65536,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.566379,
-      "ms_stdev": 1.592338,
-      "ms_min": 3.064245,
-      "gbytes_per_s": 87.6025,
+      "ms_mean": 6.307085,
+      "ms_stdev": 1.962695,
+      "ms_min": 3.079038,
+      "gbytes_per_s": 87.1816,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.027595
+      "joules_per_iter": 0.032406
     },
     {
       "backend": "npu",
@@ -2548,13 +2560,13 @@
       "elements": 131072,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 8.077928,
-      "ms_stdev": 0.050076,
-      "ms_min": 7.99271,
-      "gbytes_per_s": 33.585,
+      "ms_mean": 7.942425,
+      "ms_stdev": 0.033746,
+      "ms_min": 7.847781,
+      "gbytes_per_s": 34.2053,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.101093
+      "joules_per_iter": 0.102435
     },
     {
       "backend": "npu",
@@ -2563,13 +2575,13 @@
       "elements": 131072,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 17.657585,
-      "ms_stdev": 0.043126,
-      "ms_min": 17.57343,
-      "gbytes_per_s": 15.2751,
+      "ms_mean": 17.481506,
+      "ms_stdev": 0.037341,
+      "ms_min": 17.431296,
+      "gbytes_per_s": 15.3996,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.209446
+      "joules_per_iter": 0.213453
     },
     {
       "backend": "npu",
@@ -2578,13 +2590,13 @@
       "elements": 131072,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 3.937367,
-      "ms_stdev": 0.745683,
-      "ms_min": 3.070166,
-      "gbytes_per_s": 87.4335,
+      "ms_mean": 5.118483,
+      "ms_stdev": 1.584135,
+      "ms_min": 3.078617,
+      "gbytes_per_s": 87.1935,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.025719
+      "joules_per_iter": 0.029281
     },
     {
       "backend": "npu",
@@ -2593,13 +2605,13 @@
       "elements": 262144,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 7.934545,
-      "ms_stdev": 0.031448,
-      "ms_min": 7.839873,
-      "gbytes_per_s": 34.2398,
+      "ms_mean": 7.905658,
+      "ms_stdev": 0.024679,
+      "ms_min": 7.832153,
+      "gbytes_per_s": 34.2735,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.103304
+      "joules_per_iter": 0.105146
     },
     {
       "backend": "npu",
@@ -2608,13 +2620,13 @@
       "elements": 262144,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 16.470701,
-      "ms_stdev": 0.027206,
-      "ms_min": 16.407097,
-      "gbytes_per_s": 16.3609,
+      "ms_mean": 16.247388,
+      "ms_stdev": 0.043743,
+      "ms_min": 16.18478,
+      "gbytes_per_s": 16.5857,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.199708
+      "joules_per_iter": 0.202247
     },
     {
       "backend": "npu",
@@ -2623,13 +2635,13 @@
       "elements": 262144,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.828709,
-      "ms_stdev": 1.655753,
-      "ms_min": 3.101034,
-      "gbytes_per_s": 86.5632,
+      "ms_mean": 5.134739,
+      "ms_stdev": 1.723743,
+      "ms_min": 3.077965,
+      "gbytes_per_s": 87.212,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.027752
+      "joules_per_iter": 0.029093
     },
     {
       "backend": "npu",
@@ -2638,13 +2650,13 @@
       "elements": 524288,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 7.909771,
-      "ms_stdev": 0.052902,
-      "ms_min": 7.80592,
-      "gbytes_per_s": 34.3887,
+      "ms_mean": 8.010253,
+      "ms_stdev": 0.051811,
+      "ms_min": 7.929753,
+      "gbytes_per_s": 33.8517,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.10353
+      "joules_per_iter": 0.106841
     },
     {
       "backend": "npu",
@@ -2653,13 +2665,13 @@
       "elements": 524288,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 15.796276,
-      "ms_stdev": 0.120402,
-      "ms_min": 15.597903,
-      "gbytes_per_s": 17.2097,
+      "ms_mean": 15.765899,
+      "ms_stdev": 0.101422,
+      "ms_min": 15.592711,
+      "gbytes_per_s": 17.2154,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.196583
+      "joules_per_iter": 0.198196
     },
     {
       "backend": "npu",
@@ -2668,13 +2680,13 @@
       "elements": 524288,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 3.976141,
-      "ms_stdev": 0.72362,
-      "ms_min": 3.087358,
-      "gbytes_per_s": 86.9467,
+      "ms_mean": 5.405873,
+      "ms_stdev": 2.146434,
+      "ms_min": 3.060934,
+      "gbytes_per_s": 87.6972,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.02577
+      "joules_per_iter": 0.029798
     },
     {
       "backend": "npu",
@@ -2683,13 +2695,13 @@
       "elements": 1048576,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 8.382808,
-      "ms_stdev": 0.042696,
-      "ms_min": 8.281429,
-      "gbytes_per_s": 32.4141,
+      "ms_mean": 8.44243,
+      "ms_stdev": 0.057914,
+      "ms_min": 8.270986,
+      "gbytes_per_s": 32.4551,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.108777
+      "joules_per_iter": 0.111218
     },
     {
       "backend": "npu",
@@ -2698,13 +2710,13 @@
       "elements": 1048576,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 15.455332,
-      "ms_stdev": 0.164156,
-      "ms_min": 15.251165,
-      "gbytes_per_s": 17.601,
+      "ms_mean": 15.393793,
+      "ms_stdev": 0.144384,
+      "ms_min": 15.204889,
+      "gbytes_per_s": 17.6545,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.190125
+      "joules_per_iter": 0.194992
     },
     {
       "backend": "npu",
@@ -2713,13 +2725,13 @@
       "elements": 1048576,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.099824,
-      "ms_stdev": 0.508703,
-      "ms_min": 3.087508,
-      "gbytes_per_s": 86.9424,
+      "ms_mean": 5.963561,
+      "ms_stdev": 2.170106,
+      "ms_min": 3.080169,
+      "gbytes_per_s": 87.1496,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.025575
+      "joules_per_iter": 0.03141
     },
     {
       "backend": "npu",
@@ -2728,13 +2740,13 @@
       "elements": 2097152,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 10.518195,
-      "ms_stdev": 0.063066,
-      "ms_min": 10.433808,
-      "gbytes_per_s": 25.7275,
+      "ms_mean": 10.453886,
+      "ms_stdev": 0.068354,
+      "ms_min": 10.392525,
+      "gbytes_per_s": 25.8297,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.132659
+      "joules_per_iter": 0.133854
     },
     {
       "backend": "npu",
@@ -2743,13 +2755,13 @@
       "elements": 2097152,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 15.547455,
-      "ms_stdev": 0.178657,
-      "ms_min": 15.349738,
-      "gbytes_per_s": 17.488,
+      "ms_mean": 15.546384,
+      "ms_stdev": 0.109384,
+      "ms_min": 15.277213,
+      "gbytes_per_s": 17.571,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.197187
+      "joules_per_iter": 0.195921
     },
     {
       "backend": "npu",
@@ -2758,13 +2770,13 @@
       "elements": 2097152,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 5.370972,
-      "ms_stdev": 1.848387,
-      "ms_min": 3.085064,
-      "gbytes_per_s": 87.0113,
+      "ms_mean": 4.90897,
+      "ms_stdev": 1.645677,
+      "ms_min": 3.078575,
+      "gbytes_per_s": 87.1947,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.029472
+      "joules_per_iter": 0.028506
     },
     {
       "backend": "npu",
@@ -2773,13 +2785,13 @@
       "elements": 4194304,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 12.490126,
-      "ms_stdev": 0.034429,
-      "ms_min": 12.43862,
-      "gbytes_per_s": 21.5808,
+      "ms_mean": 13.963957,
+      "ms_stdev": 0.024041,
+      "ms_min": 13.919031,
+      "gbytes_per_s": 19.2855,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.143112
+      "joules_per_iter": 0.157258
     },
     {
       "backend": "npu",
@@ -2788,13 +2800,13 @@
       "elements": 4194304,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 15.092743,
-      "ms_stdev": 0.138814,
-      "ms_min": 15.020632,
-      "gbytes_per_s": 17.8711,
+      "ms_mean": 16.555477,
+      "ms_stdev": 0.136012,
+      "ms_min": 16.475567,
+      "gbytes_per_s": 16.2929,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.168372
+      "joules_per_iter": 0.1863
     },
     {
       "backend": "npu",
@@ -2803,13 +2815,13 @@
       "elements": 4194304,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.409872,
-      "ms_stdev": 1.389665,
-      "ms_min": 3.084122,
-      "gbytes_per_s": 87.0379,
+      "ms_mean": 5.52807,
+      "ms_stdev": 1.880384,
+      "ms_min": 3.079888,
+      "gbytes_per_s": 87.1575,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.026807
+      "joules_per_iter": 0.029961
     },
     {
       "backend": "npu",
@@ -2818,13 +2830,13 @@
       "elements": 8388608,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 12.518257,
-      "ms_stdev": 0.026024,
-      "ms_min": 12.466442,
-      "gbytes_per_s": 21.5326,
+      "ms_mean": 13.982887,
+      "ms_stdev": 0.026267,
+      "ms_min": 13.93483,
+      "gbytes_per_s": 19.2636,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.142789
+      "joules_per_iter": 0.157457
     },
     {
       "backend": "npu",
@@ -2833,13 +2845,13 @@
       "elements": 8388608,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 15.098006,
-      "ms_stdev": 0.035846,
-      "ms_min": 15.050659,
-      "gbytes_per_s": 17.8355,
+      "ms_mean": 16.483398,
+      "ms_stdev": 0.040023,
+      "ms_min": 16.427517,
+      "gbytes_per_s": 16.3406,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.165621
+      "joules_per_iter": 0.18084
     },
     {
       "backend": "npu",
@@ -2848,13 +2860,13 @@
       "elements": 8388608,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.167535,
-      "ms_stdev": 1.006744,
-      "ms_min": 3.084193,
-      "gbytes_per_s": 87.0359,
+      "ms_mean": 5.090917,
+      "ms_stdev": 1.523237,
+      "ms_min": 3.079587,
+      "gbytes_per_s": 87.1661,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.026245
+      "joules_per_iter": 0.029184
     },
     {
       "backend": "npu",
@@ -2863,13 +2875,13 @@
       "elements": 16777216,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 12.521196,
-      "ms_stdev": 0.030145,
-      "ms_min": 12.48098,
-      "gbytes_per_s": 21.5076,
+      "ms_mean": 13.990078,
+      "ms_stdev": 0.025565,
+      "ms_min": 13.956499,
+      "gbytes_per_s": 19.2337,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.143122
+      "joules_per_iter": 0.156984
     },
     {
       "backend": "npu",
@@ -2878,13 +2890,13 @@
       "elements": 16777216,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 15.080269,
-      "ms_stdev": 0.033559,
-      "ms_min": 15.036673,
-      "gbytes_per_s": 17.8521,
+      "ms_mean": 16.526646,
+      "ms_stdev": 0.029216,
+      "ms_min": 16.47267,
+      "gbytes_per_s": 16.2958,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.165439
+      "joules_per_iter": 0.181102
     },
     {
       "backend": "npu",
@@ -2893,13 +2905,13 @@
       "elements": 16777216,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 5.544798,
-      "ms_stdev": 1.925267,
-      "ms_min": 3.088971,
-      "gbytes_per_s": 86.9013,
+      "ms_mean": 6.707246,
+      "ms_stdev": 2.017725,
+      "ms_min": 3.080638,
+      "gbytes_per_s": 87.1363,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.029764
+      "joules_per_iter": 0.033381
     },
     {
       "backend": "npu",
@@ -2908,13 +2920,13 @@
       "elements": 33554432,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 12.56539,
-      "ms_stdev": 0.13784,
-      "ms_min": 12.4861,
-      "gbytes_per_s": 21.4987,
+      "ms_mean": 13.980835,
+      "ms_stdev": 0.031383,
+      "ms_min": 13.910553,
+      "gbytes_per_s": 19.2973,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.145242
+      "joules_per_iter": 0.157948
     },
     {
       "backend": "npu",
@@ -2923,13 +2935,13 @@
       "elements": 33554432,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 15.069133,
-      "ms_stdev": 0.071347,
-      "ms_min": 14.984465,
-      "gbytes_per_s": 17.9143,
+      "ms_mean": 16.52672,
+      "ms_stdev": 0.030672,
+      "ms_min": 16.470765,
+      "gbytes_per_s": 16.2977,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.165969
+      "joules_per_iter": 0.180935
     },
     {
       "backend": "npu",
@@ -2938,13 +2950,13 @@
       "elements": 33554432,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 5.380159,
-      "ms_stdev": 1.851883,
-      "ms_min": 3.100764,
-      "gbytes_per_s": 86.5707,
+      "ms_mean": 6.161771,
+      "ms_stdev": 2.06129,
+      "ms_min": 3.080187,
+      "gbytes_per_s": 87.1491,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.029333
+      "joules_per_iter": 0.031785
     },
     {
       "backend": "npu",
@@ -2953,13 +2965,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 12.422024,
-      "ms_stdev": 0.03766,
-      "ms_min": 12.369221,
-      "gbytes_per_s": 21.7019,
+      "ms_mean": 12.400783,
+      "ms_stdev": 0.034882,
+      "ms_min": 12.344915,
+      "gbytes_per_s": 21.7446,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.140765
+      "joules_per_iter": 0.143686
     },
     {
       "backend": "npu",
@@ -2968,13 +2980,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 14.967583,
-      "ms_stdev": 0.027132,
-      "ms_min": 14.91717,
-      "gbytes_per_s": 17.9951,
+      "ms_mean": 14.957078,
+      "ms_stdev": 0.039083,
+      "ms_min": 14.89612,
+      "gbytes_per_s": 18.0205,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.163557
+      "joules_per_iter": 0.167781
     },
     {
       "backend": "npu",
@@ -2983,13 +2995,13 @@
       "elements": 67108864,
       "bytes_moved": 268435456.0,
       "ops": 0.0,
-      "ms_mean": 4.093899,
-      "ms_stdev": 0.89619,
-      "ms_min": 3.070827,
-      "gbytes_per_s": 87.4147,
+      "ms_mean": 5.882634,
+      "ms_stdev": 2.157075,
+      "ms_min": 3.080619,
+      "gbytes_per_s": 87.1369,
       "gops_per_s": 0.0,
       "operational_intensity": 0.0,
-      "joules_per_iter": 0.026153
+      "joules_per_iter": 0.03112
     }
   ],
   "failures": []
