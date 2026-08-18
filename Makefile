@@ -11,9 +11,9 @@ CATALOGUE_DTYPES ?= int uint float double half
 CATALOGUE_METRIC ?= net
 CATALOGUE := --dist $(CATALOGUE_DIST) --fanout-k $(CATALOGUE_K) --dtype $(CATALOGUE_DTYPES) --energy-metric $(CATALOGUE_METRIC)
 
-PLOT_CASES := --plot all --error-bars none $(CATALOGUE)
-PLOT_ENERGY := --input ./bench/results/raw/energy/output.json --plot energy-by-backend power-by-backend energy-vs-n power-vs-n edp-vs-n energy-per-element-vs-n time-vs-energy --error-bars none $(CATALOGUE)
-PLOT_ROOFLINE := --plot roofline roofline-kernels memory-bandwidth-vs-n roof-utilization --error-bars none $(CATALOGUE)
+PLOT_CASES := --plot all --error-bars none --energy-csv-out '' $(CATALOGUE)
+PLOT_ENERGY := --input ./bench/results/raw/energy/output.json --plot energy-by-backend power-by-backend energy-vs-n power-vs-n edp-vs-n energy-per-element-vs-n time-vs-energy --error-bars none --timing-csv-out '' $(CATALOGUE)
+PLOT_ROOFLINE := --plot roofline roofline-kernels memory-bandwidth-vs-n roof-utilization --error-bars none --timing-csv-out '' --energy-csv-out '' $(CATALOGUE)
 PLOT_DISTS := --input ./bench/results/raw/dists/output.json --plot dist-compare --fanout-k $(CATALOGUE_K) --dtype float half --error-bars none --timing-csv-out ./bench/results/derived/dists.csv --energy-csv-out ''
 
 .PHONY: all help build-all build-cpu build-gpu build-npu verify-artifacts \
