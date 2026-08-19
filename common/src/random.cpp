@@ -28,7 +28,7 @@ double sample_clustered(std::mt19937& rng, double lo, double hi, common::config:
 	}
 
 	std::normal_distribution<double> gauss(mean, sigma);
-	return std::min(std::max(gauss(rng), lo), hi);
+	return std::clamp(gauss(rng), lo, hi);
 }
 
 bool is_clustered(common::config::Distribution dist) {

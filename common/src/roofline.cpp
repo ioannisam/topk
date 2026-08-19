@@ -20,7 +20,6 @@ constexpr const char* kUsage = "Usage: ./roofline [exp=stream|sweep|cache|transf
 
 using common::parse::parse_bool_value;
 using common::parse::parse_signed_long;
-using common::parse::starts_with;
 
 std::size_t parse_bytes(const std::string& text) {
 	if (text.empty()) {
@@ -141,23 +140,23 @@ Config parse_args(int argc, char** argv) {
 			throw std::invalid_argument(kUsage);
 		}
 
-		if (starts_with(token, "exp=")) {
+		if (token.starts_with("exp=")) {
 			cfg.experiment = parse_experiment(token.substr(4));
 			continue;
 		}
-		if (starts_with(token, "bytes=")) {
+		if (token.starts_with("bytes=")) {
 			cfg.bytes = parse_bytes(token.substr(6));
 			continue;
 		}
-		if (starts_with(token, "ops=")) {
+		if (token.starts_with("ops=")) {
 			cfg.ops = parse_ops(token.substr(4));
 			continue;
 		}
-		if (starts_with(token, "sizes=")) {
+		if (token.starts_with("sizes=")) {
 			cfg.sizes = parse_sizes(token.substr(6));
 			continue;
 		}
-		if (starts_with(token, "threads=")) {
+		if (token.starts_with("threads=")) {
 			const long long parsed = parse_signed_long(token.substr(8), "threads");
 			if (parsed <= 0) {
 				throw std::invalid_argument("threads must be positive");
@@ -165,7 +164,7 @@ Config parse_args(int argc, char** argv) {
 			cfg.ex_threads = static_cast<std::size_t>(parsed);
 			continue;
 		}
-		if (starts_with(token, "seed=")) {
+		if (token.starts_with("seed=")) {
 			const long long parsed = parse_signed_long(token.substr(5), "seed");
 			if (parsed < 0) {
 				throw std::invalid_argument("seed must be non-negative");
@@ -173,7 +172,7 @@ Config parse_args(int argc, char** argv) {
 			cfg.seed = static_cast<std::uint64_t>(parsed);
 			continue;
 		}
-		if (starts_with(token, "debug=")) {
+		if (token.starts_with("debug=")) {
 			cfg.debug_output = parse_bool_value(token.substr(6), "debug");
 			continue;
 		}

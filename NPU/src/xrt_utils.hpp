@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <stdexcept>
@@ -53,10 +54,7 @@ inline OffloadConfig load_offload_config() {
 }
 
 inline std::string xclbin_stem(const std::string& xclbin_path) {
-	const auto slash_idx = xclbin_path.find_last_of('/');
-	const std::string file_name = (slash_idx != std::string::npos) ? xclbin_path.substr(slash_idx + 1) : xclbin_path;
-	const auto dot_idx = file_name.find_last_of('.');
-	return (dot_idx != std::string::npos) ? file_name.substr(0, dot_idx) : file_name;
+	return std::filesystem::path(xclbin_path).stem().string();
 }
 
 inline void require_xclbin_for(const OffloadConfig& cfg, const char* algorithm) {
@@ -95,10 +93,9 @@ inline void wait_for_runlist_or_throw(const xrt::runlist& rl, unsigned int timeo
 }
 
 inline std::vector<uint32_t> load_instruction_sequence(const std::string& xclbin_path) {
-	auto slash_idx = xclbin_path.find_last_of('/');
-	std::string dir = (slash_idx != std::string::npos) ? xclbin_path.substr(0, slash_idx) : ".";
-
-	std::string path = dir + "/" + xclbin_stem(xclbin_path) + ".bin";
+	const std::filesystem::path xclbin_fs(xclbin_path);
+	const std::filesystem::path dir = xclbin_fs.has_parent_path() ? xclbin_fs.parent_path() : ".";
+	const std::string path = (dir / (xclbin_stem(xclbin_path) + ".bin")).string();
 
 	std::ifstream file(path, std::ios::binary | std::ios::ate);
 	if (!file) {

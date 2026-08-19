@@ -137,7 +137,7 @@ class SystemCounter final : public Counter {
 
 		for (const auto& entry : fs::directory_iterator(root, ec)) {
 			const std::string dir = entry.path().string();
-			if (read_line(dir + "/name").rfind("package-", 0) != 0) {
+			if (!read_line(dir + "/name").starts_with("package-")) {
 				continue;
 			}
 			if (!package.init(dir)) {

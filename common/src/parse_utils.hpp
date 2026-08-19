@@ -6,10 +6,6 @@
 
 namespace common::parse {
 
-inline bool starts_with(const std::string& text, const std::string& prefix) {
-	return text.rfind(prefix, 0) == 0;
-}
-
 inline long long parse_signed_long(const std::string& text, const char* field_name) {
 	try {
 		std::size_t pos = 0;

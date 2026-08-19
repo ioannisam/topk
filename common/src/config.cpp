@@ -14,11 +14,8 @@
 namespace common::config {
 namespace {
 
-// n = 1 << q must stay a defined shift on std::size_t.
-constexpr long long kMaxQ = 63;
-
-// Largest finite magnitude representable by IEEE binary16.
-constexpr int kHalfMax = 65504;
+constexpr long long kMaxQ = 63; // n = 1 << q
+constexpr int kHalfMax = 65504; // largest finite magnitude representable by IEEE binary16.
 
 constexpr const char* kUsage = "Usage: ./topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] "
 							   "[algo=bitonic|map_reduce|gt] [run=full|trunc|both] [debug=true|false] "
@@ -33,10 +30,9 @@ Distribution parse_distribution(const std::string& token);
 using common::parse::parse_bool_value;
 using common::parse::parse_int_field;
 using common::parse::parse_signed_long;
-using common::parse::starts_with;
 
 bool is_dtype_token(const std::string& token) {
-	return starts_with(token, "dtype=");
+	return token.starts_with("dtype=");
 }
 
 bool is_key_value_token(const std::string& token) {
@@ -71,7 +67,7 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 			throw std::invalid_argument("All arguments must use key=value format. Unknown token: " + token);
 		}
 
-		if (starts_with(token, "q=")) {
+		if (token.starts_with("q=")) {
 			const long long parsed_q = parse_signed_long(token.substr(2), "q");
 			if (parsed_q < 0) {
 				throw std::invalid_argument("q must be non-negative");
@@ -83,7 +79,7 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 			q_seen = true;
 			continue;
 		}
-		if (starts_with(token, "k=")) {
+		if (token.starts_with("k=")) {
 			const long long parsed_k = parse_signed_long(token.substr(2), "k");
 			if (parsed_k <= 0) {
 				throw std::invalid_argument("k must be positive");
@@ -92,7 +88,7 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 			k_seen = true;
 			continue;
 		}
-		if (starts_with(token, "seed=")) {
+		if (token.starts_with("seed=")) {
 			const long long parsed_seed = parse_signed_long(token.substr(5), "seed");
 			if (parsed_seed < 0) {
 				throw std::invalid_argument("seed must be non-negative");
@@ -100,7 +96,7 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 			seed = static_cast<std::uint64_t>(parsed_seed);
 			continue;
 		}
-		if (starts_with(token, "mode=")) {
+		if (token.starts_with("mode=")) {
 			const std::string value = token.substr(5);
 			if (value == "min" || value == "max") {
 				want_max = (value == "max");
@@ -108,7 +104,7 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 			}
 			throw std::invalid_argument("mode must be min or max");
 		}
-		if (starts_with(token, "threads=")) {
+		if (token.starts_with("threads=")) {
 			const long long parsed_threads = parse_signed_long(token.substr(8), "threads");
 			if (parsed_threads <= 0) {
 				throw std::invalid_argument("threads must be positive");
@@ -120,31 +116,31 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 			dtype = parse_dtype(token);
 			continue;
 		}
-		if (starts_with(token, "algo=")) {
+		if (token.starts_with("algo=")) {
 			algorithm = parse_algorithm(token);
 			continue;
 		}
-		if (starts_with(token, "debug=")) {
+		if (token.starts_with("debug=")) {
 			debug_output = parse_bool_value(token.substr(6), "debug");
 			continue;
 		}
-		if (starts_with(token, "verify=")) {
+		if (token.starts_with("verify=")) {
 			verify_output = parse_bool_value(token.substr(7), "verify");
 			continue;
 		}
-		if (starts_with(token, "min=")) {
+		if (token.starts_with("min=")) {
 			rand_min = parse_int_field(token.substr(4), "min");
 			continue;
 		}
-		if (starts_with(token, "max=")) {
+		if (token.starts_with("max=")) {
 			rand_max = parse_int_field(token.substr(4), "max");
 			continue;
 		}
-		if (starts_with(token, "run=")) {
+		if (token.starts_with("run=")) {
 			run_mode = parse_run_mode(token.substr(4));
 			continue;
 		}
-		if (starts_with(token, "dist=")) {
+		if (token.starts_with("dist=")) {
 			dist = parse_distribution(token.substr(5));
 			continue;
 		}
