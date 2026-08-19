@@ -4,10 +4,12 @@ namespace common::bitonic {
 
 std::vector<Layer> build_layers(std::size_t n, std::size_t topk) {
 	std::vector<Layer> layers;
-	if (topk > n)
+	if (topk > n) {
 		topk = n;
-	if (topk == 0)
+	}
+	if (topk == 0) {
 		return layers;
+	}
 
 	std::size_t topk_pow2 = 1;
 	while (topk_pow2 < topk) {
@@ -20,9 +22,9 @@ std::vector<Layer> build_layers(std::size_t n, std::size_t topk) {
 	std::size_t current_n = n;
 
 	// standard bitonic sort up to blocks of size topk_pow2
-	for (std::size_t k = 2; k <= topk_pow2; k <<= 1) {
-		for (std::size_t j = k >> 1; j > 0; j >>= 1) {
-			layers.push_back({LayerType::Normal, current_n, k, j});
+	for (std::size_t stage = 2; stage <= topk_pow2; stage <<= 1) {
+		for (std::size_t stride = stage >> 1; stride > 0; stride >>= 1) {
+			layers.push_back({LayerType::Normal, current_n, stage, stride});
 		}
 	}
 
@@ -31,8 +33,8 @@ std::vector<Layer> build_layers(std::size_t n, std::size_t topk) {
 		layers.push_back({LayerType::Truncate, current_n, topk_pow2 * 2, topk_pow2});
 
 		current_n /= 2;
-		for (std::size_t j = topk_pow2 >> 1; j > 0; j >>= 1) {
-			layers.push_back({LayerType::Normal, current_n, topk_pow2, j});
+		for (std::size_t stride = topk_pow2 >> 1; stride > 0; stride >>= 1) {
+			layers.push_back({LayerType::Normal, current_n, topk_pow2, stride});
 		}
 	}
 
@@ -41,8 +43,8 @@ std::vector<Layer> build_layers(std::size_t n, std::size_t topk) {
 
 std::size_t count_full_comparators(std::size_t n) {
 	std::size_t num_layers = 0;
-	for (std::size_t k = 2; k <= n; k <<= 1) {
-		for (std::size_t j = k >> 1; j > 0; j >>= 1) {
+	for (std::size_t stage = 2; stage <= n; stage <<= 1) {
+		for (std::size_t stride = stage >> 1; stride > 0; stride >>= 1) {
 			num_layers++;
 		}
 	}

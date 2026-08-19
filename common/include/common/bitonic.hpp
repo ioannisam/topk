@@ -5,16 +5,13 @@
 
 namespace common::bitonic {
 
-enum class LayerType {
-	Normal,	 // Standard bitonic compare-and-swap
-	Truncate // Compare elements, discard the losers, and compact the array!
-};
+enum class LayerType { Normal, Truncate };
 
 struct Layer {
 	LayerType type;
-	std::size_t active_n; // The number of elements involved in this layer
-	std::size_t k;		  // The 'k' parameter (dictates ascending/descending direction)
-	std::size_t j;		  // The stride distance
+	std::size_t active_n;
+	std::size_t stage;
+	std::size_t stride;
 };
 
 std::vector<Layer> build_layers(std::size_t n, std::size_t topk);

@@ -288,8 +288,8 @@ T* execute_network_kernels(
 
 	for (std::size_t layer_idx = 0; layer_idx < layers.size(); layer_idx++) {
 		const auto& layer = layers[layer_idx];
-		const std::size_t stage = layer.k;
-		const std::size_t step = layer.j;
+		const std::size_t stage = layer.stage;
+		const std::size_t step = layer.stride;
 		const std::size_t pairs = layer.active_n / 2;
 		out_comparators += pairs;
 
@@ -325,7 +325,7 @@ T* execute_network_kernels(
 		const bool is_last = (layer_idx == layers.size() - 1);
 		const bool next_is_trunc = (!is_last && layers[layer_idx + 1].type == common::bitonic::LayerType::Truncate);
 		const bool next_is_large =
-			(!is_last && !next_is_trunc && !fuses(layers[layer_idx + 1].active_n, layers[layer_idx + 1].j));
+			(!is_last && !next_is_trunc && !fuses(layers[layer_idx + 1].active_n, layers[layer_idx + 1].stride));
 		const bool is_full = (buffer.count == FUSED_LAYER_CAP);
 
 		if (buffer.count > 0 && (is_last || next_is_large || next_is_trunc || is_full)) {

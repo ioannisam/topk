@@ -46,7 +46,7 @@ inline void sift_down_max(std::vector<std::int32_t>& heap, std::size_t i) {
 std::size_t derive_kept_prefix(const std::vector<common::bitonic::Layer>& layers, std::size_t n) {
 	for (const auto& layer : layers) {
 		if (layer.type == common::bitonic::LayerType::Truncate) {
-			return std::min(layer.j, n);
+			return std::min(layer.stride, n);
 		}
 	}
 	return n;
