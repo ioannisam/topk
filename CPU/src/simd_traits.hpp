@@ -242,8 +242,9 @@ template <> struct SimdTraits512<_Float16> {
 		return _mm512_cvtph_ps(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(p)));
 	}
 	static void store(_Float16* p, Vec v) {
-		_mm256_storeu_si256(reinterpret_cast<__m256i*>(p),
-							_mm512_cvtps_ph(v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
+		_mm256_storeu_si256(
+			reinterpret_cast<__m256i*>(p), _mm512_cvtps_ph(v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC)
+		);
 	}
 	static Vec min(Vec a, Vec b) {
 		return _mm512_min_ps(a, b);
@@ -314,7 +315,7 @@ template <> struct SimdTraits256<float> {
 
 	template <int J> static Mask get_blend_mask(std::size_t i, std::size_t k) {
 		alignas(32) std::int32_t mask_arr[8];
-		for (int l = 0; l < 8; ++l) {
+		for (int l = 0; l < 8; l++) {
 			std::size_t curr = i + l;
 			bool desc = ((curr & ~static_cast<std::size_t>(J)) & k) != 0;
 			bool odd = (curr & J) != 0;
@@ -366,7 +367,7 @@ template <> struct SimdTraits256<std::int32_t> {
 
 	template <int J> static Mask get_blend_mask(std::size_t i, std::size_t k) {
 		alignas(32) std::int32_t mask_arr[8];
-		for (int l = 0; l < 8; ++l) {
+		for (int l = 0; l < 8; l++) {
 			std::size_t curr = i + l;
 			bool desc = ((curr & ~static_cast<std::size_t>(J)) & k) != 0;
 			bool odd = (curr & J) != 0;
@@ -454,7 +455,7 @@ template <> struct SimdTraits256<double> {
 
 	template <int J> static Mask get_blend_mask(std::size_t i, std::size_t k) {
 		alignas(32) std::int64_t mask_arr[4];
-		for (int l = 0; l < 4; ++l) {
+		for (int l = 0; l < 4; l++) {
 			std::size_t curr = i + l;
 			bool desc = ((curr & ~static_cast<std::size_t>(J)) & k) != 0;
 			bool odd = (curr & J) != 0;
@@ -483,8 +484,9 @@ template <> struct SimdTraits256<_Float16> {
 		return _mm256_cvtph_ps(_mm_loadu_si128(reinterpret_cast<const __m128i*>(p)));
 	}
 	static void store(_Float16* p, Vec v) {
-		_mm_storeu_si128(reinterpret_cast<__m128i*>(p),
-						 _mm256_cvtps_ph(v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
+		_mm_storeu_si128(
+			reinterpret_cast<__m128i*>(p), _mm256_cvtps_ph(v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC)
+		);
 	}
 	static Vec min(Vec a, Vec b) {
 		return _mm256_min_ps(a, b);

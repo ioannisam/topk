@@ -29,8 +29,9 @@ template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, boo
 
 	const std::size_t kk = std::min(k, n);
 
-	auto env = cuda::execution::require(cuda::execution::determinism::not_guaranteed,
-										cuda::execution::output_ordering::unsorted);
+	auto env = cuda::execution::require(
+		cuda::execution::determinism::not_guaranteed, cuda::execution::output_ordering::unsorted
+	);
 
 	DeviceBuffer<D> d_in(n);
 	DeviceBuffer<D> d_out(kk);

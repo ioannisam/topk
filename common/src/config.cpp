@@ -258,7 +258,8 @@ Distribution parse_distribution(const std::string& token) {
 		return Distribution::Adversarial;
 	}
 	throw std::invalid_argument(
-		"Unsupported distribution. Use one of: uniform, normal, trimodal, sorted, reverse, adversarial");
+		"Unsupported distribution. Use one of: uniform, normal, trimodal, sorted, reverse, adversarial"
+	);
 }
 
 } // namespace
@@ -266,7 +267,7 @@ Distribution parse_distribution(const std::string& token) {
 Config parse_args(int argc, char** argv) {
 	std::vector<std::string> cli_tokens;
 	cli_tokens.reserve(argc > 1 ? static_cast<std::size_t>(argc - 1) : 0);
-	for (int i = 1; i < argc; ++i) {
+	for (int i = 1; i < argc; i++) {
 		cli_tokens.push_back(argv[i]);
 	}
 

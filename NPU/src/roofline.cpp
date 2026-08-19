@@ -25,7 +25,7 @@ using Elem = std::int32_t;
 
 __attribute__((noinline)) double read_buffer(const Elem* src, std::size_t n) {
 	std::int64_t acc = 0;
-	for (std::size_t i = 0; i < n; ++i) {
+	for (std::size_t i = 0; i < n; i++) {
 		acc += src[i];
 	}
 	asm volatile("" : "+r"(acc) : : "memory");
@@ -45,18 +45,18 @@ __attribute__((noinline)) double cmp_buffer(const Elem* src, std::size_t n, int 
 	Elem y[kCmpLane];
 	Elem z[kCmpLane];
 	std::int64_t acc = 0;
-	for (std::size_t l = 0; l < kCmpLane; ++l) {
+	for (std::size_t l = 0; l < kCmpLane; l++) {
 		z[l] = static_cast<Elem>(l);
 	}
 
 	std::size_t i = 0;
 	for (; i + 2 * kCmpLane <= n; i += 2 * kCmpLane) {
-		for (std::size_t l = 0; l < kCmpLane; ++l) {
+		for (std::size_t l = 0; l < kCmpLane; l++) {
 			x[l] = src[i + l];
 			y[l] = src[i + kCmpLane + l];
 		}
-		for (int j = 0; j < ops; ++j) {
-			for (std::size_t l = 0; l < kCmpLane; ++l) {
+		for (int j = 0; j < ops; j++) {
+			for (std::size_t l = 0; l < kCmpLane; l++) {
 				const Elem lo = std::min(x[l], y[l]);
 				const Elem hi = std::max(x[l], y[l]);
 				x[l] = lo;
@@ -64,12 +64,12 @@ __attribute__((noinline)) double cmp_buffer(const Elem* src, std::size_t n, int 
 				z[l] = hi;
 			}
 		}
-		for (std::size_t l = 0; l < kCmpLane; ++l) {
+		for (std::size_t l = 0; l < kCmpLane; l++) {
 			acc += x[l] + y[l];
 		}
 	}
 
-	for (std::size_t l = 0; l < kCmpLane; ++l) {
+	for (std::size_t l = 0; l < kCmpLane; l++) {
 		acc += z[l];
 	}
 	asm volatile("" : "+r"(acc) : : "memory");
@@ -102,8 +102,9 @@ int execute(const Config& cfg) {
 	std::vector<Point> points;
 
 	if (common::roofline::includes(cfg.experiment, Experiment::Stream)) {
-		points.push_back(
-			measure("read", 0, n, bytes, static_cast<double>(n), [&]() { return read_buffer(src_map, n); }));
+		points.push_back(measure("read", 0, n, bytes, static_cast<double>(n), [&]() {
+			return read_buffer(src_map, n);
+		}));
 		points.push_back(measure("copy", 0, n, 2.0 * bytes, 0.0, [&]() { return copy_buffer(src_map, dst_map, n); }));
 		points.push_back(measure("stage_h2d", 0, n, bytes, 0.0, [&]() {
 			src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
@@ -132,7 +133,7 @@ int execute(const Config& cfg) {
 			const double moved = static_cast<double>(elems) * sizeof(Elem) * static_cast<double>(repeats);
 			points.push_back(measure("cache_read", 0, elems, moved, 0.0, [&]() {
 				double acc = 0.0;
-				for (std::size_t r = 0; r < repeats; ++r) {
+				for (std::size_t r = 0; r < repeats; r++) {
 					acc += read_buffer(src_map, elems);
 				}
 				return acc;
@@ -151,20 +152,20 @@ int execute(const Config& cfg) {
 			const double moved = static_cast<double>(chunk_bytes) * static_cast<double>(batches);
 
 			points.push_back(measure("stage_write", 0, elems, moved, 0.0, [&]() {
-				for (std::size_t b = 0; b < batches; ++b) {
+				for (std::size_t b = 0; b < batches; b++) {
 					std::memcpy(src_map, host.data() + b * elems, chunk_bytes);
 				}
 				return 0.0;
 			}));
 			points.push_back(measure("stage_write_sync", 0, elems, moved, 0.0, [&]() {
-				for (std::size_t b = 0; b < batches; ++b) {
+				for (std::size_t b = 0; b < batches; b++) {
 					std::memcpy(src_map, host.data() + b * elems, chunk_bytes);
 					src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE, chunk_bytes, 0);
 				}
 				return 0.0;
 			}));
 			points.push_back(measure("sync_only", 0, elems, moved, 0.0, [&]() {
-				for (std::size_t b = 0; b < batches; ++b) {
+				for (std::size_t b = 0; b < batches; b++) {
 					src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE, chunk_bytes, 0);
 				}
 				return 0.0;

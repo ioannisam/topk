@@ -35,9 +35,10 @@ template <typename T> std::vector<std::string> format_output(const std::vector<T
 }
 
 template <typename T> bool value_equal(T lhs, T rhs) {
-	if constexpr (std::is_floating_point_v<T>
+	if constexpr (
+		std::is_floating_point_v<T>
 #if defined(__FLT16_MANT_DIG__)
-				  || std::is_same_v<T, _Float16>
+		|| std::is_same_v<T, _Float16>
 #endif
 	) {
 		const double a = static_cast<double>(lhs);

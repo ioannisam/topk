@@ -69,7 +69,7 @@ template <typename SampleT> struct BenchmarkResult {
 };
 
 template <typename Fn> void warmup(int iterations, Fn&& fn) {
-	for (int i = 0; i < iterations; ++i) {
+	for (int i = 0; i < iterations; i++) {
 		fn();
 	}
 }
@@ -94,7 +94,7 @@ template <typename Fn> auto run_benchmark(Fn&& timed_run_once) {
 	e2e_samples.push_back(representative.e2e_ms);
 	algo_samples.push_back(representative.algo_ms);
 
-	for (int i = 1; i < runs; ++i) {
+	for (int i = 1; i < runs; i++) {
 		SampleT current = timed_run_once();
 		e2e_samples.push_back(current.e2e_ms);
 		algo_samples.push_back(current.algo_ms);

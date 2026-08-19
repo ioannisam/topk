@@ -54,8 +54,10 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
 				return common::benchmark::TimedValueWithStats<std::vector<T>, gpu::bitonic::RunStats>{
-					elapsed_wall_ms, stats.elapsed_ms, std::move(temp), stats};
-			});
+					elapsed_wall_ms, stats.elapsed_ms, std::move(temp), stats
+				};
+			}
+		);
 
 		gpu::bitonic::RunStats best_stats = best.sample.stats;
 		data = std::move(best.sample.value);
@@ -107,8 +109,9 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 		gpu::reporting::print_configuration(cfg, n, device_name);
 	}
 
-	std::vector<T> run(const std::vector<T>& input, const Config& cfg,
-					   common::topk::MapReduceRunStats* stats) override {
+	std::vector<T> run(
+		const std::vector<T>& input, const Config& cfg, common::topk::MapReduceRunStats* stats
+	) override {
 		auto best = common::benchmark::run_benchmark(
 			[&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, gpu::map_reduce::RunStats> {
 				gpu::map_reduce::RunStats map_stats{0.0, 0, 0, 0};
@@ -116,8 +119,9 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 				auto t0 = std::chrono::high_resolution_clock::now();
 				common::energy::Scope energy_scope(common::energy::Channel::E2e);
 
-				std::size_t count = gpu::map_reduce::run_topk(input.data(), input.size(), cfg.k, cfg.want_max,
-															  output.data(), &map_stats);
+				std::size_t count = gpu::map_reduce::run_topk(
+					input.data(), input.size(), cfg.k, cfg.want_max, output.data(), &map_stats
+				);
 
 				energy_scope.close();
 				auto t1 = std::chrono::high_resolution_clock::now();
@@ -125,8 +129,10 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 
 				output.resize(count);
 				return common::benchmark::TimedValueWithStats<std::vector<T>, gpu::map_reduce::RunStats>{
-					elapsed_wall_ms, map_stats.elapsed_ms, std::move(output), map_stats};
-			});
+					elapsed_wall_ms, map_stats.elapsed_ms, std::move(output), map_stats
+				};
+			}
+		);
 
 		if (stats != nullptr) {
 			common::topk::fill_timing_stats(*stats, best);
@@ -162,8 +168,9 @@ template <typename T> class GpuGroundTruthHooks final : public common::topk::Gro
 		gpu::reporting::print_configuration(cfg, n, device_name);
 	}
 
-	std::vector<T> run(const std::vector<T>& input, const Config& cfg,
-					   common::topk::GroundTruthRunStats* stats) override {
+	std::vector<T> run(
+		const std::vector<T>& input, const Config& cfg, common::topk::GroundTruthRunStats* stats
+	) override {
 		const std::size_t k = std::min(cfg.k, input.size());
 
 		auto best =
@@ -181,8 +188,9 @@ template <typename T> class GpuGroundTruthHooks final : public common::topk::Gro
 				if (k > 0 && k < temp.size())
 					temp.resize(k);
 
-				return common::benchmark::TimedValueWithStats<std::vector<T>, double>{elapsed_wall_ms, algo_ms,
-																					  std::move(temp), algo_ms};
+				return common::benchmark::TimedValueWithStats<std::vector<T>, double>{
+					elapsed_wall_ms, algo_ms, std::move(temp), algo_ms
+				};
 			});
 
 		if (stats != nullptr) {

@@ -50,7 +50,7 @@ template <typename T> inline void encode_keys(std::int32_t* dst, const T* src, s
 		}
 	}
 #endif
-	for (; i < n; ++i)
+	for (; i < n; i++)
 		dst[i] = to_key<T>(src[i]);
 }
 

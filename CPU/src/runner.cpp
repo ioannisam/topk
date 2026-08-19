@@ -96,8 +96,9 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 		cpu::reporting::print_configuration(cfg, context.ex_threads, n);
 	}
 
-	std::vector<T> run(const std::vector<T>& input, const Config& cfg,
-					   common::topk::MapReduceRunStats* stats) override {
+	std::vector<T> run(
+		const std::vector<T>& input, const Config& cfg, common::topk::MapReduceRunStats* stats
+	) override {
 		auto best = common::benchmark::run_benchmark(
 			[&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, cpu::map_reduce::RunStats> {
 				cpu::map_reduce::RunStats run_stats{};
@@ -112,8 +113,10 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 				double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
 				return common::benchmark::TimedValueWithStats<std::vector<T>, cpu::map_reduce::RunStats>{
-					elapsed, elapsed, std::move(output), run_stats};
-			});
+					elapsed, elapsed, std::move(output), run_stats
+				};
+			}
+		);
 
 		if (stats != nullptr) {
 			common::topk::fill_timing_stats(*stats, best);
@@ -147,8 +150,9 @@ template <typename T> class CpuGroundTruthHooks final : public common::topk::Gro
 		cpu::reporting::print_configuration(cfg, context.ex_threads, n);
 	}
 
-	std::vector<T> run(const std::vector<T>& input, const Config& cfg,
-					   common::topk::GroundTruthRunStats* stats) override {
+	std::vector<T> run(
+		const std::vector<T>& input, const Config& cfg, common::topk::GroundTruthRunStats* stats
+	) override {
 		const std::size_t k = std::min(cfg.k, input.size());
 
 		auto best = common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValue<std::vector<T>> {

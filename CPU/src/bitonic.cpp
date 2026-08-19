@@ -52,8 +52,16 @@ template <typename Tr> inline void apply_step(typename Tr::Vec& v, std::size_t i
 }
 
 template <typename Tr>
-inline void apply_step4(typename Tr::Vec& v0, typename Tr::Vec& v1, typename Tr::Vec& v2, typename Tr::Vec& v3,
-						std::size_t i, std::size_t W, std::size_t j, std::size_t k) {
+inline void apply_step4(
+	typename Tr::Vec& v0,
+	typename Tr::Vec& v1,
+	typename Tr::Vec& v2,
+	typename Tr::Vec& v3,
+	std::size_t i,
+	std::size_t W,
+	std::size_t j,
+	std::size_t k
+) {
 	switch (j) {
 	case 1:
 		cx_step<Tr, 1>(v0, i, k);
@@ -86,17 +94,17 @@ inline void apply_step4(typename Tr::Vec& v0, typename Tr::Vec& v1, typename Tr:
 
 template <typename Tr>
 inline typename Tr::Vec apply_intra_ops(typename Tr::Vec v, std::size_t idx, const IntraOp* ops, std::size_t nops) {
-	for (std::size_t o = 0; o < nops; ++o)
+	for (std::size_t o = 0; o < nops; o++)
 		apply_step<Tr>(v, idx, ops[o].j, ops[o].k);
 	return v;
 }
 
 template <typename T>
 inline void replay_intra_scalar(T* ptr, std::size_t begin, std::size_t end, const IntraOp* ops, std::size_t nops) {
-	for (std::size_t o = 0; o < nops; ++o) {
+	for (std::size_t o = 0; o < nops; o++) {
 		const std::size_t J = ops[o].j;
 		const std::size_t k = ops[o].k;
-		for (std::size_t t = begin; t < end; ++t) {
+		for (std::size_t t = begin; t < end; t++) {
 			const std::size_t ixj = t ^ J;
 			if (ixj <= t)
 				continue;
@@ -125,7 +133,7 @@ void run_fused_intra(T* ptr, std::size_t begin, std::size_t end, const IntraOp* 
 		auto v1 = Tr::load(ptr + i + W);
 		auto v2 = Tr::load(ptr + i + 2 * W);
 		auto v3 = Tr::load(ptr + i + 3 * W);
-		for (std::size_t o = 0; o < nops; ++o)
+		for (std::size_t o = 0; o < nops; o++)
 			apply_step4<Tr>(v0, v1, v2, v3, i, W, ops[o].j, ops[o].k);
 		Tr::store(ptr + i, v0);
 		Tr::store(ptr + i + W, v1);
@@ -142,8 +150,9 @@ void run_fused_intra(T* ptr, std::size_t begin, std::size_t end, const IntraOp* 
 }
 
 template <typename T, template <typename> class Traits>
-void run_fused_trunc_resort(const T* src, T* dst, std::size_t obegin, std::size_t oend, const IntraOp* ops,
-							std::size_t nops) {
+void run_fused_trunc_resort(
+	const T* src, T* dst, std::size_t obegin, std::size_t oend, const IntraOp* ops, std::size_t nops
+) {
 	using Tr = Traits<T>;
 	constexpr std::size_t W = Tr::width;
 	const std::size_t ovec_end = obegin + ((oend - obegin) / W) * W;
@@ -155,7 +164,7 @@ void run_fused_trunc_resort(const T* src, T* dst, std::size_t obegin, std::size_
 		auto v1 = Tr::min(Tr::load(src + 2 * (o + W)), Tr::load(src + 2 * (o + W) + W));
 		auto v2 = Tr::min(Tr::load(src + 2 * (o + 2 * W)), Tr::load(src + 2 * (o + 2 * W) + W));
 		auto v3 = Tr::min(Tr::load(src + 2 * (o + 3 * W)), Tr::load(src + 2 * (o + 3 * W) + W));
-		for (std::size_t oi = 0; oi < nops; ++oi)
+		for (std::size_t oi = 0; oi < nops; oi++)
 			apply_step4<Tr>(v0, v1, v2, v3, o, W, ops[oi].j, ops[oi].k);
 		Tr::store(dst + o, v0);
 		Tr::store(dst + o + W, v1);
@@ -171,7 +180,7 @@ void run_fused_trunc_resort(const T* src, T* dst, std::size_t obegin, std::size_
 		Tr::store(dst + o, v);
 	}
 
-	for (std::size_t t = ovec_end; t < oend; ++t) {
+	for (std::size_t t = ovec_end; t < oend; t++) {
 		const std::size_t in_base = trunc_source_index(t, W);
 		dst[t] = std::min(src[in_base], src[in_base + W]);
 	}
@@ -222,7 +231,7 @@ void run_layer_inter_simd(T* ptr, std::size_t begin, std::size_t end, std::size_
 		}
 
 		// Scalar fallback
-		for (; i < chunk_end; ++i) {
+		for (; i < chunk_end; i++) {
 			const std::size_t ixj = i + j;
 			const bool ascending = (i & k) == 0;
 			if (ascending) {
@@ -268,7 +277,7 @@ void run_layer_truncate_simd(const T* src, T* dst, std::size_t begin, std::size_
 			TraitsT::store(dst + out_idx, winner);
 		}
 
-		for (; i < chunk_end; ++i) {
+		for (; i < chunk_end; i++) {
 			std::size_t ixj = i + j;
 			std::size_t out_idx = ((i >> 1) & j_mask) | (i & j_minus_1);
 			dst[out_idx] = std::min(src[i], src[ixj]);
@@ -277,8 +286,9 @@ void run_layer_truncate_simd(const T* src, T* dst, std::size_t begin, std::size_
 }
 
 template <typename T>
-bool try_run_fused_intra(T* ptr, std::size_t begin, std::size_t end, const IntraOp* ops, std::size_t nops,
-						 bool use_avx512) {
+bool try_run_fused_intra(
+	T* ptr, std::size_t begin, std::size_t end, const IntraOp* ops, std::size_t nops, bool use_avx512
+) {
 #if defined(__x86_64__) || defined(__i386__)
 	if (use_avx512) {
 		if constexpr (cpu::simd::has_simd512_width<T>::value) {
@@ -327,8 +337,9 @@ template <typename T> std::size_t run_tile_elems(std::size_t max_j) {
 }
 
 template <typename T>
-bool try_run_fused_trunc_resort(const T* src, T* dst, std::size_t obegin, std::size_t oend, const IntraOp* ops,
-								std::size_t nops, bool use_avx512) {
+bool try_run_fused_trunc_resort(
+	const T* src, T* dst, std::size_t obegin, std::size_t oend, const IntraOp* ops, std::size_t nops, bool use_avx512
+) {
 #if defined(__x86_64__) || defined(__i386__)
 	if (use_avx512) {
 		if constexpr (cpu::simd::has_simd512_width<T>::value) {
@@ -355,8 +366,9 @@ bool try_run_fused_trunc_resort(const T* src, T* dst, std::size_t obegin, std::s
 }
 
 template <typename T>
-bool try_run_inter(T* ptr, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, std::size_t n,
-				   bool use_avx512) {
+bool try_run_inter(
+	T* ptr, std::size_t begin, std::size_t end, std::size_t k, std::size_t j, std::size_t n, bool use_avx512
+) {
 #if defined(__x86_64__) || defined(__i386__)
 	if (use_avx512) {
 		if constexpr (cpu::simd::has_simd512_width<T>::value) {
@@ -387,8 +399,9 @@ bool try_run_inter(T* ptr, std::size_t begin, std::size_t end, std::size_t k, st
 }
 
 template <typename T>
-bool try_run_simd_layer_truncate(const T* src, T* dst, std::size_t begin, std::size_t end, std::size_t j, std::size_t n,
-								 bool use_avx512) {
+bool try_run_simd_layer_truncate(
+	const T* src, T* dst, std::size_t begin, std::size_t end, std::size_t j, std::size_t n, bool use_avx512
+) {
 #if defined(__x86_64__) || defined(__i386__)
 	if (use_avx512) {
 		if constexpr (cpu::simd::has_simd512_width<T>::value) {
@@ -429,7 +442,7 @@ void run_normal_scalar(T* ptr, std::size_t begin, std::size_t end, std::size_t k
 		std::size_t chunk_end = std::min((i | (j - 1)) + 1, end);
 		if (chunk_end > active_n)
 			chunk_end = active_n;
-		for (; i < chunk_end; ++i) {
+		for (; i < chunk_end; i++) {
 			const std::size_t ixj = i + j;
 			const bool ascending = (i & k) == 0;
 			if (ascending) {
@@ -444,11 +457,20 @@ void run_normal_scalar(T* ptr, std::size_t begin, std::size_t end, std::size_t k
 }
 
 template <typename T>
-void run_tiled(T* ptr, std::size_t begin, std::size_t end, const IntraOp* ops, std::size_t nops, std::size_t active_n,
-			   std::size_t tile_w, std::size_t width, bool use_avx512) {
+void run_tiled(
+	T* ptr,
+	std::size_t begin,
+	std::size_t end,
+	const IntraOp* ops,
+	std::size_t nops,
+	std::size_t active_n,
+	std::size_t tile_w,
+	std::size_t width,
+	bool use_avx512
+) {
 	for (std::size_t tb = begin; tb < end; tb += tile_w) {
 		const std::size_t te = std::min(tb + tile_w, end);
-		for (std::size_t o = 0; o < nops; ++o) {
+		for (std::size_t o = 0; o < nops; o++) {
 			const std::size_t j = ops[o].j;
 			const std::size_t k = ops[o].k;
 			if (j < width) {
@@ -504,8 +526,9 @@ struct Group {
 };
 
 template <typename T>
-std::vector<Group> build_groups(const std::vector<common::bitonic::Layer>& layers, std::vector<IntraOp>& ops,
-								bool use_avx512, bool use_avx2) {
+std::vector<Group> build_groups(
+	const std::vector<common::bitonic::Layer>& layers, std::vector<IntraOp>& ops, bool use_avx512, bool use_avx2
+) {
 	const std::size_t width = cpu::simd::simd_block_width<T>(use_avx512, use_avx2);
 	const std::size_t imax = width > 1 ? width / 2 : 0;
 	const std::size_t tile_thresh = width > 1 ? tile_cap_elems<T>() / 2 : 0;
@@ -525,7 +548,7 @@ std::vector<Group> build_groups(const std::vector<common::bitonic::Layer>& layer
 		run_open = false;
 	};
 
-	for (std::size_t li = 0; li < layers.size(); ++li) {
+	for (std::size_t li = 0; li < layers.size(); li++) {
 		const common::bitonic::Layer& layer = layers[li];
 
 		if (layer.type == common::bitonic::LayerType::Truncate) {
@@ -538,10 +561,19 @@ std::vector<Group> build_groups(const std::vector<common::bitonic::Layer>& layer
 				while (look < layers.size() && layers[look].type == common::bitonic::LayerType::Normal &&
 					   layers[look].active_n == out_active_n && layers[look].j <= imax) {
 					ops.push_back(IntraOp{layers[look].j, layers[look].k});
-					++look;
+					look++;
 				}
-				groups.push_back(Group{GroupKind::TruncResort, layer.active_n, out_active_n, layer.j, layer.k,
-									   ops_begin, ops.size() - ops_begin});
+				groups.push_back(
+					Group{
+						GroupKind::TruncResort,
+						layer.active_n,
+						out_active_n,
+						layer.j,
+						layer.k,
+						ops_begin,
+						ops.size() - ops_begin
+					}
+				);
 				li = look - 1; // skip the resort layers we just absorbed
 				continue;
 			}
@@ -594,8 +626,13 @@ template <typename T> double group_traffic_bytes(const std::vector<Group>& group
 } // namespace
 
 template <typename T>
-void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers,
-			  double* out_bytes, std::size_t* out_workers) {
+void run_topk(
+	std::vector<T>& data,
+	const std::vector<common::bitonic::Layer>& layers,
+	std::size_t workers,
+	double* out_bytes,
+	std::size_t* out_workers
+) {
 	const std::size_t n = data.size();
 
 	workers = std::min<std::size_t>(workers, cpu::kMaxWorkers);
@@ -671,9 +708,10 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 
 				switch (group.kind) {
 				case GroupKind::IntraRun: {
-					if (!try_run_fused_intra<T>(src, begin, end, ops.data() + group.ops_begin, group.ops_count,
-												use_avx512)) {
-						for (std::size_t o = 0; o < group.ops_count; ++o) {
+					if (!try_run_fused_intra<T>(
+							src, begin, end, ops.data() + group.ops_begin, group.ops_count, use_avx512
+						)) {
+						for (std::size_t o = 0; o < group.ops_count; o++) {
 							const IntraOp& op = ops[group.ops_begin + o];
 							run_normal_scalar(src, begin, end, op.k, op.j, active_n);
 						}
@@ -681,19 +719,28 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 					break;
 				}
 				case GroupKind::TiledRun: {
-					run_tiled<T>(src, begin, end, ops.data() + group.ops_begin, group.ops_count, active_n,
-								 run_tile_elems<T>(group.j), cpu::simd::simd_block_width<T>(use_avx512, use_avx2),
-								 use_avx512);
+					run_tiled<T>(
+						src,
+						begin,
+						end,
+						ops.data() + group.ops_begin,
+						group.ops_count,
+						active_n,
+						run_tile_elems<T>(group.j),
+						cpu::simd::simd_block_width<T>(use_avx512, use_avx2),
+						use_avx512
+					);
 					break;
 				}
 				case GroupKind::TruncResort: {
-					if (!try_run_fused_trunc_resort<T>(src, dst, begin, end, ops.data() + group.ops_begin,
-													   group.ops_count, use_avx512)) {
-						for (std::size_t o = begin; o < end; ++o) {
+					if (!try_run_fused_trunc_resort<T>(
+							src, dst, begin, end, ops.data() + group.ops_begin, group.ops_count, use_avx512
+						)) {
+						for (std::size_t o = begin; o < end; o++) {
 							const std::size_t in_base = trunc_source_index(o, group.j);
 							dst[o] = std::min(src[in_base], src[in_base + group.j]);
 						}
-						for (std::size_t oi = 0; oi < group.ops_count; ++oi) {
+						for (std::size_t oi = 0; oi < group.ops_count; oi++) {
 							const IntraOp& op = ops[group.ops_begin + oi];
 							run_normal_scalar(dst, begin, end, op.k, op.j, group.out_active_n);
 						}
@@ -719,7 +766,7 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 							std::size_t chunk_end = std::min((i | j_minus_1) + 1, end);
 							if (chunk_end > active_n)
 								chunk_end = active_n;
-							for (; i < chunk_end; ++i) {
+							for (; i < chunk_end; i++) {
 								const std::size_t ixj = i + group.j;
 								const std::size_t out_idx = ((i >> 1) & j_mask) | (i & j_minus_1);
 								dst[out_idx] = std::min(src[i], src[ixj]);
@@ -751,19 +798,42 @@ void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& l
 	}
 }
 
-template void run_topk<std::int32_t>(std::vector<std::int32_t>& data, const std::vector<common::bitonic::Layer>& layers,
-									 std::size_t workers, double* out_bytes, std::size_t* out_workers);
-template void run_topk<std::uint32_t>(std::vector<std::uint32_t>& data,
-									  const std::vector<common::bitonic::Layer>& layers, std::size_t workers,
-									  double* out_bytes, std::size_t* out_workers);
-template void run_topk<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers,
-							  std::size_t workers, double* out_bytes, std::size_t* out_workers);
-template void run_topk<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers,
-							   std::size_t workers, double* out_bytes, std::size_t* out_workers);
-
+template void run_topk<std::int32_t>(
+	std::vector<std::int32_t>& data,
+	const std::vector<common::bitonic::Layer>& layers,
+	std::size_t workers,
+	double* out_bytes,
+	std::size_t* out_workers
+);
+template void run_topk<std::uint32_t>(
+	std::vector<std::uint32_t>& data,
+	const std::vector<common::bitonic::Layer>& layers,
+	std::size_t workers,
+	double* out_bytes,
+	std::size_t* out_workers
+);
+template void run_topk<float>(
+	std::vector<float>& data,
+	const std::vector<common::bitonic::Layer>& layers,
+	std::size_t workers,
+	double* out_bytes,
+	std::size_t* out_workers
+);
+template void run_topk<double>(
+	std::vector<double>& data,
+	const std::vector<common::bitonic::Layer>& layers,
+	std::size_t workers,
+	double* out_bytes,
+	std::size_t* out_workers
+);
 #if defined(__FLT16_MANT_DIG__)
-template void run_topk<_Float16>(std::vector<_Float16>& data, const std::vector<common::bitonic::Layer>& layers,
-								 std::size_t workers, double* out_bytes, std::size_t* out_workers);
+template void run_topk<_Float16>(
+	std::vector<_Float16>& data,
+	const std::vector<common::bitonic::Layer>& layers,
+	std::size_t workers,
+	double* out_bytes,
+	std::size_t* out_workers
+);
 #endif
 
 } // namespace cpu::bitonic

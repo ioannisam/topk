@@ -39,17 +39,17 @@ __global__ void fma_kernel(const float* __restrict__ src, float* __restrict__ ou
 	for (; base + kChains <= n; base += stride) {
 		float v[kChains];
 #pragma unroll
-		for (int c = 0; c < kChains; ++c) {
+		for (int c = 0; c < kChains; c++) {
 			v[c] = src[base + c];
 		}
-		for (int j = 0; j < ops; ++j) {
+		for (int j = 0; j < ops; j++) {
 #pragma unroll
-			for (int c = 0; c < kChains; ++c) {
+			for (int c = 0; c < kChains; c++) {
 				v[c] = v[c] * a + b;
 			}
 		}
 #pragma unroll
-		for (int c = 0; c < kChains; ++c) {
+		for (int c = 0; c < kChains; c++) {
 			acc += v[c];
 		}
 	}
@@ -66,7 +66,7 @@ __global__ void cmp_kernel(const float* __restrict__ src, float* __restrict__ ou
 
 	float z[kChains];
 #pragma unroll
-	for (int c = 0; c < kChains; ++c) {
+	for (int c = 0; c < kChains; c++) {
 		z[c] = static_cast<float>(c);
 	}
 
@@ -74,13 +74,13 @@ __global__ void cmp_kernel(const float* __restrict__ src, float* __restrict__ ou
 		float x[kChains];
 		float y[kChains];
 #pragma unroll
-		for (int c = 0; c < kChains; ++c) {
+		for (int c = 0; c < kChains; c++) {
 			x[c] = src[base + c];
 			y[c] = src[base + kChains + c];
 		}
-		for (int j = 0; j < ops; ++j) {
+		for (int j = 0; j < ops; j++) {
 #pragma unroll
-			for (int c = 0; c < kChains; ++c) {
+			for (int c = 0; c < kChains; c++) {
 				const float lo = fminf(x[c], y[c]);
 				const float hi = fmaxf(x[c], y[c]);
 				x[c] = lo;
@@ -89,13 +89,13 @@ __global__ void cmp_kernel(const float* __restrict__ src, float* __restrict__ ou
 			}
 		}
 #pragma unroll
-		for (int c = 0; c < kChains; ++c) {
+		for (int c = 0; c < kChains; c++) {
 			acc += x[c] + y[c];
 		}
 	}
 
 #pragma unroll
-	for (int c = 0; c < kChains; ++c) {
+	for (int c = 0; c < kChains; c++) {
 		acc += z[c];
 	}
 	out[blockIdx.x * blockDim.x + threadIdx.x] = acc;
@@ -105,7 +105,7 @@ __global__ void repeat_read_kernel(const float* __restrict__ src, float* __restr
 	float acc = 0.0f;
 	const std::size_t stride = static_cast<std::size_t>(blockDim.x) * gridDim.x;
 	const std::size_t base = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-	for (int r = 0; r < repeats; ++r) {
+	for (int r = 0; r < repeats; r++) {
 		for (std::size_t i = base; i < n; i += stride) {
 			acc += src[i];
 		}
@@ -148,7 +148,7 @@ int execute(const Config& cfg) {
 
 	const auto settle_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(kSettleSeconds);
 	while (std::chrono::steady_clock::now() < settle_deadline) {
-		for (int i = 0; i < 16; ++i) {
+		for (int i = 0; i < 16; i++) {
 			fma_kernel<<<grid_size, kBlockSize>>>(d_src, d_out, n, 8);
 		}
 		CUDA_CHECK(cudaGetLastError());

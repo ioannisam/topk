@@ -14,8 +14,13 @@ constexpr std::size_t kMaxWorkers = 8;
 namespace cpu::bitonic {
 
 template <typename T>
-void run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, std::size_t workers,
-			  double* out_bytes = nullptr, std::size_t* out_workers = nullptr);
+void run_topk(
+	std::vector<T>& data,
+	const std::vector<common::bitonic::Layer>& layers,
+	std::size_t workers,
+	double* out_bytes = nullptr,
+	std::size_t* out_workers = nullptr
+);
 
 } // namespace cpu::bitonic
 
@@ -28,8 +33,9 @@ struct RunStats {
 };
 
 template <typename T>
-std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers,
-						RunStats* stats = nullptr);
+std::vector<T> run_topk(
+	const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers, RunStats* stats = nullptr
+);
 
 } // namespace cpu::map_reduce
 

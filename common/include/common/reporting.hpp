@@ -21,8 +21,13 @@ void print_key_value(const char* key, const char* value);
 void print_key_value(const char* key, std::size_t value);
 void print_key_value(const char* key, double value, int precision = 3);
 
-void print_configuration(const common::config::Config& cfg, std::size_t n, std::optional<std::size_t> ex_threads,
-						 const char* run_mode_label, const char* backend_tag = nullptr);
+void print_configuration(
+	const common::config::Config& cfg,
+	std::size_t n,
+	std::optional<std::size_t> ex_threads,
+	const char* run_mode_label,
+	const char* backend_tag = nullptr
+);
 
 void print_timing_lines(const std::vector<std::pair<std::string, std::optional<double>>>& lines);
 

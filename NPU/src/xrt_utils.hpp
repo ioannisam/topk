@@ -65,9 +65,11 @@ inline void require_xclbin_for(const OffloadConfig& cfg, const char* algorithm) 
 	if (stem == algorithm) {
 		return;
 	}
-	throw std::runtime_error("NPU_OFFLOAD_XCLBIN is " + cfg.xclbin_path + " but algo=" + algorithm + " needs the " +
-							 algorithm + " xclbin. Point NPU_OFFLOAD_XCLBIN at " + algorithm + ".xclbin (with " +
-							 algorithm + ".bin beside it), or run a matching algo.");
+	throw std::runtime_error(
+		"NPU_OFFLOAD_XCLBIN is " + cfg.xclbin_path + " but algo=" + algorithm + " needs the " + algorithm +
+		" xclbin. Point NPU_OFFLOAD_XCLBIN at " + algorithm + ".xclbin (with " + algorithm +
+		".bin beside it), or run a matching algo."
+	);
 }
 
 inline std::size_t safe_group_id(const xrt::kernel& kernel, int arg_index) {
@@ -157,9 +159,10 @@ struct SharedXrtState {
 		mr_dst_bo.clear();
 		mr_src_bo.clear();
 
-		for (int i = 0; i < 2; ++i) {
+		for (int i = 0; i < 2; i++) {
 			mr_cfg_bo.push_back(
-				xrt::bo(dev, 4096 * sizeof(int32_t), xrt::bo::flags::host_only, safe_group_id(kernel, 3)));
+				xrt::bo(dev, 4096 * sizeof(int32_t), xrt::bo::flags::host_only, safe_group_id(kernel, 3))
+			);
 			mr_dst_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, safe_group_id(kernel, 4)));
 			mr_src_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, safe_group_id(kernel, 5)));
 		}
@@ -173,7 +176,7 @@ struct SharedXrtState {
 		bit_dst_bo.clear();
 		bit_src_bo.clear();
 
-		for (int i = 0; i < 2; ++i) {
+		for (int i = 0; i < 2; i++) {
 			bit_dst_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, safe_group_id(kernel, 3)));
 			bit_src_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, safe_group_id(kernel, 4)));
 		}

@@ -70,10 +70,15 @@ template <typename T> __device__ void sift_down(T* heap, int size, int root, boo
 }
 
 template <typename T>
-__global__ __launch_bounds__(256, 4) void topk_map_kernel(const T* __restrict__ input, std::size_t n, int k,
-														  bool want_max, T* __restrict__ thread_workspaces,
-														  int* __restrict__ thread_counts,
-														  T* __restrict__ block_outputs) {
+__global__ __launch_bounds__(256, 4) void topk_map_kernel(
+	const T* __restrict__ input,
+	std::size_t n,
+	int k,
+	bool want_max,
+	T* __restrict__ thread_workspaces,
+	int* __restrict__ thread_counts,
+	T* __restrict__ block_outputs
+) {
 	if (k <= 0) {
 		return;
 	}
@@ -95,7 +100,7 @@ __global__ __launch_bounds__(256, 4) void topk_map_kernel(const T* __restrict__ 
 			local_heap[current_size] = val;
 			current_size++;
 			if (current_size == k) {
-				for (int j = k / 2 - 1; j >= 0; --j) {
+				for (int j = k / 2 - 1; j >= 0; j--) {
 					sift_down(local_heap, k, j, want_max);
 				}
 				thresh = local_heap[0];
@@ -127,14 +132,14 @@ __global__ __launch_bounds__(256, 4) void topk_map_kernel(const T* __restrict__ 
 				const int c_other = thread_counts[other_global_tid];
 				T my_thresh = (c_my == k) ? my_heap[0] : sentinel;
 
-				for (int j = 0; j < c_other; ++j) {
+				for (int j = 0; j < c_other; j++) {
 					const T val = other_heap[j];
 
 					if (c_my < k) {
 						my_heap[c_my] = val;
 						c_my++;
 						if (c_my == k) {
-							for (int h = k / 2 - 1; h >= 0; --h)
+							for (int h = k / 2 - 1; h >= 0; h--)
 								sift_down(my_heap, k, h, want_max);
 							my_thresh = my_heap[0];
 						}
@@ -154,10 +159,10 @@ __global__ __launch_bounds__(256, 4) void topk_map_kernel(const T* __restrict__ 
 			T* final_block_heap = thread_workspaces + (my_global_tid * k);
 			int final_count = thread_counts[my_global_tid];
 
-			for (int j = 0; j < final_count; ++j) {
+			for (int j = 0; j < final_count; j++) {
 				block_outputs[blockIdx.x * k + j] = final_block_heap[j];
 			}
-			for (int j = final_count; j < k; ++j) {
+			for (int j = final_count; j < k; j++) {
 				block_outputs[blockIdx.x * k + j] = sentinel;
 			}
 		}
@@ -171,19 +176,19 @@ __global__ __launch_bounds__(256, 4) void topk_map_kernel(const T* __restrict__ 
 			int block_heap_size = thread_counts[block_start_tid];
 			T block_thresh = (block_heap_size == k) ? block_heap[0] : sentinel;
 
-			for (int t = 1; t < blockDim.x; ++t) {
+			for (int t = 1; t < blockDim.x; t++) {
 				const std::size_t t_global_tid = block_start_tid + t;
 				T* t_heap = thread_workspaces + (t_global_tid * k);
 				const int c_t = thread_counts[t_global_tid];
 
-				for (int j = 0; j < c_t; ++j) {
+				for (int j = 0; j < c_t; j++) {
 					const T val = t_heap[j];
 
 					if (block_heap_size < k) {
 						block_heap[block_heap_size] = val;
 						block_heap_size++;
 						if (block_heap_size == k) {
-							for (int h = k / 2 - 1; h >= 0; --h)
+							for (int h = k / 2 - 1; h >= 0; h--)
 								sift_down(block_heap, k, h, want_max);
 							block_thresh = block_heap[0];
 						}
@@ -195,10 +200,10 @@ __global__ __launch_bounds__(256, 4) void topk_map_kernel(const T* __restrict__ 
 				}
 			}
 
-			for (int j = 0; j < block_heap_size; ++j) {
+			for (int j = 0; j < block_heap_size; j++) {
 				block_outputs[blockIdx.x * k + j] = block_heap[j];
 			}
-			for (int j = block_heap_size; j < k; ++j) {
+			for (int j = block_heap_size; j < k; j++) {
 				block_outputs[blockIdx.x * k + j] = sentinel;
 			}
 		}
@@ -223,7 +228,8 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 
 	int num_blocks;
 	CUDA_CHECK(
-		cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, topk_map_kernel<D>, block_size, shared_mem_size));
+		cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, topk_map_kernel<D>, block_size, shared_mem_size)
+	);
 	num_blocks = map_blocks_per_sm(num_blocks, prop.multiProcessorCount, n, k);
 	int grid_size = prop.multiProcessorCount * num_blocks;
 
@@ -232,7 +238,8 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 
 	if (bytes_per_thread > max_workspace_bytes / block_size) {
 		throw std::invalid_argument(
-			"k is too large for thread-local heap MapReduce. Reduce k or use a different algorithm.");
+			"k is too large for thread-local heap MapReduce. Reduce k or use a different algorithm."
+		);
 	}
 
 	const int max_allowed_threads = std::max<int>(block_size, static_cast<int>(max_workspace_bytes / bytes_per_thread));
@@ -257,9 +264,15 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 	common::energy::Scope energy_scope(common::energy::Channel::Algo);
 	CUDA_CHECK(cudaEventRecord(start));
 
-	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(d_input.get(), n, static_cast<int>(k), want_max,
-																d_thread_workspaces.get(), d_thread_counts.get(),
-																d_block_outputs.get());
+	topk_map_kernel<<<grid_size, block_size, shared_mem_size>>>(
+		d_input.get(),
+		n,
+		static_cast<int>(k),
+		want_max,
+		d_thread_workspaces.get(),
+		d_thread_counts.get(),
+		d_block_outputs.get()
+	);
 	CUDA_CHECK(cudaGetLastError());
 
 	CUDA_CHECK(cudaEventRecord(stop));
@@ -270,8 +283,12 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 	CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms, start, stop));
 
 	std::vector<D> block_results(static_cast<std::size_t>(grid_size) * k);
-	CUDA_CHECK(cudaMemcpy(block_results.data(), d_block_outputs.get(),
-						  static_cast<std::size_t>(grid_size) * k * sizeof(D), cudaMemcpyDeviceToHost));
+	CUDA_CHECK(cudaMemcpy(
+		block_results.data(),
+		d_block_outputs.get(),
+		static_cast<std::size_t>(grid_size) * k * sizeof(D),
+		cudaMemcpyDeviceToHost
+	));
 
 	CUDA_CHECK(cudaEventDestroy(start));
 	CUDA_CHECK(cudaEventDestroy(stop));
@@ -312,14 +329,24 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 	return block_results.size();
 }
 
-template std::size_t run_topk<float>(const float*, std::size_t, std::size_t, bool, float*, RunStats*);
-template std::size_t run_topk<std::int32_t>(const std::int32_t*, std::size_t, std::size_t, bool, std::int32_t*,
-											RunStats*);
-template std::size_t run_topk<std::uint32_t>(const std::uint32_t*, std::size_t, std::size_t, bool, std::uint32_t*,
-											 RunStats*);
-template std::size_t run_topk<double>(const double*, std::size_t, std::size_t, bool, double*, RunStats*);
+// clang-format off
+template std::size_t run_topk<float>(
+	const float*, std::size_t, std::size_t, bool, float*, RunStats*
+);
+template std::size_t run_topk<std::int32_t>(
+	const std::int32_t*, std::size_t, std::size_t, bool, std::int32_t*, RunStats*
+);
+template std::size_t run_topk<std::uint32_t>(
+	const std::uint32_t*, std::size_t, std::size_t, bool, std::uint32_t*, RunStats*
+);
+template std::size_t run_topk<double>(
+	const double*, std::size_t, std::size_t, bool, double*, RunStats*
+);
 #if defined(__FLT16_MANT_DIG__)
-template std::size_t run_topk<_Float16>(const _Float16*, std::size_t, std::size_t, bool, _Float16*, RunStats*);
+template std::size_t run_topk<_Float16>(
+	const _Float16*, std::size_t, std::size_t, bool, _Float16*, RunStats*
+);
 #endif
+// clang-format on
 
 } // namespace gpu::map_reduce

@@ -71,8 +71,9 @@ template <typename T> std::size_t prepare_batch(xrt::bo& src_bo, const T* data_p
 	return valid_tiles;
 }
 
-void reduce_batch(xrt::bo& dst_bo, std::vector<std::int32_t>& heap, std::size_t valid_tiles, std::size_t k,
-				  std::size_t valid_elems) {
+void reduce_batch(
+	xrt::bo& dst_bo, std::vector<std::int32_t>& heap, std::size_t valid_tiles, std::size_t k, std::size_t valid_elems
+) {
 	const std::int32_t* dst_map = dst_bo.map<const std::int32_t*>();
 	const std::size_t total = valid_tiles * kTile;
 
@@ -82,7 +83,7 @@ void reduce_batch(xrt::bo& dst_bo, std::vector<std::int32_t>& heap, std::size_t 
 
 		const std::size_t run_len = std::min(kRunLen, valid_elems - base);
 		const std::int32_t* run = dst_map + base;
-		for (std::size_t i = 0; i < run_len; ++i) {
+		for (std::size_t i = 0; i < run_len; i++) {
 			const std::int32_t key = run[i];
 
 			if (heap.size() < k) {
@@ -100,8 +101,11 @@ void reduce_batch(xrt::bo& dst_bo, std::vector<std::int32_t>& heap, std::size_t 
 }
 
 template <typename T>
-RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers,
-								 const npu::utils::OffloadConfig& offload_cfg) {
+RunStats run_network_offload_xrt(
+	std::vector<T>& data,
+	const std::vector<common::bitonic::Layer>& layers,
+	const npu::utils::OffloadConfig& offload_cfg
+) {
 	const std::size_t n = data.size();
 	const std::size_t kept = derive_kept_prefix(layers, n);
 
@@ -136,7 +140,7 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 
 	xrt::run run[2];
 	xrt::runlist rl[2] = {xrt::runlist(state.hwctx), xrt::runlist(state.hwctx)};
-	for (int i = 0; i < 2; ++i) {
+	for (int i = 0; i < 2; i++) {
 		run[i] = xrt::run(state.kernel);
 		run[i].set_arg(0, 3);
 		run[i].set_arg(1, state.instr_bo);
@@ -184,8 +188,9 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 
 		{
 			npu::PhaseTimer timer(phases.merge_ms);
-			state.bit_dst_bo[active].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
-										  valid_tiles[active] * kTile * sizeof(std::int32_t), 0);
+			state.bit_dst_bo[active].sync(
+				XCL_BO_SYNC_BO_FROM_DEVICE, valid_tiles[active] * kTile * sizeof(std::int32_t), 0
+			);
 			reduce_batch(state.bit_dst_bo[active], heap, valid_tiles[active], kept, valid_elems[active]);
 		}
 
@@ -200,8 +205,9 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 		}
 		{
 			npu::PhaseTimer timer(phases.merge_ms);
-			state.bit_dst_bo[active].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
-										  valid_tiles[active] * kTile * sizeof(std::int32_t), 0);
+			state.bit_dst_bo[active].sync(
+				XCL_BO_SYNC_BO_FROM_DEVICE, valid_tiles[active] * kTile * sizeof(std::int32_t), 0
+			);
 			reduce_batch(state.bit_dst_bo[active], heap, valid_tiles[active], kept, valid_elems[active]);
 		}
 	}
@@ -217,19 +223,19 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 			}
 			std::vector<T> candidates;
 			candidates.reserve(kept_k * 2);
-			for (std::size_t j = 0; j < n; ++j) {
+			for (std::size_t j = 0; j < n; j++) {
 				if (to_key<T>(data[j]) <= threshold) {
 					candidates.push_back(data[j]);
 				}
 			}
 			const std::size_t take = std::min(kept_k, candidates.size());
 			std::partial_sort(candidates.begin(), candidates.begin() + take, candidates.end());
-			for (std::size_t i = 0; i < take; ++i) {
+			for (std::size_t i = 0; i < take; i++) {
 				data[i] = candidates[i];
 			}
 		} else {
 			std::sort(heap.begin(), heap.end());
-			for (std::size_t i = 0; i < heap.size(); ++i) {
+			for (std::size_t i = 0; i < heap.size(); i++) {
 				data[i] = from_key<T>(heap[i]);
 			}
 		}
@@ -239,13 +245,15 @@ RunStats run_network_offload_xrt(std::vector<T>& data, const std::vector<common:
 	auto t1 = std::chrono::high_resolution_clock::now();
 
 	const std::size_t comparators = total_tiles * (kTile / kRunLen) * common::bitonic::count_full_comparators(kRunLen);
-	return RunStats{std::chrono::duration<double, std::milli>(t1 - t0).count(),
-					total_dispatches,
-					comparators,
-					1,
-					true,
-					phases,
-					bytes_moved};
+	return RunStats{
+		std::chrono::duration<double, std::milli>(t1 - t0).count(),
+		total_dispatches,
+		comparators,
+		1,
+		true,
+		phases,
+		bytes_moved
+	};
 }
 
 } // namespace
@@ -272,21 +280,31 @@ template <typename T> RunStats run_topk(std::vector<T>& data, const std::vector<
 	const npu::utils::OffloadConfig offload_cfg = npu::utils::load_offload_config();
 	if (!offload_cfg.enabled) {
 		throw std::runtime_error(
-			"NPU offload is required for this backend. Set NPU_OFFLOAD_XCLBIN to a valid xclbin path.");
+			"NPU offload is required for this backend. Set NPU_OFFLOAD_XCLBIN to a valid xclbin path."
+		);
 	}
 	npu::utils::require_xclbin_for(offload_cfg, "bitonic");
 	return run_network_offload_xrt(data, layers, offload_cfg);
 }
 
-template RunStats run_topk<std::int32_t>(std::vector<std::int32_t>& data,
-										 const std::vector<common::bitonic::Layer>& layers);
-template RunStats run_topk<std::uint32_t>(std::vector<std::uint32_t>& data,
-										  const std::vector<common::bitonic::Layer>& layers);
-template RunStats run_topk<float>(std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers);
-template RunStats run_topk<double>(std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers);
-
+// clang-format off
+template RunStats run_topk<std::int32_t>(
+	std::vector<std::int32_t>& data, const std::vector<common::bitonic::Layer>& layers
+);
+template RunStats run_topk<std::uint32_t>(
+	std::vector<std::uint32_t>& data, const std::vector<common::bitonic::Layer>& layers
+);
+template RunStats run_topk<float>(
+	std::vector<float>& data, const std::vector<common::bitonic::Layer>& layers
+);
+template RunStats run_topk<double>(
+	std::vector<double>& data, const std::vector<common::bitonic::Layer>& layers
+);
 #if defined(__FLT16_MANT_DIG__)
-template RunStats run_topk<_Float16>(std::vector<_Float16>& data, const std::vector<common::bitonic::Layer>& layers);
+template RunStats run_topk<_Float16>(
+	std::vector<_Float16>& data, const std::vector<common::bitonic::Layer>& layers
+);
 #endif
+// clang-format on
 
 } // namespace npu::bitonic

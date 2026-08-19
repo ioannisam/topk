@@ -40,8 +40,15 @@ template <bool WantMax> static void sift_down(std::vector<std::int32_t>& heap, s
 }
 
 template <bool WantMax, typename T>
-std::size_t prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_ptr, std::size_t current_batch,
-							  std::size_t batch_chunks, std::int32_t threshold_key, std::int32_t sentinel_key) {
+std::size_t prepare_npu_batch(
+	xrt::bo& src_bo,
+	xrt::bo& cfg_bo,
+	const T* data_ptr,
+	std::size_t current_batch,
+	std::size_t batch_chunks,
+	std::int32_t threshold_key,
+	std::int32_t sentinel_key
+) {
 
 	std::int32_t* src_map = src_bo.map<std::int32_t*>();
 	int32_t* cfg_map = cfg_bo.map<int32_t*>();
@@ -70,8 +77,9 @@ std::size_t prepare_npu_batch(xrt::bo& src_bo, xrt::bo& cfg_bo, const T* data_pt
 	std::fill(cfg_words, cfg_words + full_chunks, current_cfg);
 
 	if (remainder > 0) {
-		std::fill(src_map + (full_chunks * chunk_size) + remainder, src_map + ((full_chunks + 1) * chunk_size),
-				  sentinel_key);
+		std::fill(
+			src_map + (full_chunks * chunk_size) + remainder, src_map + ((full_chunks + 1) * chunk_size), sentinel_key
+		);
 		cfg_words[full_chunks] = current_cfg;
 		full_chunks++;
 	}
@@ -94,18 +102,18 @@ void process_npu_results(xrt::bo& dst_bo, std::vector<std::int32_t>& heap, std::
 	const std::size_t chunk_size = 1024;
 
 	constexpr std::size_t kBlock = 16;
-	for (std::size_t c = 0; c < batch_chunks; ++c) {
+	for (std::size_t c = 0; c < batch_chunks; c++) {
 		std::int32_t* chunk_ptr = dst_map + (c * chunk_size);
 		for (std::size_t i = 0; i < chunk_size; i += kBlock) {
 			std::int32_t best = chunk_ptr[i];
-			for (std::size_t l = 1; l < kBlock; ++l) {
+			for (std::size_t l = 1; l < kBlock; l++) {
 				const std::int32_t v = chunk_ptr[i + l];
 				best = Cmp{}(v, best) ? v : best;
 			}
 			if (!Cmp{}(best, heap.front())) {
 				continue;
 			}
-			for (std::size_t l = 0; l < kBlock; ++l) {
+			for (std::size_t l = 0; l < kBlock; l++) {
 				const std::int32_t key = chunk_ptr[i + l];
 				if (Cmp{}(key, heap.front())) {
 					heap[0] = key;
@@ -117,9 +125,12 @@ void process_npu_results(xrt::bo& dst_bo, std::vector<std::int32_t>& heap, std::
 }
 
 template <bool WantMax, typename T>
-std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_t k,
-										  const npu::utils::OffloadConfig& offload_cfg,
-										  npu::map_reduce::RunStats* stats) {
+std::vector<T> run_map_reduce_offload_xrt(
+	const std::vector<T>& data,
+	std::size_t k,
+	const npu::utils::OffloadConfig& offload_cfg,
+	npu::map_reduce::RunStats* stats
+) {
 	using Cmp = std::conditional_t<WantMax, std::greater<std::int32_t>, std::less<std::int32_t>>;
 
 	if (k == 0 || data.empty())
@@ -140,7 +151,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 	sample_size = std::min(sample_size, n);
 
 	std::vector<std::int32_t> heap(sample_size);
-	for (std::size_t i = 0; i < sample_size; ++i)
+	for (std::size_t i = 0; i < sample_size; i++)
 		heap[i] = to_key<T>(data[i]);
 	std::nth_element(heap.begin(), heap.begin() + k - 1, heap.end(), Cmp{});
 	heap.resize(k);
@@ -159,7 +170,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 	xrt::run run[2];
 	xrt::runlist rl[2] = {xrt::runlist(state.hwctx), xrt::runlist(state.hwctx)};
 
-	for (int i = 0; i < 2; ++i) {
+	for (int i = 0; i < 2; i++) {
 		run[i] = xrt::run(state.kernel);
 		run[i].set_arg(0, 3);
 		run[i].set_arg(1, state.instr_bo);
@@ -197,8 +208,14 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 		{
 			npu::PhaseTimer timer(phases.stage_ms);
 			valid_chunks[active_idx] = prepare_npu_batch<WantMax, T>(
-				state.mr_src_bo[active_idx], state.mr_cfg_bo[active_idx], data.data() + offset, current_batch,
-				BATCH_CHUNKS, heap.front(), sentinel_key);
+				state.mr_src_bo[active_idx],
+				state.mr_cfg_bo[active_idx],
+				data.data() + offset,
+				current_batch,
+				BATCH_CHUNKS,
+				heap.front(),
+				sentinel_key
+			);
 			account_batch(current_batch, valid_chunks[active_idx]);
 		}
 		{
@@ -214,9 +231,15 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 
 		{
 			npu::PhaseTimer timer(phases.stage_ms);
-			valid_chunks[next_idx] = prepare_npu_batch<WantMax, T>(state.mr_src_bo[next_idx], state.mr_cfg_bo[next_idx],
-																   data.data() + offset, current_batch, BATCH_CHUNKS,
-																   heap.front(), sentinel_key);
+			valid_chunks[next_idx] = prepare_npu_batch<WantMax, T>(
+				state.mr_src_bo[next_idx],
+				state.mr_cfg_bo[next_idx],
+				data.data() + offset,
+				current_batch,
+				BATCH_CHUNKS,
+				heap.front(),
+				sentinel_key
+			);
 			account_batch(current_batch, valid_chunks[next_idx]);
 		}
 		{
@@ -231,8 +254,9 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 
 		{
 			npu::PhaseTimer timer(phases.merge_ms);
-			state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
-											 valid_chunks[active_idx] * chunk_size * sizeof(std::int32_t), 0);
+			state.mr_dst_bo[active_idx].sync(
+				XCL_BO_SYNC_BO_FROM_DEVICE, valid_chunks[active_idx] * chunk_size * sizeof(std::int32_t), 0
+			);
 			process_npu_results<WantMax>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx]);
 		}
 
@@ -247,8 +271,9 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 		}
 		{
 			npu::PhaseTimer timer(phases.merge_ms);
-			state.mr_dst_bo[active_idx].sync(XCL_BO_SYNC_BO_FROM_DEVICE,
-											 valid_chunks[active_idx] * chunk_size * sizeof(std::int32_t), 0);
+			state.mr_dst_bo[active_idx].sync(
+				XCL_BO_SYNC_BO_FROM_DEVICE, valid_chunks[active_idx] * chunk_size * sizeof(std::int32_t), 0
+			);
 			process_npu_results<WantMax>(state.mr_dst_bo[active_idx], heap, valid_chunks[active_idx]);
 		}
 	}
@@ -263,7 +288,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 			const std::int32_t threshold = heap.front();
 			std::vector<T> candidates;
 			candidates.reserve(kept_k * 2);
-			for (std::size_t j = 0; j < n; ++j) {
+			for (std::size_t j = 0; j < n; j++) {
 				const std::int32_t key = to_key<T>(data[j]);
 				const bool keep = WantMax ? (key >= threshold) : (key <= threshold);
 				if (keep)
@@ -274,7 +299,7 @@ std::vector<T> run_map_reduce_offload_xrt(const std::vector<T>& data, std::size_
 			result.assign(candidates.begin(), candidates.begin() + take);
 		} else {
 			result.resize(heap.size());
-			for (std::size_t i = 0; i < heap.size(); ++i)
+			for (std::size_t i = 0; i < heap.size(); i++)
 				result[i] = from_key<T>(heap[i]);
 			std::sort(result.begin(), result.end(), order);
 		}
@@ -312,18 +337,23 @@ std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max
 	return run_map_reduce_offload_xrt<false>(data, k, offload_cfg, stats);
 }
 
-template std::vector<std::int32_t> run_topk<std::int32_t>(const std::vector<std::int32_t>& data, std::size_t k,
-														  bool want_max, npu::map_reduce::RunStats* stats);
-template std::vector<std::uint32_t> run_topk<std::uint32_t>(const std::vector<std::uint32_t>& data, std::size_t k,
-															bool want_max, npu::map_reduce::RunStats* stats);
-template std::vector<float> run_topk<float>(const std::vector<float>& data, std::size_t k, bool want_max,
-											npu::map_reduce::RunStats* stats);
-template std::vector<double> run_topk<double>(const std::vector<double>& data, std::size_t k, bool want_max,
-											  npu::map_reduce::RunStats* stats);
+template std::vector<std::int32_t> run_topk<std::int32_t>(
+	const std::vector<std::int32_t>& data, std::size_t k, bool want_max, npu::map_reduce::RunStats* stats
+);
+template std::vector<std::uint32_t> run_topk<std::uint32_t>(
+	const std::vector<std::uint32_t>& data, std::size_t k, bool want_max, npu::map_reduce::RunStats* stats
+);
+template std::vector<float> run_topk<float>(
+	const std::vector<float>& data, std::size_t k, bool want_max, npu::map_reduce::RunStats* stats
+);
+template std::vector<double> run_topk<double>(
+	const std::vector<double>& data, std::size_t k, bool want_max, npu::map_reduce::RunStats* stats
+);
 
 #if defined(__FLT16_MANT_DIG__)
-template std::vector<_Float16> run_topk<_Float16>(const std::vector<_Float16>& data, std::size_t k, bool want_max,
-												  npu::map_reduce::RunStats* stats);
+template std::vector<_Float16> run_topk<_Float16>(
+	const std::vector<_Float16>& data, std::size_t k, bool want_max, npu::map_reduce::RunStats* stats
+);
 #endif
 
 } // namespace npu::map_reduce

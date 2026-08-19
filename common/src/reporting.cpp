@@ -108,8 +108,13 @@ void print_key_value(const char* key, double value, int precision) {
 	print_key_value(key, out.str());
 }
 
-void print_configuration(const common::config::Config& cfg, std::size_t n, std::optional<std::size_t> ex_threads,
-						 const char* run_mode_label, const char* backend_tag) {
+void print_configuration(
+	const common::config::Config& cfg,
+	std::size_t n,
+	std::optional<std::size_t> ex_threads,
+	const char* run_mode_label,
+	const char* backend_tag
+) {
 	print_section_header("Configuration");
 	if (backend_tag != nullptr && backend_tag[0] != '\0') {
 		print_key_value("Backend", backend_tag);
@@ -132,9 +137,10 @@ void print_configuration(const common::config::Config& cfg, std::size_t n, std::
 	const std::size_t benchmarked_runs =
 		(cfg.algorithm == common::config::Algorithm::Bitonic && cfg.run_mode == common::config::RunMode::Both) ? 2u
 																											   : 1u;
-	print_key_value("Benchmark iterations",
-					benchmarked_runs *
-						static_cast<std::size_t>(common::benchmark::kWarmupIters + common::benchmark::kMeasureIters));
+	print_key_value(
+		"Benchmark iterations",
+		benchmarked_runs * static_cast<std::size_t>(common::benchmark::kWarmupIters + common::benchmark::kMeasureIters)
+	);
 }
 
 void print_timing_lines(const std::vector<std::pair<std::string, std::optional<double>>>& lines) {
@@ -193,8 +199,11 @@ void print_skipped_comparators(std::size_t full_comparators, std::size_t trunc_c
 	const std::size_t skipped = full_comparators >= trunc_comparators ? (full_comparators - trunc_comparators) : 0;
 	const double skipped_pct =
 		full_comparators == 0 ? 0.0 : (100.0 * static_cast<double>(skipped) / static_cast<double>(full_comparators));
-	print_key_value("Skipped comparators", std::to_string(skipped) + "/" + std::to_string(full_comparators) + " (" +
-											   format_fixed(skipped_pct, 2, "%") + ")");
+	print_key_value(
+		"Skipped comparators",
+		std::to_string(skipped) + "/" + std::to_string(full_comparators) + " (" + format_fixed(skipped_pct, 2, "%") +
+			")"
+	);
 }
 
 void print_bitonic_common_metrics(const common::config::Config& cfg, const common::topk::BitonicRunStats& stats) {
@@ -242,7 +251,7 @@ void print_output(const common::config::Config& cfg, const std::vector<std::stri
 	const std::size_t shown = cfg.debug_output ? output.size() : std::min(output.size(), values_per_row);
 
 	std::cout << "  Values:\n";
-	for (std::size_t i = 0; i < shown; ++i) {
+	for (std::size_t i = 0; i < shown; i++) {
 		if (i % values_per_row == 0) {
 			std::cout << "    ";
 		}

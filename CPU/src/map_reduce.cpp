@@ -43,8 +43,9 @@ template <typename T, typename Compare> void sift_down(std::vector<T>& heap, std
 }
 
 template <bool WantMax, typename T>
-std::vector<T> map(const std::vector<T>& data, std::size_t begin, std::size_t end, std::size_t k, bool use_avx512f,
-				   bool use_avx2) {
+std::vector<T> map(
+	const std::vector<T>& data, std::size_t begin, std::size_t end, std::size_t k, bool use_avx512f, bool use_avx2
+) {
 
 	using HeapCompare = std::conditional_t<WantMax, std::greater<T>, std::less<T>>;
 	std::vector<T> heap;
@@ -85,12 +86,15 @@ std::vector<T> map(const std::vector<T>& data, std::size_t begin, std::size_t en
 			if (remaining >= block * 4) {
 				std::uint64_t m0 =
 					cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i, threshold, use_avx512f, use_avx2);
-				std::uint64_t m1 = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i + block, threshold,
-																				  use_avx512f, use_avx2);
-				std::uint64_t m2 = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i + block * 2,
-																				  threshold, use_avx512f, use_avx2);
-				std::uint64_t m3 = cpu::simd::get_candidate_mask_simd<WantMax, T>(data.data() + i + block * 3,
-																				  threshold, use_avx512f, use_avx2);
+				std::uint64_t m1 = cpu::simd::get_candidate_mask_simd<WantMax, T>(
+					data.data() + i + block, threshold, use_avx512f, use_avx2
+				);
+				std::uint64_t m2 = cpu::simd::get_candidate_mask_simd<WantMax, T>(
+					data.data() + i + block * 2, threshold, use_avx512f, use_avx2
+				);
+				std::uint64_t m3 = cpu::simd::get_candidate_mask_simd<WantMax, T>(
+					data.data() + i + block * 3, threshold, use_avx512f, use_avx2
+				);
 
 				if ((m0 | m1 | m2 | m3) == 0) {
 					i += block * 4;
@@ -117,14 +121,14 @@ std::vector<T> map(const std::vector<T>& data, std::size_t begin, std::size_t en
 
 		// tail elements where remaining < block
 		if (!scalar_is_candidate<WantMax>(data[i], threshold)) {
-			++i;
+			i++;
 			continue;
 		}
 
 		// avoid pop and push by replacing the root and sifting down
 		heap[0] = data[i];
 		sift_down(heap, 0, HeapCompare{});
-		++i;
+		i++;
 	}
 
 	return heap;
@@ -162,7 +166,7 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 	std::vector<std::thread> pool;
 	pool.reserve(workers > 0 ? workers - 1 : 0);
 
-	for (std::size_t tid = 0; tid + 1 < workers; ++tid) {
+	for (std::size_t tid = 0; tid + 1 < workers; tid++) {
 		pool.emplace_back([&, tid]() {
 			const std::size_t begin = (n * tid) / workers;
 			const std::size_t end = (n * (tid + 1)) / workers;
@@ -182,7 +186,7 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 	using HeapCompare = std::conditional_t<WantMax, std::greater<T>, std::less<T>>;
 	std::vector<T>& final_heap = local_topk[0];
 
-	for (std::size_t tid = 1; tid < local_topk.size(); ++tid) {
+	for (std::size_t tid = 1; tid < local_topk.size(); tid++) {
 		for (const auto& candidate : local_topk[tid]) {
 			if (final_heap.size() < k) {
 				final_heap.push_back(candidate);
@@ -208,26 +212,31 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 } // namespace
 
 template <typename T>
-std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers,
-						RunStats* stats) {
+std::vector<T> run_topk(
+	const std::vector<T>& data, std::size_t k, bool want_max, std::size_t workers, RunStats* stats
+) {
 	if (want_max) {
 		return topk<true>(data, k, workers, stats);
 	}
 	return topk<false>(data, k, workers, stats);
 }
 
-template std::vector<std::int32_t> run_topk<std::int32_t>(const std::vector<std::int32_t>& data, std::size_t k,
-														  bool want_max, std::size_t workers, RunStats* stats);
-template std::vector<std::uint32_t> run_topk<std::uint32_t>(const std::vector<std::uint32_t>& data, std::size_t k,
-															bool want_max, std::size_t workers, RunStats* stats);
-template std::vector<float> run_topk<float>(const std::vector<float>& data, std::size_t k, bool want_max,
-											std::size_t workers, RunStats* stats);
-template std::vector<double> run_topk<double>(const std::vector<double>& data, std::size_t k, bool want_max,
-											  std::size_t workers, RunStats* stats);
-
+template std::vector<std::int32_t> run_topk<std::int32_t>(
+	const std::vector<std::int32_t>& data, std::size_t k, bool want_max, std::size_t workers, RunStats* stats
+);
+template std::vector<std::uint32_t> run_topk<std::uint32_t>(
+	const std::vector<std::uint32_t>& data, std::size_t k, bool want_max, std::size_t workers, RunStats* stats
+);
+template std::vector<float> run_topk<float>(
+	const std::vector<float>& data, std::size_t k, bool want_max, std::size_t workers, RunStats* stats
+);
+template std::vector<double> run_topk<double>(
+	const std::vector<double>& data, std::size_t k, bool want_max, std::size_t workers, RunStats* stats
+);
 #if defined(__FLT16_MANT_DIG__)
-template std::vector<_Float16> run_topk<_Float16>(const std::vector<_Float16>& data, std::size_t k, bool want_max,
-												  std::size_t workers, RunStats* stats);
+template std::vector<_Float16> run_topk<_Float16>(
+	const std::vector<_Float16>& data, std::size_t k, bool want_max, std::size_t workers, RunStats* stats
+);
 #endif
 
 } // namespace cpu::map_reduce

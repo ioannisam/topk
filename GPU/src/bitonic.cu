@@ -57,8 +57,9 @@ struct FusedLayers {
 };
 
 template <typename T, int TPB>
-__global__ __launch_bounds__(TPB) void bitonic_fused_wide(T* __restrict__ data, std::size_t tile_elems,
-														  FusedLayers layers) {
+__global__ __launch_bounds__(TPB) void bitonic_fused_wide(
+	T* __restrict__ data, std::size_t tile_elems, FusedLayers layers
+) {
 	extern __shared__ char smem[];
 	T* s_data = reinterpret_cast<T*>(smem);
 
@@ -70,7 +71,7 @@ __global__ __launch_bounds__(TPB) void bitonic_fused_wide(T* __restrict__ data, 
 	}
 	__syncthreads();
 
-	for (int l = 0; l < layers.count; ++l) {
+	for (int l = 0; l < layers.count; l++) {
 		const std::size_t stage = layers.stages[l];
 		const std::size_t step = layers.steps[l];
 
@@ -110,15 +111,15 @@ __global__ void bitonic_multistep(T* __restrict__ data, std::size_t num_groups, 
 
 	T reg[G];
 #pragma unroll
-	for (int p = 0; p < G; ++p) {
+	for (int p = 0; p < G; p++) {
 		reg[p] = data[base + static_cast<std::size_t>(p) * j_bot];
 	}
 
 #pragma unroll
-	for (int m = 0; m < GROUP_BITS; ++m) {
+	for (int m = 0; m < GROUP_BITS; m++) {
 		const int local_stride = 1 << (GROUP_BITS - 1 - m);
 #pragma unroll
-		for (int p = 0; p < G; ++p) {
+		for (int p = 0; p < G; p++) {
 			if ((p & local_stride) == 0) {
 				const int q = p + local_stride;
 				const std::size_t gi = base + static_cast<std::size_t>(p) * j_bot;
@@ -136,13 +137,14 @@ __global__ void bitonic_multistep(T* __restrict__ data, std::size_t num_groups, 
 	}
 
 #pragma unroll
-	for (int p = 0; p < G; ++p) {
+	for (int p = 0; p < G; p++) {
 		data[base + static_cast<std::size_t>(p) * j_bot] = reg[p];
 	}
 }
 
-__global__ void bitonic_layer_global_coalesced_half2(__half2* data, std::size_t total_vec_pairs, std::size_t stage_vec,
-													 std::size_t step_vec) {
+__global__ void bitonic_layer_global_coalesced_half2(
+	__half2* data, std::size_t total_vec_pairs, std::size_t stage_vec, std::size_t step_vec
+) {
 	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 	if (tid >= total_vec_pairs) {
 		return;
@@ -164,8 +166,9 @@ __global__ void bitonic_layer_global_coalesced_half2(__half2* data, std::size_t 
 }
 
 template <typename T>
-__global__ void bitonic_layer_truncate_kernel(const T* __restrict__ src, T* __restrict__ dst, std::size_t pairs,
-											  std::size_t step) {
+__global__ void bitonic_layer_truncate_kernel(
+	const T* __restrict__ src, T* __restrict__ dst, std::size_t pairs, std::size_t step
+) {
 	const std::size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 	if (tid >= pairs) {
 		return;
@@ -182,10 +185,18 @@ __global__ void bitonic_layer_truncate_kernel(const T* __restrict__ src, T* __re
 }
 
 template <typename T>
-T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
-						   const std::vector<common::bitonic::Layer>& layers, std::size_t block_size,
-						   double& out_elapsed_ms, std::size_t& out_launches, std::size_t& out_comparators,
-						   std::size_t& out_final_n, double& out_bytes) {
+T* execute_network_kernels(
+	T* current_src,
+	T* current_dst,
+	std::size_t n,
+	const std::vector<common::bitonic::Layer>& layers,
+	std::size_t block_size,
+	double& out_elapsed_ms,
+	std::size_t& out_launches,
+	std::size_t& out_comparators,
+	std::size_t& out_final_n,
+	double& out_bytes
+) {
 
 	StreamGuard stream_guard;
 	EventGuard start_guard;
@@ -230,7 +241,8 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 			const dim3 grid(static_cast<unsigned int>((vec_pairs + block_size - 1) / block_size));
 			for (std::size_t s : large_steps) {
 				bitonic_layer_global_coalesced_half2<<<grid, block_size, 0, stream>>>(
-					reinterpret_cast<__half2*>(current_src), vec_pairs, large_stage / 2, s / 2);
+					reinterpret_cast<__half2*>(current_src), vec_pairs, large_stage / 2, s / 2
+				);
 				out_launches++;
 				out_bytes += 2.0 * static_cast<double>(large_active) * sizeof(T);
 			}
@@ -274,7 +286,7 @@ T* execute_network_kernels(T* current_src, T* current_dst, std::size_t n,
 		large_steps.clear();
 	};
 
-	for (std::size_t layer_idx = 0; layer_idx < layers.size(); ++layer_idx) {
+	for (std::size_t layer_idx = 0; layer_idx < layers.size(); layer_idx++) {
 		const auto& layer = layers[layer_idx];
 		const std::size_t stage = layer.k;
 		const std::size_t step = layer.j;
@@ -379,22 +391,33 @@ RunStats run_topk(T* data, std::size_t n, std::size_t& final_n, const std::vecto
 	double bytes_moved = 0.0;
 	final_n = n;
 
-	D* final_src = execute_network_kernels(d_data.get(), d_data_alt.get(), n, layers, block_size, elapsed_ms, launches,
-										   comparators, final_n, bytes_moved);
+	D* final_src = execute_network_kernels(
+		d_data.get(), d_data_alt.get(), n, layers, block_size, elapsed_ms, launches, comparators, final_n, bytes_moved
+	);
 
 	CUDA_CHECK(cudaMemcpy(data, final_src, final_n * sizeof(D), cudaMemcpyDeviceToHost));
 
 	return RunStats{elapsed_ms, launches, comparators, block_size, bytes_moved};
 }
 
-template RunStats run_topk<std::int32_t>(std::int32_t*, std::size_t, std::size_t&,
-										 const std::vector<common::bitonic::Layer>&);
-template RunStats run_topk<std::uint32_t>(std::uint32_t*, std::size_t, std::size_t&,
-										  const std::vector<common::bitonic::Layer>&);
-template RunStats run_topk<float>(float*, std::size_t, std::size_t&, const std::vector<common::bitonic::Layer>&);
-template RunStats run_topk<double>(double*, std::size_t, std::size_t&, const std::vector<common::bitonic::Layer>&);
+// clang-format off
+template RunStats run_topk<std::int32_t>(
+	std::int32_t*, std::size_t, std::size_t&, const std::vector<common::bitonic::Layer>&
+);
+template RunStats run_topk<std::uint32_t>(
+	std::uint32_t*, std::size_t, std::size_t&, const std::vector<common::bitonic::Layer>&
+);
+template RunStats run_topk<float>(
+	float*, std::size_t, std::size_t&, const std::vector<common::bitonic::Layer>&
+);
+template RunStats run_topk<double>(
+	double*, std::size_t, std::size_t&, const std::vector<common::bitonic::Layer>&
+);
 #if defined(__FLT16_MANT_DIG__)
-template RunStats run_topk<_Float16>(_Float16*, std::size_t, std::size_t&, const std::vector<common::bitonic::Layer>&);
+template RunStats run_topk<_Float16>(
+	_Float16*, std::size_t, std::size_t&, const std::vector<common::bitonic::Layer>&
+);
 #endif
+// clang-format on
 
 } // namespace gpu::bitonic

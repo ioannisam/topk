@@ -189,9 +189,10 @@ class SystemCounter final : public Counter {
 				const auto now = std::chrono::steady_clock::now();
 				const double dt = std::chrono::duration<double>(now - prev).count();
 				prev = now;
-				device_integral_j.store(device_integral_j.load(std::memory_order_relaxed) +
-											static_cast<double>(watts_mw) * 1e-3 * dt,
-										std::memory_order_relaxed);
+				device_integral_j.store(
+					device_integral_j.load(std::memory_order_relaxed) + static_cast<double>(watts_mw) * 1e-3 * dt,
+					std::memory_order_relaxed
+				);
 			}
 			std::this_thread::sleep_for(std::chrono::milliseconds(kSamplePeriodMs));
 		}
@@ -247,7 +248,7 @@ Counter& counter() {
 }
 
 Scope::Scope(Channel ch) : start_seconds(0.0), channel(ch), active(g_depth[index_of(ch)] == 0) {
-	++g_depth[index_of(ch)];
+	g_depth[index_of(ch)]++;
 	if (active) {
 		start = counter().read();
 		start_seconds = now_seconds();
@@ -261,19 +262,19 @@ Scope::~Scope() {
 void Scope::close() {
 	const std::size_t i = index_of(channel);
 	if (g_depth[i] > 0) {
-		--g_depth[i];
+		g_depth[i]--;
 	}
 	if (active) {
 		g_accumulator[i] += counter().read() - start;
 		g_seconds[i] += now_seconds() - start_seconds;
-		++g_count[i];
+		g_count[i]++;
 		active = false;
 	}
 }
 
 FullScope::FullScope() : start_seconds(0.0), active(g_depth[0] == 0 && g_depth[1] == 0) {
-	++g_depth[0];
-	++g_depth[1];
+	g_depth[0]++;
+	g_depth[1]++;
 	if (active) {
 		start = counter().read();
 		start_seconds = now_seconds();
@@ -285,18 +286,18 @@ FullScope::~FullScope() {
 }
 
 void FullScope::close() {
-	for (std::size_t i = 0; i < 2; ++i) {
+	for (std::size_t i = 0; i < 2; i++) {
 		if (g_depth[i] > 0) {
-			--g_depth[i];
+			g_depth[i]--;
 		}
 	}
 	if (active) {
 		const Sample delta = counter().read() - start;
 		const double seconds = now_seconds() - start_seconds;
-		for (std::size_t i = 0; i < 2; ++i) {
+		for (std::size_t i = 0; i < 2; i++) {
 			g_accumulator[i] += delta;
 			g_seconds[i] += seconds;
-			++g_count[i];
+			g_count[i]++;
 		}
 		active = false;
 	}
@@ -324,7 +325,7 @@ long take_count(Channel channel) {
 }
 
 void reset_accumulators() {
-	for (std::size_t i = 0; i < kChannels; ++i) {
+	for (std::size_t i = 0; i < kChannels; i++) {
 		g_accumulator[i] = Sample{};
 		g_seconds[i] = 0.0;
 		g_count[i] = 0;

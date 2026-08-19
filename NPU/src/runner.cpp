@@ -35,8 +35,13 @@ Context build_context(const Config& cfg) {
 	(void)cfg;
 	const std::size_t hw_threads = std::max<std::size_t>(1, std::thread::hardware_concurrency());
 	const std::size_t ex_threads = 1;
-	return Context{hw_threads, ex_threads, npu::bitonic::query_device_name(), npu::bitonic::query_device_bdf(),
-				   npu::bitonic::is_offload_configured()};
+	return Context{
+		hw_threads,
+		ex_threads,
+		npu::bitonic::query_device_name(),
+		npu::bitonic::query_device_bdf(),
+		npu::bitonic::is_offload_configured()
+	};
 }
 
 template <typename T> class NpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
@@ -45,8 +50,9 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 	}
 
 	void print_configuration(const Config& cfg, std::size_t n) override {
-		npu::reporting::print_configuration(cfg, n, context.ex_threads, context.device_name, context.device_bdf,
-											context.offload_enabled);
+		npu::reporting::print_configuration(
+			cfg, n, context.ex_threads, context.device_name, context.device_bdf, context.offload_enabled
+		);
 	}
 
 	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) override {
@@ -71,7 +77,8 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 					std::move(temp),
 					stats,
 				};
-			});
+			}
+		);
 
 		npu::bitonic::RunStats best_stats = best.sample.stats;
 		data = std::move(best.sample.value);
@@ -116,12 +123,14 @@ template <typename T> class NpuMapReduceRunnerHooks final : public common::topk:
 	}
 
 	void print_configuration(const Config& cfg, std::size_t n) override {
-		npu::reporting::print_configuration(cfg, n, context.ex_threads, context.device_name, context.device_bdf,
-											context.offload_enabled);
+		npu::reporting::print_configuration(
+			cfg, n, context.ex_threads, context.device_name, context.device_bdf, context.offload_enabled
+		);
 	}
 
-	std::vector<T> run(const std::vector<T>& input, const Config& cfg,
-					   common::topk::MapReduceRunStats* stats) override {
+	std::vector<T> run(
+		const std::vector<T>& input, const Config& cfg, common::topk::MapReduceRunStats* stats
+	) override {
 		auto best = common::benchmark::run_benchmark(
 			[&]() -> common::benchmark::TimedValueWithStats<std::vector<T>, npu::map_reduce::RunStats> {
 				npu::map_reduce::RunStats run_stats{0.0, 0, false};
@@ -140,7 +149,8 @@ template <typename T> class NpuMapReduceRunnerHooks final : public common::topk:
 					std::move(output),
 					run_stats,
 				};
-			});
+			}
+		);
 
 		last_run_stats = best.sample.stats;
 		if (stats != nullptr) {
@@ -155,8 +165,9 @@ template <typename T> class NpuMapReduceRunnerHooks final : public common::topk:
 	}
 
 	void print_debug_metrics(const Config& cfg, const common::topk::MapReduceRunStats& stats) override {
-		npu::reporting::print_map_reduce_debug_metrics(cfg, context.device_name, context.device_bdf,
-													   context.offload_enabled, stats, last_run_stats);
+		npu::reporting::print_map_reduce_debug_metrics(
+			cfg, context.device_name, context.device_bdf, context.offload_enabled, stats, last_run_stats
+		);
 	}
 
   private:
@@ -170,12 +181,14 @@ template <typename T> class NpuGroundTruthHooks final : public common::topk::Gro
 	}
 
 	void print_configuration(const Config& cfg, std::size_t n) override {
-		npu::reporting::print_configuration(cfg, n, context.ex_threads, context.device_name, context.device_bdf,
-											context.offload_enabled);
+		npu::reporting::print_configuration(
+			cfg, n, context.ex_threads, context.device_name, context.device_bdf, context.offload_enabled
+		);
 	}
 
-	std::vector<T> run(const std::vector<T>& input, const Config& cfg,
-					   common::topk::GroundTruthRunStats* stats) override {
+	std::vector<T> run(
+		const std::vector<T>& input, const Config& cfg, common::topk::GroundTruthRunStats* stats
+	) override {
 		const std::size_t k = std::min(cfg.k, input.size());
 
 		auto best = common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValue<std::vector<T>> {

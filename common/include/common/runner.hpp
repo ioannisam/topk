@@ -55,8 +55,9 @@ template <typename T> class MapReduceRunnerHooks {
 	virtual ~MapReduceRunnerHooks() = default;
 
 	virtual void print_configuration(const common::config::Config& cfg, std::size_t n) = 0;
-	virtual std::vector<T> run(const std::vector<T>& input, const common::config::Config& cfg,
-							   MapReduceRunStats* stats) = 0;
+	virtual std::vector<T> run(
+		const std::vector<T>& input, const common::config::Config& cfg, MapReduceRunStats* stats
+	) = 0;
 	virtual void print_debug_metrics(const common::config::Config& cfg, const MapReduceRunStats& stats) = 0;
 };
 
@@ -65,8 +66,9 @@ template <typename T> class GroundTruthRunnerHooks {
 	virtual ~GroundTruthRunnerHooks() = default;
 
 	virtual void print_configuration(const common::config::Config& cfg, std::size_t n) = 0;
-	virtual std::vector<T> run(const std::vector<T>& input, const common::config::Config& cfg,
-							   GroundTruthRunStats* stats) = 0;
+	virtual std::vector<T> run(
+		const std::vector<T>& input, const common::config::Config& cfg, GroundTruthRunStats* stats
+	) = 0;
 	virtual void print_debug_metrics(const common::config::Config& cfg, const GroundTruthRunStats& stats) = 0;
 };
 
@@ -91,13 +93,13 @@ template <typename T> void apply_mode_transform(std::vector<T>& data, bool want_
 	if (!want_max) {
 		return;
 	}
-	for (std::size_t i = 0; i < data.size(); ++i) {
+	for (std::size_t i = 0; i < data.size(); i++) {
 		data[i] = transform_for_max(data[i]);
 	}
 }
 
 template <typename T> bool compare_topk_prefix(const std::vector<T>& lhs, const std::vector<T>& rhs, std::size_t k) {
-	for (std::size_t i = 0; i < k; ++i) {
+	for (std::size_t i = 0; i < k; i++) {
 		if (lhs[i] != rhs[i]) {
 			return false;
 		}
@@ -127,7 +129,7 @@ template <typename T> bool equal_output(const std::vector<T>& lhs, const std::ve
 		return false;
 	}
 
-	for (std::size_t i = 0; i < lhs.size(); ++i) {
+	for (std::size_t i = 0; i < lhs.size(); i++) {
 		if (!common::utils::value_equal(lhs[i], rhs[i])) {
 			return false;
 		}
@@ -138,7 +140,7 @@ template <typename T> bool equal_output(const std::vector<T>& lhs, const std::ve
 template <typename T>
 std::vector<T> build_output(const std::vector<T>& network_out, const common::config::Config& cfg) {
 	std::vector<T> output(cfg.k);
-	for (std::size_t i = 0; i < cfg.k; ++i) {
+	for (std::size_t i = 0; i < cfg.k; i++) {
 		output[i] = cfg.want_max ? restore_from_max(network_out[i]) : network_out[i];
 	}
 
@@ -290,8 +292,9 @@ template <typename T> int execute_map_reduce(const common::config::Config& cfg, 
 		const std::vector<T> ref = build_reference_topk(input, cfg.k, cfg.want_max);
 		reference_ok = equal_output(output, ref);
 	}
-	common::reporting::print_check_result("Top-k correctness vs CPU sorted reference", check_vs_reference,
-										  reference_ok);
+	common::reporting::print_check_result(
+		"Top-k correctness vs CPU sorted reference", check_vs_reference, reference_ok
+	);
 	if (!reference_ok) {
 		return 2;
 	}
@@ -332,8 +335,9 @@ template <typename T> int execute_ground_truth(const common::config::Config& cfg
 		const std::vector<T> ref = build_reference_topk(input, cfg.k, cfg.want_max);
 		reference_ok = equal_output(output, ref);
 	}
-	common::reporting::print_check_result("Top-k correctness vs CPU sorted reference", check_vs_reference,
-										  reference_ok);
+	common::reporting::print_check_result(
+		"Top-k correctness vs CPU sorted reference", check_vs_reference, reference_ok
+	);
 	if (!reference_ok) {
 		return 2;
 	}
