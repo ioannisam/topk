@@ -1,0 +1,74 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        % (a) sorted block fits the tile: layers fuse into one pass
+        \node[panel] at (-1.05,1.30) {(a) $k' \le$ tile};
+
+        \node[blkdrm, minimum width=7.20cm, minimum height=0.42cm] (g1) at (3.60,0.72)
+            {\tiny global memory};
+
+        \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] (t1a) at (0.90,-0.55) {};
+        \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] (t1b) at (2.70,-0.55) {};
+        \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] (t1c) at (4.50,-0.55) {};
+        \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] (t1d) at (6.30,-0.55) {};
+
+        \foreach \n in {t1a,t1b,t1c,t1d} {
+            \node[notemute, font=\tiny] at (\n) {tile};
+        }
+
+        \draw[flow] (0.90,0.50) -- (0.90,-0.01);
+        \draw[flow] (2.70,0.50) -- (2.70,-0.01);
+        \draw[flow] (4.50,0.50) -- (4.50,-0.01);
+        \draw[flow] (6.30,0.50) -- (6.30,-0.01);
+
+        \node[note, font=\scriptsize, anchor=west] at (7.55,-0.55)
+            {one pass:\\ all layers\\ fuse together};
+
+        \draw[bracemirror] (0.10,-1.30) -- (1.70,-1.30);
+        \node[notemute, font=\tiny, anchor=north] at (0.90,-1.52) {$k'$};
+
+        \begin{scope}[yshift=-3.35cm]
+            % (b) block exceeds the tile: distant layers spill to global memory
+            \node[panel] at (-1.05,1.30) {(b) $k' >$ tile};
+
+            \node[blkdrm, minimum width=7.20cm, minimum height=0.42cm] at (3.60,0.72)
+                {\tiny global memory};
+
+            \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] at (0.90,-0.55) {};
+            \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] at (2.70,-0.55) {};
+            \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] at (4.50,-0.55) {};
+            \node[blkcac, minimum width=1.62cm, minimum height=1.05cm] at (6.30,-0.55) {};
+            \foreach \x in {0.90,2.70,4.50,6.30} {
+                \node[notemute, font=\tiny] at (\x,-0.55) {tile};
+            }
+
+            \foreach \x in {0.90,2.70,4.50,6.30} {
+                \draw[flow] (\x-0.18,0.50) -- (\x-0.18,-0.01);
+                \draw[flow] (\x+0.18,-0.01) -- (\x+0.18,0.50);
+            }
+
+            \node[note, font=\scriptsize, anchor=west] at (7.55,-0.55)
+                {multiple passes:\\ layers with large\\ distance don't fit};
+
+            \draw[bracemirror] (0.10,-1.30) -- (7.10,-1.30);
+            \node[notemute, font=\tiny, anchor=north] at (3.60,-1.52) {$k'$};
+        \end{scope}
+
+        \node[note, anchor=north, align=center] at (3.60,-6.05)
+            {Measured traffic goes from $7n$ to $25n$ to $56n$ once
+             $k'$ exceeds the tile.};
+
+    \end{tikzpicture}
+    \caption[Sorted block and shared-memory tile]{The relationship between the sorted block and the shared-memory tile. A
+    layer can execute without returning to global memory only if the
+    distance between the elements it compares fits in the tile. As long as
+    sorted blocks of size $k'$ fit in it (a), nearly all layers fuse into
+    one pass and data traffic matches that of the processor. Once
+    $k'$ exceeds the tile size (b), layers with large distance
+    execute as separate passes over global memory and traffic
+    multiplies. For 32-bit integers the tile holds 8192
+    elements, so the transition falls between the two largest values of
+    $k$ examined.}
+    \label{fig:gpu-tiling}
+\end{figure}

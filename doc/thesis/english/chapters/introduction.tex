@@ -1,0 +1,127 @@
+\chapter{Introduction}
+\label{ch:intro}
+
+\section{Scope of the Thesis}
+\label{sec:intro-scope}
+
+This thesis examines the acceleration of top-k selection, i.e., identifying
+the k largest elements of a set of n values, on three different
+architectures: a general-purpose processor, a graphics processing unit, and
+a neural processing unit integrated into the same package as the processor.
+
+For each architecture, two algorithms with fundamentally different behaviour
+are implemented: truncated bitonic sort, which executes a fixed sequence of
+comparisons independent of the data, and map-reduce selection with local
+heaps, which adapts its work to the input values. All six implementations
+are measured over the same parameter space, with a common harness, common
+correctness checking, and common measurement semantics, so that the
+differences that emerge can be attributed to the algorithms and the
+hardware rather than to the way they are measured.
+
+The question posed is not simply which architecture is faster. It is
+whether, and under what conditions, offloading the computation to an
+accelerator is worthwhile, once the full cost of the offload is accounted
+for and not just the kernel time. As will be shown, the two formulations of
+the question give opposite answers.
+
+\section{Motivation}
+\label{sec:intro-motivation}
+
+Neural processing units have only recently ceased to be data-centre
+equipment. They are now integrated on the same die as processors in
+consumer laptops, share the same main memory, and are available to any
+application that could make use of them. The question "is it worth
+offloading this computation to the unit?" has thus shifted from
+infrastructure design to the programmer's everyday practice.
+
+The answer is not obvious, because these units were designed for a specific
+purpose. Their software ecosystem is organised around neural network
+operators, and their architecture rests on the assumption that every piece
+of data transferred will be used many times over. What happens when the
+workload does not have this shape remains largely unexplored.
+
+Top-k selection is a suitable vehicle for posing this question. It is a
+problem simple to state but widespread in practice, appearing in
+nearest-neighbour search, in retrieval and recommendation systems, and in
+the sampling of language models. At the same time, it sits at the opposite
+end of the spectrum from the workloads accelerators were designed for: it
+performs minimal operations per element and reuses almost nothing. If
+offloading pays off even here, it will pay off almost everywhere; if it
+does not, we have a clear indication of the limits of usefulness of these
+units.
+
+A second, independent motivation is methodological. Accelerator comparisons
+usually report kernel execution time, concealing the cost of transferring
+data to and from the device. Yet this cost is exactly what determines
+whether offloading is worthwhile. This thesis systematically measures both,
+and shows that the choice of measurement boundary does not merely change
+the numbers, but completely reverses the ranking of the architectures.
+
+\section{Contribution}
+\label{sec:intro-contribution}
+
+The contribution of this thesis is fourfold.
+
+\paragraph{Implementations.} Six implementations were built, two algorithms
+across three architectures, with support for five data types. The processor
+implementation makes use of AVX-512 vector extensions and multiple threads,
+the graphics processing unit implementation uses an organisation into tiles
+with shared memory, while the neural processing unit implementation was
+built entirely at the level of the MLIR-AIE framework, as no top-k
+selection library exists for that architecture. The correctness of every
+combination was verified on 2700 cases, all successful.
+
+\paragraph{Measurement harness.} A harness was developed that measures
+every case over two explicitly distinct scopes, the algorithmic and the
+end-to-end. It records energy with common semantics across all three
+architectures, tallies the volume of data moved, and places every run
+against a roofline measured on the same machine. The harness is independent
+of the specific problem and applicable to any workload being considered for
+offloading to an accelerator.
+
+\paragraph{Findings.} The experimental evaluation yields four conclusions.
+Top-k selection is a data-traffic problem on every architecture examined,
+and no implementation is bound by computational throughput. The ranking of
+the two algorithms inverts with the ratio $n/k$ rather than with the
+architecture, with a difference reaching three orders of magnitude. The
+choice of measurement boundary completely reverses the ranking of the
+architectures. Finally, low power draw does not imply low energy
+consumption: the neural processing unit has the lowest power of all
+implementations and at the same time consumes several times more energy
+(because it takes several times longer).
+
+\paragraph{Reproducibility.} The entire experimental procedure, from
+building the executables to producing the plots, is carried out by scripts
+included in the repository. The measurement conditions are explicitly
+stabilised and recorded together with the results. Details are given in
+Appendix~\ref{app:reproducibility}.
+
+\section{Structure of the Thesis}
+\label{sec:intro-outline}
+
+Chapter~\ref{ch:background} defines the problem, presents the families of
+algorithms that solve it, and describes the execution models of the three
+architectures, concluding with the existing implementations and the gap
+this thesis addresses.
+
+Chapter~\ref{ch:methodology} describes the reference system and the
+experimental setup: exactly what is measured, under what semantics, with
+what comparison metrics, and under what conditions. This chapter is a
+prerequisite for reading the results.
+
+Chapters~\ref{ch:cpu},~\ref{ch:gpu} and~\ref{ch:npu} present the
+implementations on each of the three architectures. They follow a common
+structure, so that the corresponding sections can be compared directly:
+design choices, the two algorithms, memory management and data traffic,
+ground truth, and finally, the limiting factors identified.
+
+Chapter~\ref{ch:evaluation} presents and interprets the results:
+correctness, execution time, comparison of architectures, analysis with the
+roofline model, energy evaluation, and finally, the effect of data type and
+input distribution.
+
+Chapter~\ref{ch:conclusions} summarises what generalises, states the limits
+within which it holds, and proposes directions for future work.
+
+The appendices include a list of acronyms and instructions for reproducing
+the measurements.

@@ -1,0 +1,39 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        \foreach \i in {0,...,15} {
+            \pgfmathsetmacro{\xm}{2.2+0.275*\i+0.1375}
+            \node[lane, minimum width=0.275cm, minimum height=0.40cm] (m\i) at (\xm,1.30) {};
+            \pgfmathsetmacro{\xr}{0.55*\i+0.275}
+            \node[lanereg, minimum width=0.55cm, minimum height=0.40cm] (r\i) at (\xr,0.35) {};
+            \node[lanereg, minimum width=0.55cm, minimum height=0.40cm] (s\i) at (\xr,-0.60) {};
+            \node[lane, minimum width=0.275cm, minimum height=0.40cm] (o\i) at (\xm,-1.55) {};
+            \draw[flowmute] (m\i.south) -- (r\i.north);
+            \draw[flowmute] (r\i.south) -- (s\i.north);
+            \draw[flowmute] (s\i.south) -- (o\i.north);
+        }
+
+        \node[rowlab, font=\scriptsize] at (0,1.30) {memory};
+        \node[rowlab, font=\scriptsize] at (r0.west) {register};
+        \node[rowlab, font=\scriptsize] at (s0.west) {register};
+        \node[rowlab, font=\scriptsize] at (0,-1.55) {memory};
+
+        \node[notemute, font=\tiny, anchor=west] at (9.05,1.30) {$16 \times 16$ bit};
+        \node[notemute, font=\tiny, anchor=west] at (9.05,0.83) {vcvtph2ps};
+        \node[notemute, font=\tiny, anchor=west] at (9.05,0.35) {$16 \times 32$ bit};
+        \node[notemute, font=\tiny, anchor=west] at (9.05,-0.12) {min / max};
+        \node[notemute, font=\tiny, anchor=west] at (9.05,-0.60) {$16 \times 32$ bit};
+        \node[notemute, font=\tiny, anchor=west] at (9.05,-1.08) {vcvtps2ph};
+        \node[notemute, font=\tiny, anchor=west] at (9.05,-1.55) {$16 \times 16$ bit};
+
+        \node[note, anchor=north, align=center] at (4.4,-1.95)
+            {Width in elements: 16, same as for single precision $\Rightarrow$ same comparison rate.\\
+             Data movement: half the bytes per element $\Rightarrow$ half the traffic to memory.};
+
+    \end{tikzpicture}
+    \caption[The half-precision path]{The half-precision path. The data remain in 16 bit
+    in memory, where they occupy half the space, and are converted to single precision
+    only within the registers, for the duration of the computation.}
+    \label{fig:cpu-fp16}
+\end{figure}

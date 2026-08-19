@@ -1,0 +1,56 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        % pass 1: bucket the two most significant digits
+        \node[panel] at (-1.30,1.35) {pass 1: the 2 most significant digits};
+
+        \foreach \b/\cnt/\x in {11/3/0.00, 10/2/1.75, 01/6/3.50, 00/5/5.25} {
+            \node[blk, minimum width=1.45cm, minimum height=0.46cm, anchor=west]
+                (b\b) at (\x,0.62) {\tiny \texttt{\b}};
+            \node[notemute, font=\tiny, anchor=north] at (\x+0.725,0.30) {\cnt};
+        }
+        \node[rowlab, font=\tiny] at (-0.06,0.62) {buckets};
+
+        \node[note, font=\scriptsize, anchor=west] at (7.10,0.62)
+            {$k=6$: the first 2\\ buckets give 5 $<$ 6};
+
+        \node[blkdrm, minimum width=1.45cm, minimum height=0.46cm, anchor=west]
+            at (3.50,-0.62) {\tiny \texttt{01}};
+        \node[blkdrop, minimum width=1.45cm, minimum height=0.46cm, anchor=west]
+            at (5.25,-0.62) {\tiny \texttt{00}};
+        \node[blkreg, minimum width=1.45cm, minimum height=0.46cm, anchor=west]
+            at (0.00,-0.62) {\tiny \texttt{11}};
+        \node[blkreg, minimum width=1.45cm, minimum height=0.46cm, anchor=west]
+            at (1.75,-0.62) {\tiny \texttt{10}};
+
+        \node[rowlab, font=\tiny] at (-0.06,-0.62) {decision};
+        \node[notemute, font=\tiny, anchor=north] at (0.725,-0.94) {in};
+        \node[notemute, font=\tiny, anchor=north] at (2.475,-0.94) {in};
+        \node[notemute, font=\tiny, anchor=north] at (4.225,-0.94) {critical};
+        \node[notemute, font=\tiny, anchor=north] at (5.975,-0.94) {out};
+
+        % pass 2: recurse into the critical bucket only
+        \begin{scope}[yshift=-2.85cm]
+            \node[panel] at (-1.30,1.10) {pass 2};
+
+            \foreach \b/\x in {11/2.40, 10/3.35, 01/4.30, 00/5.25} {
+                \node[blk, minimum width=0.80cm, minimum height=0.42cm, anchor=west]
+                    at (\x,0.42) {\tiny \texttt{\b}};
+            }
+            \node[rowlab, font=\tiny] at (2.34,0.42) {\texttt{01}$\ast\ast$};
+
+            % \draw[flowmute] (4.225,1.95) -- (4.225,0.68);
+
+            \node[note, font=\scriptsize, anchor=west] at (7.10,0.42)
+                {only the critical bucket: the search\\ narrows to its 6 elements};
+        \end{scope}
+
+    \end{tikzpicture}
+    \caption[Radix selection]{Radix selection. At each pass the elements are distributed into
+    buckets according to a group of digits and the count of each is tallied;
+    from the cumulative counts it follows which buckets belong entirely to the
+    result, which are rejected, and which is the \emph{critical} one. No
+    comparison between values is ever performed.}
+    \label{fig:bg-radix}
+\end{figure}

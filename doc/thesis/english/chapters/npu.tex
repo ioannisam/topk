@@ -1,0 +1,315 @@
+\chapter{Implementation on the NPU}
+\label{ch:npu}
+
+\section{Design choices}
+\label{sec:npu-design}
+
+The neural processing unit differs from the two previous architectures not in
+degree but in kind. It is not a device on which a program runs in the usual
+sense. It is an array of tiles configured in advance, with no cache, no
+dynamic memory allocation, and no ability to change its dataflow at runtime.
+
+The design question therefore changes fundamentally. On the processor and the
+GPU, the question was how the algorithm is distributed across threads. Here,
+the question is what small, fixed unit of work the array can execute
+efficiently, and how the host can feed it without interruption. As will
+become clear, the second part proves harder than the first.
+
+\subsection{Development flow with MLIR-AIE}
+\label{sec:npu-toolchain}
+
+No programming environment equivalent to that of the GPU exists. This work
+relies on the MLIR-AIE framework~\cite{mliraie} and the accompanying IRON
+interface~\cite{iron} that comes with it. Development requires two separate
+artefacts, produced by different toolchains and combined at the end.
+
+The first is the description of the array itself: which tiles are used,
+which data channels connect them, and the pattern by which data moves to and
+from main memory. This description is written in a domain-specific language
+embedded in Python, translated into an intermediate representation, and
+finally into a binary hardware configuration file. The second is the compute
+kernel executed by each tile, written in C++ using the architecture's vector
+primitives and compiled separately.
+
+The consequence that governs everything else is that this configuration is
+fixed at compile time. The topology, the sizes of the intermediate buffers,
+and the data-transfer pattern are all decided before each run and do not
+depend on the problem's parameters. Changing k or the input size changes
+nothing on the device; it only changes how the host splits the input and
+interprets the results.
+
+\subsection{Tile topology and object\_fifo}
+\label{sec:npu-objectfifo}
+
+The array is organised into columns. Each column has one interface tile that
+communicates with main memory and, above it, compute tiles. The bitonic sort
+implementation uses four columns with two compute tiles each, eight in
+total.
+
+Data transfer is not programmed with explicit copy instructions but declared
+as a channel between two tiles. Each channel is backed by a number of
+intermediate buffers, set here to two. This choice is what enables overlap:
+while a tile processes one buffer, the direct memory access mechanism fills
+the other. Without it, each tile would stall on every transfer.
+
+Each compute tile has its own pair of channels to its column's interface
+tile, one for input and one for output. There is no communication between
+compute tiles, which is not a limitation of the implementation but a
+deliberate choice: as will be shown in section~\ref{sec:npu-bitonic}, the
+work assigned to the array is independent per tile by construction and
+requires no exchange.
+
+The overall organisation is shown in figure~\ref{fig:npu-topology}. The
+amount of data the array processes in a single dispatch follows from the
+product of the above. Each tile receives chunks of 1024 elements and
+processes 128 such chunks per dispatch, so with eight tiles the batch
+reaches roughly one million elements. Inputs larger than this are split into
+successive batches.
+
+\input{figures/npu-topology}
+
+\section{Bitonic sort}
+\label{sec:npu-bitonic}
+
+An essential difference from the two previous chapters must be stated up
+front here, as it affects the interpretation of every measurement: the
+array does not execute the level schedule of section~\ref{sec:cpu-bitonic}.
+That is, it does not perform truncated bitonic sort.
+
+The reason is structural. The schedule requires comparisons between elements
+that are arbitrarily far apart, hence data exchange between tiles and
+multiple passes over the entire input. The topology of
+section~\ref{sec:npu-objectfifo} offers neither: the tiles do not
+communicate with one another, and every element passes through the array
+exactly once.
+
+The implementation therefore reframes the problem. The array takes on a
+fixed, local task: it independently sorts successive sequences of sixteen
+elements. The host then performs the selection, merging these sorted
+sequences into a heap of size k.
+
+This division of labour is not arbitrary. Because each sequence comes back
+sorted, the host can abandon it as soon as it encounters an element that
+does not exceed the heap's root: everything that follows in the same
+sequence is necessarily worse. The sorting performed by the array is
+therefore not an end in itself, but a mechanism that lets the host discard
+sixteen elements at a time instead of one.
+
+\subsection{Compute tile kernel}
+\label{sec:npu-bitonic-kernel}
+
+Bitonic sort on an AI Engine tile is also the subject of an official
+platform example~\cite{amd2024bitonicaie}, which, however, performs a
+complete sort on a single tile.
+
+The size sixteen is not arbitrary: it is exactly the number of 32-bit
+integers that fit in a vector register of the architecture. Sorting sixteen
+elements with a bitonic network requires ten compare-exchange steps, each of
+which executes entirely within the register.
+
+Each step follows the same pattern as in section~\ref{sec:cpu-simd}: a
+shuffle brings each element next to its partner, the minimum and maximum are
+computed, and a mask selects which of the two each position keeps so as to
+produce the correct direction. The entire network executes without any
+access to the tile's memory: the data is loaded once, undergoes ten
+register-level transformations, and is stored once.
+
+Each kernel invocation processes a chunk of 1024 elements, that is,
+sixty-four independent sequences. These sequences have no dependencies
+between them, which allows the compiler to pipeline them and hide the
+latency of the individual instructions.
+
+\subsection{Scaling to multiple tiles}
+\label{sec:npu-bitonic-tiles}
+
+Because the sequences are independent, scaling to more tiles is trivial: it
+suffices to give each tile a different chunk of the batch. Neither
+synchronisation nor data exchange is required, and the only thing that
+changes is the transfer pattern declared in the device configuration.
+
+This capability was put to use. The implementation was extended to use two
+compute tiles per column instead of one, reaching eight in total. The
+extension produced a noticeable improvement, confirming that up to that
+point the implementation had indeed been compute-bound on the array.
+
+The more important result of the extension, however, was not this
+improvement in itself, but that it shifted the bottleneck elsewhere. With
+eight tiles the array stopped being the bottleneck, and, as quantified in
+section~\ref{sec:npu-pipeline}, time is now spent almost entirely on the
+host. Further scaling to even more tiles would have had no effect.
+
+\section{Map-reduce with local heaps}
+\label{sec:npu-mapreduce}
+
+The second algorithm follows the same work-distribution principle, with an
+even more limited role for the array. Four compute tiles are used, one per
+column, and the kernel does not sort: for each chunk of the input it
+computes a summary, namely the best value it contains.
+
+The host maintains the heap of size k and uses the summaries as a filter. If
+the best value of an entire chunk does not exceed the heap's root, the chunk
+is rejected in its entirety without examining any of its elements. Only for
+chunks that pass the filter does the host traverse the individual elements.
+
+The division of roles is therefore the reverse of the intuitive one: the
+array does not perform the selection but produces the information that lets
+the host perform it cheaply. This pattern, in which the accelerated part is
+a filter rather than the computation itself, matches the nature of the
+array: a fixed, local, fully predictable dataflow operation.
+
+\section{Memory management and data traffic}
+\label{sec:npu-memory}
+
+The neural processing unit has no memory of its own, as noted in
+section~\ref{sec:meth-machine}. Data does not cross a bus to a separate
+device, as with the GPU, but already resides in the same physical memory as
+the host's. What is called a transfer is in fact the synchronisation of a
+shared buffer.
+
+This difference at first appears to be an advantage, and in terms of
+transfer cost it is: there is no twenty-fold bandwidth gap as in
+section~\ref{sec:gpu-memory}. But it also has the reverse side. Because the
+memory is shared, every byte the host prepares for the array consumes the
+same memory bandwidth the processor would use if it performed the
+computation itself. Preparation is not free, and, as will become clear
+shortly, it is the dominant cost.
+
+\subsection{Pipelining and the role of the host}
+\label{sec:npu-pipeline}
+
+So that the array does not sit idle between successive batches, execution is
+organised as a three-stage pipeline with two alternating sets of buffers.
+While the array processes one batch, the host prepares the next and merges
+the results of the previous one.
+
+The structure of the pipeline is given in figure~\ref{fig:npu-pipeline}.
+Measuring the individual stages is the most illuminating result of the
+entire chapter. For an input of sixteen million integers, split into
+sixteen batches, time is distributed as shown in
+table~\ref{tab:npu-phases}.
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{lrr}
+        \hline
+        Stage & Time (ms) & Percentage \\
+        \hline
+        Batch preparation & 4.86 & 61\,\% \\
+        Result merging & 2.19 & 27\,\% \\
+        Waiting for the array & 0.54 & 7\,\% \\
+        Dispatching work & 0.11 & 1\,\% \\
+        Initialisation & 0.08 & 1\,\% \\
+        \hline
+        Total & 7.98 & 100\,\% \\
+        \hline
+    \end{tabular}
+    \caption{Time breakdown of the offload region by stage.}
+    \label{tab:npu-phases}
+\end{table}
+
+The conclusion is unambiguous. Less than one tenth of the time is spent
+waiting for the array; roughly ninety percent is work performed by the host
+itself. A pipeline performs only as well as its slowest stage, and the
+slowest stage is not on the device.
+
+This also explains why, for this architecture, the algorithmic-scope
+measurement must not be read as the tiles' compute time, as already noted in
+section~\ref{sec:meth-timing}. The scope encloses the entire offload
+procedure, most of which executes on the processor.
+
+\input{figures/npu-pipeline}
+
+\subsection{Data encoding and types}
+\label{sec:npu-encoding}
+
+The array's kernel operates exclusively on 32-bit integers. It does not
+know, and does not need to know, what the values it compares represent.
+Every data type used in this work must therefore be mapped to an integer key
+that preserves the relative order of the values, following the platform's
+type-conversion rules~\cite{amd2024ug1079}.
+
+The mapping differs by type. Signed integers are used as is. For unsigned
+integers, the most significant bit is flipped. For single-precision
+floating-point numbers, either the sign bit or the remaining bits are
+flipped, depending on the sign, so that the binary comparison coincides with
+the arithmetic one. Half precision is first widened to single precision, a
+conversion that is exact, and then follows the same path.
+
+The critical point is that this encoding executes on the host and forms
+part of the preparation stage in table~\ref{tab:npu-phases}. The cost of the
+data type on this architecture is therefore not a cost of the device but of
+the processor. This observation has a practical consequence: the
+half-precision encoding, initially performed in scalar fashion, proved
+expensive enough to noticeably burden the dominant stage, and was replaced
+with a vectorised path that converts eight values per instruction.
+
+\subsection{Final correction on the host}
+\label{sec:npu-refinement}
+
+Double precision does not fit into a 32-bit key. The encoding keeps the 32
+most significant bits of the full 64-bit key, so two different values can
+map to the same key. The array therefore does not return the exact result,
+but something weaker: a threshold.
+
+Correctness is restored with an additional stage on the host. The worst of
+the keys returned by the array yields the threshold. The host then
+traverses the entire input again, collects the elements whose key falls
+within the threshold, and performs exact selection among these alone.
+
+The cost is one additional pass over the input, which burdens only double
+precision. The benefit is that the result is exact and passes the same
+correctness check as all other types, with no relaxation of the criterion.
+The alternative, that is, accepting an approximate result for a single type,
+would make the comparison across types unfair.
+
+\section{Ground truth implementation}
+\label{sec:npu-reference}
+
+The point of comparison is the same standard-library function used for the
+processor, executed entirely on the host. The reasons for this choice, and
+what it means for the interpretation of the results, were discussed in
+section~\ref{sec:meth-baseline-libraries} and are not repeated here.
+
+It is only worth reiterating the essential point: no top-k implementation
+exists for this array against which the present work could be compared. The
+question the comparison answers is therefore not whether the implementation
+is better than an optimised AIE kernel, but whether offloading the
+computation to the unit is worthwhile at all, rather than executing it with
+the means the host already has.
+
+\section{Limiting factors}
+\label{sec:npu-bottlenecks}
+
+The limiting factor has already been quantified in
+table~\ref{tab:npu-phases} and leaves no room for interpretation: the
+implementation is bound by the host, not by the device. The remaining
+question is why the host's work is so expensive.
+
+The preparation stage, which consumes three fifths of the time, involves one
+full read pass over the input, converting each element to an integer key,
+and a write of equal volume to the shared buffer. This amounts to data
+traffic of at least twice the input size, over the same memory and with the
+same bandwidth the processor would use. The merging stage adds yet another
+read pass over the results.
+
+This finding leads to the central conclusion of the chapter. Even if the
+array completed its own work instantaneously, the total time would decrease
+by less than one tenth. Speedup cannot come from the device, because the
+device is not where the time is spent. No addition of compute tiles, no
+optimisation of the kernel, and no increase in frequency would materially
+change the outcome.
+
+The comparison with the processor sharpens the argument. The host feeding
+the unit is the same processor that, in chapter~\ref{ch:cpu}, solves the
+entire problem on its own. Here it is asked to perform nearly the same
+amount of data traffic merely to prepare the data for someone else. It is
+therefore unsurprising that offloading does not pay off: the cost of
+preparation is comparable to the cost of the solution itself.
+
+Finally, it must be stressed that the conclusion concerns this particular
+problem and not the architecture in general. Top-k selection has minimal
+computational intensity: it performs one comparison per element and reuses
+almost nothing. A dataflow array performs well when every element that
+enters it undergoes many operations, so that the cost of feeding it is
+amortised. Here the opposite holds, and this mismatch, not any weakness of
+the implementation, is the underlying cause.

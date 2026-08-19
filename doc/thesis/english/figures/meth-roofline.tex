@@ -1,0 +1,53 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.35cm, y=0.85cm]
+
+        \draw[flow] (0,0) -- (7.6,0);
+        \draw[flow] (0,0) -- (0,6.4);
+        \node[note, font=\scriptsize, anchor=north east] at (7.6,-0.12)
+            {arithmetic intensity $I = W/Q$};
+        \node[note, font=\scriptsize, anchor=south west, rotate=90] at (-0.42,0)
+            {achievable performance $P$};
+
+        \draw[line width=0.8pt, draw=figaieD] (0.4,1.4) -- (4.0,5.0) -- (7.2,5.0);
+        \draw[line width=0.5pt, draw=figcacD] (0.4,2.4) -- (3.0,5.0);
+        \draw[line width=0.5pt, draw=figregD] (0.4,3.4) -- (2.0,5.0);
+
+        \draw[dashed, draw=figmute, line width=0.4pt] (0,5.0) -- (7.2,5.0);
+        \node[notemute, font=\tiny, anchor=east] at (-0.06,5.0) {$\pi$};
+
+        \node[notemute, font=\tiny, anchor=south west, text=figregD] at (0.34,3.44) {L2};
+        \node[notemute, font=\tiny, anchor=south west, text=figcacD] at (0.34,2.44) {L3};
+        \node[notemute, font=\tiny, anchor=south west, text=figaieD] at (0.34,1.44) {DRAM};
+
+        \fill[figink] (2.0,3.0) circle (2.2pt);
+        \node[note, font=\tiny, anchor=north east] at (1.94,2.94) {A};
+        \fill[figink] (5.6,5.0) circle (2.2pt);
+        \node[note, font=\tiny, anchor=south] at (5.6,5.14) {B};
+        \fill[figink] (3.6,2.0) circle (2.2pt);
+        \node[note, font=\tiny, anchor=north east] at (3.54,1.94) {C};
+
+        \node[notemute, font=\tiny, anchor=west, align=left] at (2.20,2.85)
+            {A: memory-bound};
+        \node[notemute, font=\tiny, anchor=east, align=right] at (5.42,4.62)
+            {B: bound by\\ compute capacity};
+        \node[notemute, font=\tiny, anchor=west, align=left] at (3.80,1.85)
+            {C: bound by latency\\ or insufficient parallelism};
+
+        \node[note, font=\tiny, anchor=north west, align=left] at (0.0,-0.62)
+            {Logarithmic scale on both axes.};
+
+    \end{tikzpicture}
+    \caption[Reading the roofline model]{Reading the roofline model. The sloped segment corresponds to the
+    bound $\beta I$ imposed by memory bandwidth, and the horizontal one to the
+    bound $\pi$ imposed by compute capacity; the achievable performance is the
+    minimum of the two. Because memory bandwidth depends on the size of the
+    working set, the sloped segment is not a single line but a ladder of
+    parallel lines, one per level of the memory hierarchy, and each measurement
+    is compared against the one that corresponds to its own working set. Point
+    A is memory-bound and will benefit only from a reduction in data traffic,
+    B from compute capacity, while C is far from both ceilings: there the
+    limiting factor is not the hardware but the organisation of the
+    execution.}
+    \label{fig:meth-roofline}
+\end{figure}

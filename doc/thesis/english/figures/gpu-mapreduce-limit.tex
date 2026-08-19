@@ -1,0 +1,52 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        % (a) chunk larger than k: the heap fills and the threshold engages
+        \node[panel] at (-2.15,1.05) {(a) $n/P \ge k$};
+
+        \foreach \t in {0,1,2,3} {
+            \pgfmathsetmacro{\yy}{0.45-\t*0.44}
+            \node[blkcac, minimum width=0.95cm, minimum height=0.34cm, anchor=west] at (0,\yy) {};
+            \node[blkreg, minimum width=6.05cm, minimum height=0.34cm, anchor=west] at (1.00,\yy) {};
+            \node[rowlab, font=\tiny] at (-0.06,\yy) {thread \the\numexpr\t+1\relax};
+        }
+        \node[notemute, font=\tiny, anchor=south] at (0.48,0.68) {fills up ($k$)};
+        \node[notemute, font=\tiny, anchor=south] at (4.02,0.68) {threshold filtering};
+        \node[note, font=\scriptsize, anchor=west] at (7.35,-0.42)
+            {the heap fills,\\ the threshold engages};
+
+        \begin{scope}[yshift=-3.15cm]
+            % (b) chunk smaller than k: no heap ever fills, nothing is rejected
+            \node[panel] at (-2.15,1.05) {(b) $n/P < k$};
+
+            \foreach \t in {0,1,2,3,4,5,6,7} {
+                \pgfmathsetmacro{\yy}{0.45-\t*0.22}
+                \node[blkcac, minimum width=0.62cm, minimum height=0.16cm, anchor=west, inner sep=1pt] at (0,\yy) {};
+            }
+            \node[rowlab, font=\tiny] at (-0.06,0.45) {thread 1};
+            \node[rowlab, font=\tiny] at (-0.06,-1.09) {thread $P$};
+
+            \draw[dashed, draw=figdrmD, line width=0.5pt] (0.95,0.68) -- (0.95,-1.32);
+            \node[notemute, font=\tiny, anchor=south west, text=figdrmD] at (0.99,0.62) {$k$};
+
+            \node[note, font=\scriptsize, anchor=west] at (7.35,-0.35)
+                {each thread's chunk is\\ smaller than $k$: the heap\\ never fills, no\\ element is ever rejected};
+        \end{scope}
+
+        \node[note, anchor=north, align=center] at (3.6,-4.95)
+            {Useful parallelism is therefore bounded by $P \le n/k$,
+             regardless of grid size.};
+
+    \end{tikzpicture}
+    \caption[The parallelism limit of map-reduce]{The parallelism limit of map-reduce for large $k$. Each thread
+    maintains its own heap of size $k$ and can reject elements only
+    after the heap fills, i.e., only after it has seen at least $k$ elements. When
+    the chunk assigned to each thread is larger than $k$ (a), the threshold
+    engages early and the rest of the chunk is filtered. But when
+    the number of threads increases enough that the chunk becomes smaller than $k$
+    (b), no heap ever fills and filtering never engages.
+    This is a property of the algorithm, not the implementation: neither the grid
+    size nor the workspace layout can remove it.}
+    \label{fig:gpu-mapreduce-limit}
+\end{figure}

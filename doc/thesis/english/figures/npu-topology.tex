@@ -1,0 +1,47 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=2.45cm, y=1.25cm]
+
+        \foreach \c in {0,1,2,3} {
+            \node[blknpu, minimum width=1.30cm, minimum height=0.58cm] (r3\c) at (\c,2.10) {$(\c,3)$};
+            \node[blknpu, minimum width=1.30cm, minimum height=0.58cm] (r2\c) at (\c,1.20) {$(\c,2)$};
+            \node[blkdrop, minimum width=0.55cm, minimum height=0.44cm] (r1\c) at (\c,0.41) {\tiny mem};
+            \node[blknpu, minimum width=1.90cm, minimum height=0.48cm] (r0\c) at (\c,-0.34) {shim $(\c,0)$};
+        }
+
+        \foreach \c in {0,1,2,3} {
+            \draw[flowmute] ([xshift=-12pt]r0\c.north) -- ([xshift=-12pt]r2\c.south);
+            \draw[flowmute] ([xshift=12pt]r2\c.south) -- ([xshift=12pt]r0\c.north);
+            \draw[flowmute] ([xshift=-26pt]r0\c.north) -- ([xshift=-26pt]r3\c.south);
+            \draw[flowmute] ([xshift=26pt]r3\c.south) -- ([xshift=26pt]r0\c.north);
+        }
+
+        \node[blkdrm, minimum width=9.4cm, minimum height=0.48cm] (ddr) at (1.5,-1.22)
+            {main memory DDR5 (shared with the host)};
+        \foreach \c in {0,1,2,3} { \draw[flowmute] (r0\c.south) -- (r0\c.south|-ddr.north); }
+
+        \draw[brace] (-0.30,2.50) -- (3.30,2.50);
+        \node[notemute, font=\tiny, anchor=south] at (1.5,2.62)
+            {8 compute tiles: 4 columns $\times$ 2 cores};
+
+        \node[notemute, anchor=west, align=left] at (3.42,1.65)
+            {object\_fifo\\ depth 2\\ (double buffering)};
+        \node[notemute, anchor=west, align=left] at (3.42,0.41) {unused};
+        \node[notemute, anchor=west, align=left] at (3.42,-0.34) {interface to DDR};
+
+        \node[note, anchor=north, align=center] at (1.5,-1.62)
+            {Per core: 128 chunks $\times$ 1024 int32 elements.
+             Per batch: $8 \times 128 \times 1024 = 1\,048\,576$ elements.};
+
+    \end{tikzpicture}
+    \caption[Tile topology and object\_fifo queues]{The tile topology of the implementation and the object\_fifo queues
+    that connect them. Each column has one interface tile (shim) that
+    communicates with main memory and two compute tiles, each of which
+    connects to its column's shim through a pair of depth-two
+    queues: one for input and one for output. The depth of two allows the
+    core to process one chunk while the next is transferred. The
+    memory tiles in the middle row are unused, since each core
+    consumes a portion of the input disjoint from the others and no
+    sharing or redistribution of data between them is required.}
+    \label{fig:npu-topology}
+\end{figure}

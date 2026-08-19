@@ -1,0 +1,63 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        % (a) the threshold test
+        \node[panel, font=\scriptsize\bfseries] at (-0.55,1.55) {(a) the root threshold, $k=4$};
+
+        \node[blkreg, minimum width=0.66cm] (r)  at (1.55,0.85) {$6$};
+        \node[blkreg, minimum width=0.66cm] (c1) at (0.85,-0.05) {$8$};
+        \node[blkreg, minimum width=0.66cm] (c2) at (2.25,-0.05) {$7$};
+        \node[blkreg, minimum width=0.66cm] (c3) at (0.15,-0.95) {$9$};
+        \draw[flowmute, -] (r) -- (c1);
+        \draw[flowmute, -] (r) -- (c2);
+        \draw[flowmute, -] (c1) -- (c3);
+        \node[notemute, font=\tiny, anchor=east] at (1.18,0.85) {root $=$ threshold};
+        \node[notemute, font=\tiny, anchor=north, align=center] at (1.55,-1.42)
+            {min-heap with the\\ k best (so far)};
+
+        \node[lanedrop] (x1) at (4.30,0.85) {$3$};
+        \node[note, font=\tiny, anchor=west] at (4.68,0.85) {$3 \le 6$};
+        \draw[flowmute, dashed, dash pattern=on 2pt off 1.6pt] (x1) -- (r);
+        \node[note, font=\scriptsize, anchor=west, text=figregD, align=left] at (6.30,0.85)
+            {reject:\\ \emph{one} comparison};
+
+        \node[lanereg] (x2) at (4.30,-0.95) {$11$};
+        \node[note, font=\tiny, anchor=west] at (4.68,-0.95) {$11 > 6$};
+        \draw[flow] (x2) -- (r);
+        \node[note, font=\scriptsize, anchor=west, text=figdrmD, align=left] at (6.30,-0.95)
+            {replace root\\ and sift down: $O(\log k)$};
+
+        % (b) map-reduce
+        \begin{scope}[yshift=-3.55cm]
+            \node[panel, font=\scriptsize\bfseries] at (-0.55,1.10) {(b) the map-reduce scheme};
+
+            \foreach \i in {0,1,2,3} {
+                \pgfmathsetmacro{\xc}{1.05+\i*1.85}
+                \node[blk, minimum width=1.55cm, minimum height=0.40cm] (ch\i) at (\xc,0.52)
+                    {\tiny chunk \i};
+                \node[blkreg, minimum width=0.85cm, minimum height=0.38cm] (hp\i) at (\xc,-0.42)
+                    {\tiny heap k};
+                \draw[flow] (ch\i.south) -- (hp\i.north);
+            }
+            \node[rowlab, font=\tiny] at (ch0.west) {map};
+
+            \node[blkreg, minimum width=1.55cm, minimum height=0.40cm] (mg) at (3.83,-1.45)
+                {\tiny final k};
+            \foreach \i in {0,1,2,3} { \draw[flowmute] (hp\i.south) -- (mg.north); }
+            \node[rowlab, font=\tiny] at (0.10,-1.45) {reduce};
+
+            \node[note, font=\scriptsize, anchor=west, align=left] at (7.70,-0.42)
+                {no communication\\ in the map phase};
+            \node[note, font=\scriptsize, anchor=west, align=left, text=figdrmD] at (7.70,-1.45)
+                {each heap filters only\\ after seeing k elements};
+        \end{scope}
+
+    \end{tikzpicture}
+    \caption[Heap-based selection and the map-reduce scheme]{Heap-based selection and its parallelisation. In (a) the root of the
+    min-heap acts as a threshold: an element that does not exceed it is
+    rejected with one comparison, while one that exceeds it replaces the root
+    and triggers a sift-down. In (b) the input is partitioned into chunks, one
+    heap per worker, and the partial results are merged into one.}
+    \label{fig:bg-heap}
+\end{figure}

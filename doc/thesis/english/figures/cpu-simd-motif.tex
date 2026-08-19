@@ -1,0 +1,50 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=0.78cm, y=1.0cm]
+
+        \lanerow{0}{v}{7,2,5,8,1,6,3,4}{lane}
+        \node[rowlab] at (v0.west) {$v$};
+
+        \lanerow{-1.15}{p}{5,8,7,2,3,4,1,6}{lane}
+        \node[rowlab] at (p0.west) {$v'$};
+
+        \foreach \a/\b in {0/2,1/3,2/0,3/1,4/6,5/7,6/4,7/5} {
+            \draw[flowmute] (v\a.south) -- (p\b.north);
+        }
+
+        \lanerow{-2.30}{lo}{5,2,5,2,1,4,1,4}{lanereg}
+        \node[rowlab] at (lo0.west) {$\min(v,v')$};
+
+        \lanerow{-3.05}{hi}{7,8,7,8,3,6,3,6}{lanecac}
+        \node[rowlab] at (hi0.west) {$\max(v,v')$};
+
+        \lanerow{-3.85}{m}{0,0,1,1,0,0,1,1}{lane}
+        \node[rowlab] at (m0.west) {mask};
+
+        \foreach \i/\val in {0/5,1/2,4/1,5/4} { \node[lanereg] (r\i) at (\i,-5.00) {$\val$}; }
+        \foreach \i/\val in {2/7,3/8,6/3,7/6} { \node[lanecac] (r\i) at (\i,-5.00) {$\val$}; }
+        \node[rowlab] at (r0.west) {result};
+
+        \foreach \i in {0,...,7} { \node[idxlab] at (r\i.south) {\i}; }
+
+        \foreach \i in {0,1,4,5} { \draw[flowmute] (lo\i.south) to[out=-90,in=90] (r\i.north); }
+        \foreach \i in {2,3,6,7} { \draw[flowmute] (hi\i.south) to[out=-90,in=90] (r\i.north); }
+
+        \node[notemute, anchor=west] at (8.25,-0.58) {shuffle by $j=2$};
+        \node[notemute, anchor=west] at (8.25,-2.68) {min / max};
+        \node[notemute, anchor=west] at (8.25,-4.45) {select with mask};
+
+        \draw[brace] (8.15,-2.05) -- (8.15,-3.30);
+        \draw[brace] (8.15,-3.60) -- (8.15,-5.25);
+        \draw[brace] (8.15,0.25) -- (8.15,-1.40);
+
+    \end{tikzpicture}
+    \caption[The fundamental compare-exchange motif]{The fundamental ``shuffle, min, max, select''
+    motif for compare-exchange at distance $j=2$, in an eight-lane register. The
+    contents are permuted so that each element ends up opposite its counterpart,
+    minimum and maximum are computed simultaneously for all lanes, and the result
+    is reassembled by selecting the minimum where the corresponding mask bit
+    is zero and the maximum where it is one. No branch intervenes and no value
+    is examined individually.}
+    \label{fig:cpu-simd-motif}
+\end{figure}

@@ -1,0 +1,96 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=0.66cm, y=0.40cm]
+
+        % (a) bitonic network
+        \node[panel] at (-1.5,2.55) {(a) full bitonic network, $n=8$};
+
+        \foreach \w in {0,...,7} {
+            \draw[draw=figmute, line width=0.4pt] (0.2,-\w) -- (10.0,-\w);
+            \node[idxlab, anchor=east, yshift=3.5pt] at (0.05,-\w) {\w};
+        }
+
+        \foreach \x/\a/\b in {1/0/1, 1/3/2, 1/4/5, 1/7/6,
+                              2.93/0/2, 3.07/1/3, 2.93/6/4, 3.07/7/5,
+                              4/0/1, 4/2/3, 4/5/4, 4/7/6,
+                              5.79/0/4, 5.93/1/5, 6.07/2/6, 6.21/3/7,
+                              7.43/0/2, 7.57/1/3, 7.43/4/6, 7.57/5/7,
+                              9/0/1, 9/2/3, 9/4/5, 9/6/7} {
+            \draw[flow] (\x,-\a) -- (\x,-\b);
+            \fill[figink] (\x,-\a) circle (1.3pt);
+        }
+
+        \draw[brace] (0.7,0.62) -- (1.3,0.62);
+        \draw[brace] (2.7,0.62) -- (4.3,0.62);
+        \draw[brace] (5.7,0.62) -- (9.3,0.62);
+        \node[notemute, font=\tiny] at (1.0,1.42) {block 2};
+        \node[notemute, font=\tiny] at (3.5,1.42) {block 4};
+        \node[notemute, font=\tiny] at (7.5,1.42) {block 8};
+
+        \node[notemute, anchor=north west, align=left, font=\tiny] at (0.2,-7.75)
+            {The arrow shows where the larger of the two elements is placed.};
+
+        % (b) truncated network
+        \begin{scope}[yshift=-5.55cm, x=1.0cm, y=1.0cm]
+
+            \node[panel] at (-1.60,1.62) {(b) truncated network, $n=16$, $k'=4$};
+
+            \tikzset{
+                blkkeep/.style={blkreg, minimum width=1.15cm, minimum height=0.42cm},
+                blkgone/.style={blkdrop, minimum width=1.15cm, minimum height=0.42cm},
+                mrg/.style={draw=figink, fill=white, line width=0.4pt, rounded corners=1pt,
+                            inner sep=1.5pt, font=\tiny},
+                todrop/.style={flowmute, dashed, dash pattern=on 2pt off 1.6pt},
+            }
+
+            % phase 1
+            \foreach \i/\x in {0/0.75, 1/2.25, 2/4.95, 3/6.45} {
+                \node[blkkeep] (p\i) at (\x,0.95) {\tiny sort $k'$};
+            }
+            \node[note, font=\scriptsize, anchor=east, align=right] at (-0.30,0.95)
+                {phase 1\\[-1pt] \textcolor{figmute}{\tiny 16 elements}};
+
+            % phase 2, step 1
+            \node[mrg] (ma) at (1.50,0.28) {merge};
+            \node[mrg] (mb) at (5.70,0.28) {merge};
+            \foreach \i/\m in {0/ma, 1/ma, 2/mb, 3/mb} { \draw[flowmute] (p\i.south) -- (\m); }
+
+            \node[blkkeep] (k0) at (0.75,-0.42) {\tiny keep $k'$};
+            \node[blkgone] (g0) at (2.25,-0.42) {\tiny drop $k'$};
+            \node[blkkeep] (k1) at (4.95,-0.42) {\tiny keep $k'$};
+            \node[blkgone] (g1) at (6.45,-0.42) {\tiny drop $k'$};
+            \draw[flow]   (ma) -- (k0.north);   \draw[todrop] (ma) -- (g0.north);
+            \draw[flow]   (mb) -- (k1.north);   \draw[todrop] (mb) -- (g1.north);
+            \node[note, font=\scriptsize, anchor=east, align=right] at (-0.30,-0.42)
+                {step 1\\[-1pt] \textcolor{figmute}{\tiny 8 remain}};
+
+            % phase 2, step 2
+            \node[mrg] (mc) at (2.85,-1.10) {merge};
+            \draw[flowmute] (k0.south) -- (mc);
+            \draw[flowmute] (k1.south) -- (mc);
+
+            \node[blkkeep] (k2) at (2.10,-1.82) {\tiny keep $k'$};
+            \node[blkgone] (g2) at (3.60,-1.82) {\tiny drop $k'$};
+            \draw[flow]   (mc) -- (k2.north);   \draw[todrop] (mc) -- (g2.north);
+            \node[note, font=\scriptsize, anchor=east, align=right] at (-0.30,-1.82)
+                {step 2\\[-1pt] \textcolor{figmute}{\tiny 4 remain}};
+
+            \node[notemute, font=\tiny, anchor=west, align=left] at (4.40,-1.82)
+                {the requested result};
+
+            \node[notemute, font=\tiny, anchor=north west, align=left] at (-1.60,-2.35)
+                {Each merge takes $2k'$ elements and keeps the $k'$ largest;
+                 the rest (dashed) are permanently discarded.};
+        \end{scope}
+
+    \end{tikzpicture}
+    \caption[The full bitonic network and its truncation]{The full bitonic network and its truncation. In (a) each horizontal
+    line is an array position and each vertical arrow a compare-exchange. The
+    network is data-independent, since it always executes the same sequence of
+    comparisons in the same order, regardless of the values. In (b), when only
+    the $k'$ best elements are requested, the first phase stops as soon as
+    sorted blocks of size $k'$ have formed, and in the second phase each
+    pairwise merge keeps only the $k'$ best of the $2k'$ compared. The array
+    size is halved at each step, so subsequent steps cost progressively less.}
+    \label{fig:bg-bitonic}
+\end{figure}

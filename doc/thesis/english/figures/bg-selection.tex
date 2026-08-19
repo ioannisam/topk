@@ -1,0 +1,47 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        % input
+        \foreach \v [count=\i from 0] in {5,2,9,1,7,3,8,4} {
+            \node[lane] (in\i) at (0.76*\i,0) {$\v$};
+        }
+        \node[rowlab] at (in0.west) {input};
+
+        % (a) full sort
+        \node[panel, font=\scriptsize\bfseries, anchor=west] at (-1.05,-1.42)
+            {(a) sorting};
+        \node[notemute, font=\tiny, anchor=east] at (5.68,-1.42)
+            {$\Omega(n \log n)$ comparisons};
+        \foreach \v [count=\i from 0] in {9,8,7,5,4,3,2,1} {
+            \node[lanereg] (so\i) at (0.76*\i,-1.90) {$\v$};
+        }
+        \draw[bracemirror] (-0.40,-2.38) -- (5.72,-2.38);
+        \node[notemute, anchor=north, font=\tiny] at (2.66,-2.62)
+            {and all $n$ positions determined};
+
+        % (b) selection
+        \node[panel, font=\scriptsize\bfseries, anchor=west] at (-1.05,-3.26)
+            {(b) top-k selection, $k=3$};
+        \node[notemute, font=\tiny, anchor=east] at (5.68,-3.26)
+            {$\Theta(n)$ comparisons for fixed k};
+        \foreach \v [count=\i from 0] in {9,7,8} {
+            \node[lanereg] (se\i) at (0.76*\i,-3.74) {$\v$};
+        }
+        \foreach \i in {3,4,5,6,7} {
+            \node[lanedrop] at (0.76*\i,-3.74) {$\cdot$};
+        }
+        \draw[bracemirror] (-0.40,-4.22) -- (1.90,-4.22);
+        \node[notemute, anchor=north, font=\tiny, align=center] at (0.76,-4.46)
+            {the k largest,\\ in any order};
+        \draw[bracemirror] (1.90,-4.22) -- (5.72,-4.22);
+        \node[notemute, anchor=north, font=\tiny, align=center] at (3.81,-4.46)
+            {$n-k$ elements, no\\ order information};
+
+    \end{tikzpicture}
+    \caption[Selection versus sorting]{The same input under the two requirements. Sorting (a)
+    determines all $n$ positions, while selection (b) splits the elements into
+    only two groups: the k largest, in any order, and the rest, for which no
+    order information is kept.}
+    \label{fig:bg-selection}
+\end{figure}

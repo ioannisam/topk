@@ -1,0 +1,43 @@
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[x=1.0cm, y=1.0cm]
+
+        \node[blk, minimum width=11.4cm, minimum height=0.52cm] (driver) at (0,3.30)
+            {sweep driver (one process per case)};
+        \node[notemute, font=\tiny, anchor=west] at (5.85,3.30) {level 3};
+
+        \node[blkreg, minimum width=3.4cm, minimum height=0.52cm] (ecpu) at (-3.9,1.95) {CPU executable};
+        \node[blkcac, minimum width=3.4cm, minimum height=0.52cm] (egpu) at (0,1.95) {GPU executable};
+        \node[blknpu, minimum width=3.4cm, minimum height=0.52cm] (enpu) at (3.9,1.95) {NPU executable};
+        \node[notemute, font=\tiny, anchor=west] at (5.85,1.95) {level 2};
+
+        \draw[flowmute] (driver.south-|ecpu.north) -- (ecpu.north);
+        \draw[flowmute] (driver.south-|egpu.north) -- (egpu.north);
+        \draw[flowmute] (driver.south-|enpu.north) -- (enpu.north);
+
+        \node[blkaie, minimum width=11.4cm, minimum height=1.05cm, align=center] (core) at (0,0.50)
+            {shared C++ core\\[1pt]
+             \tiny parameters $\cdot$ input generation $\cdot$ tier scheduling $\cdot$ warm-up
+             and measurement loop $\cdot$ \\[1pt] \tiny energy counters $\cdot$ traffic accounting $\cdot$ correctness check $\cdot$ report printing};
+        \node[notemute, font=\tiny, anchor=west] at (5.85,0.50) {level 1};
+
+        \draw[flowmute] (ecpu.south) -- (ecpu.south|-core.north);
+        \draw[flowmute] (egpu.south) -- (egpu.south|-core.north);
+        \draw[flowmute] (enpu.south) -- (enpu.south|-core.north);
+
+        \node[blk, minimum width=4.4cm, minimum height=0.48cm] (report) at (0,-1.00)
+            {report text};
+        \draw[flow] (core.south) -- (report.north);
+
+        \node[blk, minimum width=11.4cm, minimum height=0.52cm] (analysis) at (0,-2.15)
+            {analysis (tables and plots)};
+        \node[notemute, font=\tiny, anchor=west] at (5.85,-2.15) {level 4};
+        \draw[flow] (report.south) -- (analysis.north);
+
+    \end{tikzpicture}
+    \caption[The four levels of the measurement harness]{The four levels of the measurement harness. The measurement
+    procedure is defined only once, in the shared core of the first level, and
+    the three implementations provide exclusively the function that performs
+    the computation.}
+    \label{fig:meth-harness}
+\end{figure}

@@ -1,0 +1,191 @@
+@comment{
+    Cited in this order;
+
+    [1] knuth1998          [8] chen2014diannao      [15] lin2026adaptivetopk
+    [2] sismanis2012       [9] jouppi2017tpu        [16] samaga2026
+    [3] zhang2023gputopk  [10] chen2016eyeriss      [17] amd2024bitonicaie
+    [4] batcher1968       [11] amd2021versal        [18] williams2009
+    [5] shanbhag2018      [12] amd2024xdna          [19] intelintrinsics
+    [6] palmer2014npu     [13] mliraie              [20] iron
+    [7] esmaeilzadeh2012  [14] cccl                 [21] amd2024ug1079
+}
+
+@book{knuth1998,
+    author    = {Knuth, D. E.},
+    title     = {The Art of Computer Programming, Volume 3: Sorting and Searching},
+    edition   = {2nd},
+    publisher = {Addison-Wesley},
+    year      = {1998}
+}
+
+@inproceedings{sismanis2012,
+    author    = {Sismanis, N. and Pitsianis, N. and Sun, X.},
+    title     = {Parallel Search of k-Nearest Neighbors with Synchronous Operations},
+    booktitle = {2012 IEEE Conference on High Performance Extreme Computing (HPEC)},
+    address   = {Waltham, MA, USA},
+    year      = {2012},
+    pages     = {1--6},
+    doi       = {10.1109/HPEC.2012.6408667}
+}
+
+@inproceedings{zhang2023gputopk,
+    author    = {Zhang, J. and Naruse, A. and Li, X. and Wang, Y.},
+    title     = {Parallel Top-{K} Algorithms on {GPU}: A Comprehensive Study and New Methods},
+    booktitle = {Proceedings of the International Conference for High Performance Computing, Networking, Storage and Analysis (SC '23)},
+    address   = {Denver, CO, USA},
+    year      = {2023},
+    doi       = {10.1145/3581784.3607062}
+}
+
+@inproceedings{batcher1968,
+    author    = {Batcher, K. E.},
+    title     = {Sorting Networks and Their Applications},
+    booktitle = {Proceedings of the AFIPS Spring Joint Computer Conference},
+    year      = {1968},
+    pages     = {307--314},
+    doi       = {10.1145/1468075.1468121}
+}
+
+@inproceedings{shanbhag2018,
+    author    = {Shanbhag, A. and Pirk, H. and Madden, S.},
+    title     = {Efficient Top-{K} Query Processing on Massively Parallel Hardware},
+    booktitle = {Proceedings of the 2018 International Conference on Management of Data (SIGMOD)},
+    address   = {Houston, TX, USA},
+    year      = {2018},
+    pages     = {1557--1570},
+    doi       = {10.1145/3183713.3183735}
+}
+
+@misc{palmer2014npu,
+    author       = {Palmer, D. A. and Florea, M.},
+    title        = {Neural Processing Unit},
+    howpublished = {U.S. Patent US8655815B2, assigned to the University of California, San Diego},
+    year         = {2014},
+    note         = {Application US13/011,727, filed 21 January 2011; granted 18 February 2014}
+}
+
+@inproceedings{esmaeilzadeh2012,
+    author    = {Esmaeilzadeh, H. and Sampson, A. and Ceze, L. and Burger, D.},
+    title     = {Neural Acceleration for General-Purpose Approximate Programs},
+    booktitle = {45th Annual IEEE/ACM International Symposium on Microarchitecture (MICRO)},
+    year      = {2012},
+    pages     = {449--460},
+    doi       = {10.1109/MICRO.2012.48}
+}
+
+@inproceedings{chen2014diannao,
+    author    = {Chen, T. and Du, Z. and Sun, N. and Wang, J. and Wu, C. and Chen, Y. and Temam, O.},
+    title     = {{DianNao}: A Small-Footprint High-Throughput Accelerator for Ubiquitous Machine-Learning},
+    booktitle = {19th International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS)},
+    year      = {2014},
+    pages     = {269--284},
+    doi       = {10.1145/2541940.2541967}
+}
+
+@inproceedings{jouppi2017tpu,
+    author    = {Jouppi, N. P. and Young, C. and Patil, N. and Patterson, D. and others},
+    title     = {In-Datacenter Performance Analysis of a Tensor Processing Unit},
+    booktitle = {44th International Symposium on Computer Architecture (ISCA)},
+    year      = {2017},
+    pages     = {1--12},
+    doi       = {10.1145/3079856.3080246}
+}
+
+@inproceedings{chen2016eyeriss,
+    author    = {Chen, Y.-H. and Emer, J. and Sze, V.},
+    title     = {{Eyeriss}: A Spatial Architecture for Energy-Efficient Dataflow for Convolutional Neural Networks},
+    booktitle = {43rd International Symposium on Computer Architecture (ISCA)},
+    year      = {2016},
+    pages     = {367--379},
+    doi       = {10.1109/ISCA.2016.40}
+}
+
+@techreport{amd2021versal,
+    author      = {{AMD}},
+    title       = {Versal Adaptive {SoC}: The Industry's First Adaptive Compute Acceleration Platform},
+    institution = {AMD},
+    type        = {White Paper},
+    year        = {2021},
+    note        = {\url{https://www.amd.com/content/dam/amd/en/documents/products/adaptive-socs-and-fpgas/versal/adaptive-soc-paper.pdf}}
+}
+
+@article{amd2024xdna,
+    author  = {Rico, A. and Pareek, S. and Cabezas, J. and Noguera, J. and others},
+    title   = {{AMD} {XDNA} {NPU} in {Ryzen} {AI} Processors},
+    journal = {IEEE Micro},
+    volume  = {44},
+    number  = {6},
+    year    = {2024},
+    doi     = {10.1109/MM.2024.3423692}
+}
+
+@misc{mliraie,
+    author       = {{AMD/Xilinx}},
+    title        = {{MLIR-AIE}: An {MLIR}-Based Toolchain for {AMD} {AI} Engine-Enabled Devices},
+    howpublished = {\url{https://github.com/Xilinx/mlir-aie}},
+    year         = {2024}
+}
+
+@misc{cccl,
+    author       = {{NVIDIA}},
+    title        = {{CCCL}: {CUDA} Core Compute Libraries},
+    howpublished = {\url{https://github.com/NVIDIA/cccl}},
+    year         = {2024}
+}
+
+@misc{lin2026adaptivetopk,
+    author       = {Lin, C. and Yang, M. and Wang, C. and Huang, C.},
+    title        = {Adaptive Top-{K} Selection: Eliminating Performance Cliffs Across All {K} Values on {AMD} {GPUs}},
+    howpublished = {AMD ROCm Blogs},
+    month        = feb,
+    year         = {2026},
+    note         = {\url{https://rocm.blogs.amd.com/software-tools-optimization/adaptive-topk/README.html}}
+}
+
+@article{samaga2026,
+    author  = {Samaga, Y. and Yerram, V. and Babbula, S. R. and Jain, P. and Netrapalli, P.},
+    title   = {A Faster Generalized Two-Stage Approximate Top-{K}},
+    journal = {Transactions on Machine Learning Research},
+    year    = {2026},
+    note    = {\url{https://openreview.net/forum?id=izqZ1Crpjz}}
+}
+
+@misc{amd2024bitonicaie,
+    author       = {{AMD}},
+    title        = {Bitonic {SIMD} Sorting on {AI} Engine for float Datatypes},
+    howpublished = {Vitis Tutorials: AI Engine Development, 2024.1},
+    year         = {2024},
+    note         = {\url{https://docs.amd.com/r/2024.1-English/Vitis-Tutorials-AI-Engine-Development/Bitonic-SIMD-Sorting-on-AI-Engine-for-float-Datatypes}}
+}
+
+@article{williams2009,
+    author  = {Williams, S. and Waterman, A. and Patterson, D.},
+    title   = {Roofline: An Insightful Visual Performance Model for Multicore Architectures},
+    journal = {Communications of the ACM},
+    volume  = {52},
+    number  = {4},
+    pages   = {65--76},
+    year    = {2009},
+    doi     = {10.1145/1498765.1498785}
+}
+
+@misc{intelintrinsics,
+    author       = {{Intel}},
+    title        = {Intel Intrinsics Guide},
+    howpublished = {\url{https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html}},
+    year         = {2024}
+}
+
+@misc{iron,
+    author       = {{AMD}},
+    title        = {{IRON}: A Close-to-Metal Programming Framework for {AMD} {NPUs}},
+    howpublished = {\url{https://github.com/amd/IRON}},
+    year         = {2024}
+}
+
+@misc{amd2024ug1079,
+    author = {{AMD}},
+    title  = {{AI} Engine Kernel and Graph Programming Guide ({UG1079}): Casting and Datatype Conversion},
+    year   = {2024},
+    note   = {\url{https://docs.amd.com/r/en-US/ug1079-ai-engine-kernel-coding/}}
+}

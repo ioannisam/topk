@@ -21,7 +21,7 @@ PLOT_DISTS := --input ./bench/results/raw/dists/output.json --plot dist-compare 
 	run-cpu run-gpu run-npu measure-cases measure-energy measure-dists measure-roofline measure-ncu plot \
 	benchmark benchmark-cases benchmark-energy benchmark-dists benchmark-roofline profiler-bootstrap \
 	pin pin-show unpin lint specs a-test ab-test \
-	thesis
+	thesis thesis-greek thesis-english
 
 all: build-all
 
@@ -48,7 +48,9 @@ help:
 	@echo "                                    needs no further input. GPU cap via GPU_W=50."
 	@echo ""
 	@echo "  Thesis:"
-	@echo "    thesis                        - compile the LaTeX thesis document"
+	@echo "    thesis                        - compile both thesis-greek and thesis-english"
+	@echo "    thesis-greek                  - compile the Greek LaTeX thesis document"
+	@echo "    thesis-english                - compile the English LaTeX thesis document"
 	@echo ""
 	@echo "  Conditions (sudo): pin | pin-show | unpin  - set/show/restore governor + GPU power (pin ARGS=watts)"
 	@echo ""
@@ -204,15 +206,23 @@ a-test:
 ab-test:
 	./scripts/ab_test.sh $(ARGS)
 
-thesis:
-	@echo "=== Compiling Thesis ==="
-	cd $(THESIS_DIR) && mkdir -p build/frontmatter build/chapters build/appendices
-	cd $(THESIS_DIR) && latexmk -pdf -interaction=nonstopmode -file-line-error -outdir=build main.tex
-	cd $(THESIS_DIR) && cp build/main.pdf .
+thesis: thesis-greek thesis-english
+
+thesis-greek:
+	@echo "=== Compiling Thesis (Greek) ==="
+	cd $(THESIS_DIR)/greek && mkdir -p build/frontmatter build/chapters build/appendices
+	cd $(THESIS_DIR)/greek && latexmk -pdf -interaction=nonstopmode -file-line-error -outdir=build main.tex
+	cd $(THESIS_DIR)/greek && cp build/main.pdf ../thesis-greek.pdf
+
+thesis-english:
+	@echo "=== Compiling Thesis (English) ==="
+	cd $(THESIS_DIR)/english && mkdir -p build/frontmatter build/chapters build/appendices
+	cd $(THESIS_DIR)/english && latexmk -pdf -interaction=nonstopmode -file-line-error -outdir=build main.tex
+	cd $(THESIS_DIR)/english && cp build/main.pdf ../thesis-english.pdf
 
 clean-build:
 	rm -rf $(BUILD_DIR)
-	-cd $(THESIS_DIR) && rm -rf build main.pdf
+	-cd $(THESIS_DIR) && rm -rf greek/build english/build thesis-greek.pdf thesis-english.pdf
 
 clean-results:
 	@if [ "$(FORCE)" = "1" ]; then \
