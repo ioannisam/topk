@@ -88,14 +88,6 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 			k_seen = true;
 			continue;
 		}
-		if (token.starts_with("seed=")) {
-			const long long parsed_seed = parse_signed_long(token.substr(5), "seed");
-			if (parsed_seed < 0) {
-				throw std::invalid_argument("seed must be non-negative");
-			}
-			seed = static_cast<std::uint64_t>(parsed_seed);
-			continue;
-		}
 		if (token.starts_with("mode=")) {
 			const std::string value = token.substr(5);
 			if (value == "min" || value == "max") {
@@ -103,14 +95,6 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 				continue;
 			}
 			throw std::invalid_argument("mode must be min or max");
-		}
-		if (token.starts_with("threads=")) {
-			const long long parsed_threads = parse_signed_long(token.substr(8), "threads");
-			if (parsed_threads <= 0) {
-				throw std::invalid_argument("threads must be positive");
-			}
-			ex_threads = static_cast<std::size_t>(parsed_threads);
-			continue;
 		}
 		if (is_dtype_token(token)) {
 			dtype = parse_dtype(token);
@@ -120,8 +104,28 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 			algorithm = parse_algorithm(token);
 			continue;
 		}
+		if (token.starts_with("run=")) {
+			run_mode = parse_run_mode(token.substr(4));
+			continue;
+		}
 		if (token.starts_with("debug=")) {
 			debug_output = parse_bool_value(token.substr(6), "debug");
+			continue;
+		}
+		if (token.starts_with("threads=")) {
+			const long long parsed_threads = parse_signed_long(token.substr(8), "threads");
+			if (parsed_threads <= 0) {
+				throw std::invalid_argument("threads must be positive");
+			}
+			ex_threads = static_cast<std::size_t>(parsed_threads);
+			continue;
+		}
+		if (token.starts_with("seed=")) {
+			const long long parsed_seed = parse_signed_long(token.substr(5), "seed");
+			if (parsed_seed < 0) {
+				throw std::invalid_argument("seed must be non-negative");
+			}
+			seed = static_cast<std::uint64_t>(parsed_seed);
 			continue;
 		}
 		if (token.starts_with("verify=")) {
@@ -134,10 +138,6 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 		}
 		if (token.starts_with("max=")) {
 			rand_max = parse_int_field(token.substr(4), "max");
-			continue;
-		}
-		if (token.starts_with("run=")) {
-			run_mode = parse_run_mode(token.substr(4));
 			continue;
 		}
 		if (token.starts_with("dist=")) {
