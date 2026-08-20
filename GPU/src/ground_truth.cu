@@ -19,6 +19,7 @@
 namespace gpu::ground_truth {
 
 using gpu::utils::DeviceBuffer;
+using gpu::utils::EventGuard;
 
 template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, bool want_max) {
 	using D = typename gpu::traits::DeviceType<T>::type;
@@ -47,9 +48,10 @@ template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, boo
 	// A null d_temp_storage re-runs the query instead of the selection, so never allocate zero.
 	DeviceBuffer<std::uint8_t> d_temp(std::max<std::size_t>(temp_bytes, 1));
 
-	cudaEvent_t start, stop;
-	CUDA_CHECK(cudaEventCreate(&start));
-	CUDA_CHECK(cudaEventCreate(&stop));
+	EventGuard start_guard;
+	EventGuard stop_guard;
+	const cudaEvent_t start = start_guard.get();
+	const cudaEvent_t stop = stop_guard.get();
 
 	common::energy::Scope energy_scope(common::energy::Channel::Algo);
 	CUDA_CHECK(cudaEventRecord(start));
@@ -66,9 +68,6 @@ template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, boo
 
 	float algo_ms = 0.0f;
 	CUDA_CHECK(cudaEventElapsedTime(&algo_ms, start, stop));
-
-	CUDA_CHECK(cudaEventDestroy(start));
-	CUDA_CHECK(cudaEventDestroy(stop));
 
 	CUDA_CHECK(cudaMemcpy(data, d_out.get(), kk * sizeof(D), cudaMemcpyDeviceToHost));
 

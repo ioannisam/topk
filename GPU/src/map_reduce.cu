@@ -20,6 +20,7 @@ namespace gpu::map_reduce {
 namespace {
 
 using gpu::utils::DeviceBuffer;
+using gpu::utils::EventGuard;
 
 constexpr int MAP_BLOCK_SIZE = 256;
 constexpr std::size_t MAP_STRATEGY_A_MAX_K = 256;
@@ -258,9 +259,10 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 
 	CUDA_CHECK(cudaMemcpy(d_input.get(), input, n * sizeof(D), cudaMemcpyHostToDevice));
 
-	cudaEvent_t start, stop;
-	CUDA_CHECK(cudaEventCreate(&start));
-	CUDA_CHECK(cudaEventCreate(&stop));
+	EventGuard start_guard;
+	EventGuard stop_guard;
+	const cudaEvent_t start = start_guard.get();
+	const cudaEvent_t stop = stop_guard.get();
 	common::energy::Scope energy_scope(common::energy::Channel::Algo);
 	CUDA_CHECK(cudaEventRecord(start));
 
@@ -289,9 +291,6 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 		static_cast<std::size_t>(grid_size) * k * sizeof(D),
 		cudaMemcpyDeviceToHost
 	));
-
-	CUDA_CHECK(cudaEventDestroy(start));
-	CUDA_CHECK(cudaEventDestroy(stop));
 
 	if (stats != nullptr) {
 		stats->elapsed_ms = elapsed_ms;
