@@ -185,8 +185,11 @@ template <typename T> class GpuGroundTruthHooks final : public common::topk::Gro
 				auto t1 = std::chrono::high_resolution_clock::now();
 				double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-				if (k > 0 && k < temp.size())
+				if (k > 0 && k < temp.size()) {
 					temp.resize(k);
+				} else if (k == 0) {
+					temp.clear();
+				}
 
 				return common::benchmark::TimedValueWithStats<std::vector<T>, double>{
 					elapsed_wall_ms, algo_ms, std::move(temp), algo_ms
