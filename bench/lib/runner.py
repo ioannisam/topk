@@ -367,6 +367,7 @@ def main():
                                         f_raw.write(f"### Case: {base_case_name}\n")
                                         f_raw.write(f"Distribution: {dist}\n")
                                         f_raw.write(f"Seed: {seed}\n")
+                                        f_raw.write(f"Rep: {rep}\n")
                                         f_raw.write(f"Status: {case_status}\n")
                                         f_raw.write(f"Reason: {case_reason}\n")
                                         f_raw.write(f"Command: {' '.join(run_cmd)}\n")

@@ -276,6 +276,8 @@ def _parse_test_output_text(path: str) -> list[CaseRecord]:
                 current.dist = line.split(":", 1)[1].strip().lower()
             elif line.startswith("Seed:"):
                 current.seed = parse_int(line.split(":", 1)[1].strip())
+            elif line.startswith("Rep:"):
+                current.rep = parse_int(line.split(":", 1)[1].strip())
             elif line.startswith("Command:"):
                 cmd = line.split(":", 1)[1].strip()
                 if not current.backend:
