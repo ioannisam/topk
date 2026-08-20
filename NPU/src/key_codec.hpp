@@ -68,6 +68,11 @@ template <typename T> inline T from_key(std::int32_t key) {
 	} else if constexpr (sizeof(T) == 2) {
 		return static_cast<T>(from_key<float>(key));
 	} else {
+		static_assert(
+			sizeof(T) != 8,
+			"from_key<T> cannot recover a double from its lossy 32-bit key; "
+			"the double path must re-derive keys from the original data instead"
+		);
 		return static_cast<T>(key);
 	}
 }
