@@ -143,31 +143,24 @@ int execute(const Config& cfg) {
 
 	if (common::roofline::includes(cfg.experiment, Experiment::Transfer)) {
 		for (const std::size_t size : cfg.sizes) {
-			const std::size_t elems = std::max<std::size_t>(1024, size / sizeof(Elem));
+			const std::size_t elems = std::max<std::size_t>(1, size / sizeof(Elem));
 			if (elems > n) {
 				continue;
 			}
-			const std::size_t batches = std::max<std::size_t>(1, n / elems);
 			const std::size_t chunk_bytes = elems * sizeof(Elem);
-			const double moved = static_cast<double>(chunk_bytes) * static_cast<double>(batches);
+			const double moved = static_cast<double>(chunk_bytes);
 
 			points.push_back(measure("stage_write", 0, elems, moved, 0.0, [&]() {
-				for (std::size_t b = 0; b < batches; b++) {
-					std::memcpy(src_map, host.data() + b * elems, chunk_bytes);
-				}
+				std::memcpy(src_map, host.data(), chunk_bytes);
 				return 0.0;
 			}));
 			points.push_back(measure("stage_write_sync", 0, elems, moved, 0.0, [&]() {
-				for (std::size_t b = 0; b < batches; b++) {
-					std::memcpy(src_map, host.data() + b * elems, chunk_bytes);
-					src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE, chunk_bytes, 0);
-				}
+				std::memcpy(src_map, host.data(), chunk_bytes);
+				src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE, chunk_bytes, 0);
 				return 0.0;
 			}));
 			points.push_back(measure("sync_only", 0, elems, moved, 0.0, [&]() {
-				for (std::size_t b = 0; b < batches; b++) {
-					src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE, chunk_bytes, 0);
-				}
+				src_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE, chunk_bytes, 0);
 				return 0.0;
 			}));
 		}
