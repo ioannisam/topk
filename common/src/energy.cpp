@@ -49,6 +49,7 @@ std::string read_line(const std::string& path) {
 struct RaplDomain {
 	std::string energy_path;
 	std::uint64_t range_uj = 0;
+	bool range_known = false;
 	std::uint64_t last_uj = 0;
 	double accumulated_j = 0.0;
 	bool valid = false;
@@ -59,9 +60,7 @@ struct RaplDomain {
 		if (!read_uint64(energy_path, probe)) {
 			return false;
 		}
-		if (!read_uint64(dir + "/max_energy_range_uj", range_uj) || range_uj == 0) {
-			range_uj = ~std::uint64_t{0};
-		}
+		range_known = read_uint64(dir + "/max_energy_range_uj", range_uj) && range_uj != 0;
 		last_uj = probe;
 		valid = true;
 		return true;
@@ -75,9 +74,13 @@ struct RaplDomain {
 		if (!read_uint64(energy_path, now)) {
 			return accumulated_j;
 		}
-		const std::uint64_t delta = (now >= last_uj) ? (now - last_uj) : (range_uj - last_uj + now);
+		if (now >= last_uj) {
+			accumulated_j += static_cast<double>(now - last_uj) * 1e-6;
+		} else if (range_known) {
+			// now < last_uj and the wrap point is known: a rollover occurred.
+			accumulated_j += static_cast<double>(range_uj - last_uj + now) * 1e-6;
+		}
 		last_uj = now;
-		accumulated_j += static_cast<double>(delta) * 1e-6;
 		return accumulated_j;
 	}
 };
@@ -260,6 +263,10 @@ Scope::~Scope() {
 }
 
 void Scope::close() {
+	if (closed) {
+		return;
+	}
+	closed = true;
 	const std::size_t i = index_of(channel);
 	if (g_depth[i] > 0) {
 		g_depth[i]--;
@@ -286,6 +293,10 @@ FullScope::~FullScope() {
 }
 
 void FullScope::close() {
+	if (closed) {
+		return;
+	}
+	closed = true;
 	for (std::size_t i = 0; i < 2; i++) {
 		if (g_depth[i] > 0) {
 			g_depth[i]--;

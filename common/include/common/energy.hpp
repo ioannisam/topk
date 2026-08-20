@@ -69,6 +69,7 @@ class Scope {
 	double start_seconds;
 	Channel channel;
 	bool active;
+	bool closed = false;
 };
 
 class FullScope {
@@ -85,6 +86,7 @@ class FullScope {
 	Sample start;
 	double start_seconds;
 	bool active;
+	bool closed = false;
 };
 
 Sample take_accumulator(Channel channel);
