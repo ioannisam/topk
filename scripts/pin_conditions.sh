@@ -7,12 +7,22 @@ ACTION="${ACTION:-set}"
 set_governor() {
     local gov="$1"
     if command -v cpupower >/dev/null 2>&1; then
-        sudo cpupower frequency-set -g "$gov" >/dev/null 2>&1 && echo "CPU governor   -> ${gov}" && return
+        if sudo cpupower frequency-set -g "$gov" >/dev/null 2>&1; then
+            echo "CPU governor   -> ${gov}"
+            return 0
+        fi
     fi
+    local wrote=0
     for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-        echo "$gov" | sudo tee "$f" >/dev/null 2>&1
+        [[ -e "$f" ]] || continue
+        echo "$gov" | sudo tee "$f" >/dev/null 2>&1 && wrote=1
     done
-    echo "CPU governor   -> ${gov} (sysfs)"
+    if [[ "$wrote" -eq 1 ]]; then
+        echo "CPU governor   -> ${gov} (sysfs)"
+        return 0
+    fi
+    echo "CPU governor   -> FAILED to set ${gov}" >&2
+    return 1
 }
 
 set_boost() {
