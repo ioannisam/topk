@@ -17,7 +17,6 @@ target_compile_options(gpu_topk PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-O3>)
 
 add_executable(gpu_roofline)
 target_sources(gpu_roofline PRIVATE
-	src/roofline_main.cpp
 	src/roofline.cu
 )
 target_include_directories(gpu_roofline PRIVATE include)

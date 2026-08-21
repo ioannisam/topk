@@ -1,15 +1,16 @@
-#include "../include/roofline.hpp"
-
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <exception>
+#include <iostream>
 #include <stdexcept>
 #include <vector>
 
 #include "common/benchmark.hpp"
 #include "common/random.hpp"
+#include "common/roofline.hpp"
 #include "xrt_utils.hpp"
 
 namespace npu::roofline {
@@ -172,3 +173,13 @@ int execute(const Config& cfg) {
 }
 
 } // namespace npu::roofline
+
+int main(int argc, char** argv) {
+	try {
+		const common::roofline::Config cfg = common::roofline::parse_args(argc, argv);
+		return npu::roofline::execute(cfg);
+	} catch (const std::exception& ex) {
+		std::cerr << "Error: " << ex.what() << "\n";
+		return 1;
+	}
+}

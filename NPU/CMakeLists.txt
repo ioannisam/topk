@@ -25,7 +25,6 @@ target_link_libraries(npu_topk PRIVATE common xrt_coreutil uuid)
 add_dependencies(npu_topk npu_hardware)
 
 add_executable(npu_roofline
-    src/roofline_main.cpp
     src/roofline.cpp
 )
 

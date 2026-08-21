@@ -14,7 +14,6 @@ target_compile_options(cpu_topk PRIVATE -O3 -march=native -DNDEBUG -Wall -Wextra
 
 add_executable(cpu_roofline)
 target_sources(cpu_roofline PRIVATE
-	src/roofline_main.cpp
 	src/roofline.cpp
 )
 target_include_directories(cpu_roofline PRIVATE include)
