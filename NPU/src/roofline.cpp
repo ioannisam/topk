@@ -117,8 +117,9 @@ int execute(const Config& cfg) {
 	}
 
 	if (common::roofline::includes(cfg.experiment, Experiment::Sweep)) {
+		const std::size_t n_cmp_processed = n - (n % (2 * kCmpLane));
 		for (const int ops : cfg.ops) {
-			const double cmp_ops = common::roofline::compare_exchange_count(n, ops);
+			const double cmp_ops = common::roofline::compare_exchange_count(n_cmp_processed, ops);
 			points.push_back(measure("cmp", ops, n, bytes, cmp_ops, [&]() { return cmp_buffer(src_map, n, ops); }));
 		}
 	}
