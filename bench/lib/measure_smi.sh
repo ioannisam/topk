@@ -156,50 +156,56 @@ if ! read_gpu_power_w "${GPU_INDEX}" >/dev/null; then
     exit 1
 fi
 
-HOST_ENERGY_PATH=""
-HOST_MAX_RANGE_UJ=""
+POWERCAP_ROOT="${MEASURE_RAPL_ROOT:-/sys/class/powercap}"
+HOST_ENERGY_PATHS=()
+HOST_MAX_RANGE_UJS=()
 _domain=""
 while IFS= read -r _candidate; do
     _domain="$(cat "$(dirname "${_candidate}")/name" 2>/dev/null || true)"
     if [[ -r "${_candidate}" && "${_domain}" == package-* ]]; then
-        HOST_ENERGY_PATH="${_candidate}"
-        break
+        HOST_ENERGY_PATHS+=("${_candidate}")
+        _max_range_path="$(dirname "${_candidate}")/max_energy_range_uj"
+        if [[ -r "${_max_range_path}" ]]; then
+            HOST_MAX_RANGE_UJS+=("$(<"${_max_range_path}")")
+        else
+            HOST_MAX_RANGE_UJS+=("")
+        fi
     fi
-done < <(find -L /sys/class/powercap -maxdepth 2 -name energy_uj -print 2>/dev/null | sort)
-if [[ -n "${HOST_ENERGY_PATH}" ]]; then
-    _max_range_path="$(dirname "${HOST_ENERGY_PATH}")/max_energy_range_uj"
-    [[ -r "${_max_range_path}" ]] && HOST_MAX_RANGE_UJ="$(<"${_max_range_path}")"
-fi
+done < <(find -L "${POWERCAP_ROOT}" -maxdepth 2 -name energy_uj -print 2>/dev/null | sort)
+HOST_ENERGY_PATH=""
+[[ ${#HOST_ENERGY_PATHS[@]} -gt 0 ]] && HOST_ENERGY_PATH="$(IFS=,; echo "${HOST_ENERGY_PATHS[*]}")"
 
 samples_file="$(mktemp)"
 trap 'rm -f "${samples_file}"' EXIT
 
-HOST_PREV_UJ=""
-[[ -n "${HOST_ENERGY_PATH}" ]] && HOST_PREV_UJ="$(<"${HOST_ENERGY_PATH}")"
+HOST_PREV_UJS=()
+for _p in "${HOST_ENERGY_PATHS[@]}"; do
+    HOST_PREV_UJS+=("$(<"${_p}")")
+done
 HOST_ACCUM_UJ=0
 HOST_WRAP_EVENTS=0
 
 sample_once() {
-    local ts power
+    local ts power i host_cur_uj host_delta_uj
     ts="$(date +%s.%N)"
     if power="$(read_gpu_power_w "${GPU_INDEX}")"; then
         printf '%s %s\n' "${ts}" "${power}" >>"${samples_file}"
     fi
-    if [[ -n "${HOST_ENERGY_PATH}" && -r "${HOST_ENERGY_PATH}" && -n "${HOST_PREV_UJ}" ]]; then
-        local host_cur_uj host_delta_uj
-        host_cur_uj="$(<"${HOST_ENERGY_PATH}")"
-        host_delta_uj=$((host_cur_uj - HOST_PREV_UJ))
+    for i in "${!HOST_ENERGY_PATHS[@]}"; do
+        [[ -r "${HOST_ENERGY_PATHS[$i]}" ]] || continue
+        host_cur_uj="$(<"${HOST_ENERGY_PATHS[$i]}")"
+        host_delta_uj=$((host_cur_uj - HOST_PREV_UJS[i]))
         if [[ ${host_delta_uj} -lt 0 ]]; then
-            if [[ -n "${HOST_MAX_RANGE_UJ}" && ${HOST_MAX_RANGE_UJ} -gt 0 ]]; then
-                host_delta_uj=$((host_delta_uj + HOST_MAX_RANGE_UJ))
+            if [[ -n "${HOST_MAX_RANGE_UJS[$i]}" && ${HOST_MAX_RANGE_UJS[$i]} -gt 0 ]]; then
+                host_delta_uj=$((host_delta_uj + HOST_MAX_RANGE_UJS[i]))
                 HOST_WRAP_EVENTS=$((HOST_WRAP_EVENTS + 1))
             else
                 host_delta_uj=0
             fi
         fi
         HOST_ACCUM_UJ=$((HOST_ACCUM_UJ + host_delta_uj))
-        HOST_PREV_UJ="${host_cur_uj}"
-    fi
+        HOST_PREV_UJS[i]="${host_cur_uj}"
+    done
 }
 
 start_ts="$(date +%s.%N)"

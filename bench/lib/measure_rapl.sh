@@ -30,20 +30,22 @@ Notes:
 EOF
 }
 
+POWERCAP_ROOT="${MEASURE_RAPL_ROOT:-/sys/class/powercap}"
+
 discover_energy_paths() {
-    find -L /sys/class/powercap -maxdepth 2 -name energy_uj -print 2>/dev/null | sort
+    find -L "${POWERCAP_ROOT}" -maxdepth 2 -name energy_uj -print 2>/dev/null | sort
 }
 
-find_default_energy_path() {
-    local candidate domain_name
+find_all_package_energy_paths() {
+    local candidate domain_name found=0
     while IFS= read -r candidate; do
         domain_name="$(cat "$(dirname "${candidate}")/name" 2>/dev/null || true)"
         if [[ -r "${candidate}" && "${domain_name}" == package-* ]]; then
             echo "${candidate}"
-            return 0
+            found=1
         fi
     done < <(discover_energy_paths)
-    return 1
+    [[ ${found} -eq 1 ]]
 }
 
 list_energy_paths() {
@@ -144,8 +146,14 @@ fi
 
 CMD_STR="$*"
 
-if [[ -z "${ENERGY_PATH}" ]]; then
-    if ! ENERGY_PATH="$(find_default_energy_path)"; then
+ENERGY_PATHS=()
+if [[ -n "${ENERGY_PATH}" ]]; then
+    ENERGY_PATHS=("${ENERGY_PATH}")
+else
+    while IFS= read -r _p; do
+        ENERGY_PATHS+=("${_p}")
+    done < <(find_all_package_energy_paths)
+    if [[ ${#ENERGY_PATHS[@]} -eq 0 ]]; then
         echo "error: could not find a readable energy_uj path under /sys/class/powercap" >&2
         echo "hint: run ./bench/lib/measure_rapl.sh --list-paths to inspect availability" >&2
         echo "hint: pass --path explicitly, or run with sufficient permissions (for example with sudo)" >&2
@@ -153,26 +161,38 @@ if [[ -z "${ENERGY_PATH}" ]]; then
     fi
 fi
 
-if [[ ! -r "${ENERGY_PATH}" ]]; then
-    echo "error: energy path is not readable: ${ENERGY_PATH}" >&2
-    exit 1
-fi
-
-MAX_RANGE_PATH="$(dirname "${ENERGY_PATH}")/max_energy_range_uj"
-MAX_RANGE_UJ=""
-if [[ -r "${MAX_RANGE_PATH}" ]]; then
-    MAX_RANGE_UJ="$(<"${MAX_RANGE_PATH}")"
-fi
-
-CORE_ENERGY_PATH=""
-CORE_MAX_RANGE_UJ=""
-_pkg_dir="$(dirname "${ENERGY_PATH}")"
-for _sub in "${_pkg_dir}"/intel-rapl:*; do
-    if [[ -r "${_sub}/name" && "$(<"${_sub}/name")" == "core" && -r "${_sub}/energy_uj" ]]; then
-        CORE_ENERGY_PATH="${_sub}/energy_uj"
-        [[ -r "${_sub}/max_energy_range_uj" ]] && CORE_MAX_RANGE_UJ="$(<"${_sub}/max_energy_range_uj")"
-        break
+for _p in "${ENERGY_PATHS[@]}"; do
+    if [[ ! -r "${_p}" ]]; then
+        echo "error: energy path is not readable: ${_p}" >&2
+        exit 1
     fi
+done
+
+# On a multi-socket host, every package-* domain found is tracked and summed (see
+# find_all_package_energy_paths); --path overrides this with a single explicit counter.
+MAX_RANGE_UJS=()
+CORE_ENERGY_PATHS=()
+CORE_MAX_RANGE_UJS=()
+for _p in "${ENERGY_PATHS[@]}"; do
+    _max_range_path="$(dirname "${_p}")/max_energy_range_uj"
+    if [[ -r "${_max_range_path}" ]]; then
+        MAX_RANGE_UJS+=("$(<"${_max_range_path}")")
+    else
+        MAX_RANGE_UJS+=("")
+    fi
+
+    _core_path=""
+    _core_max_range=""
+    _pkg_dir="$(dirname "${_p}")"
+    for _sub in "${_pkg_dir}"/intel-rapl:*; do
+        if [[ -r "${_sub}/name" && "$(<"${_sub}/name")" == "core" && -r "${_sub}/energy_uj" ]]; then
+            _core_path="${_sub}/energy_uj"
+            [[ -r "${_sub}/max_energy_range_uj" ]] && _core_max_range="$(<"${_sub}/max_energy_range_uj")"
+            break
+        fi
+    done
+    CORE_ENERGY_PATHS+=("${_core_path}")
+    CORE_MAX_RANGE_UJS+=("${_core_max_range}")
 done
 
 POLL_INTERVAL_S="${RAPL_POLL_INTERVAL_S:-0.5}"
@@ -182,40 +202,50 @@ CORE_ACCUM_UJ=0
 WRAP_EVENTS=0
 
 accumulate_tick() {
-    if [[ -r "${ENERGY_PATH}" ]]; then
-        local cur_uj delta_uj
-        cur_uj="$(<"${ENERGY_PATH}")"
-        delta_uj=$((cur_uj - PREV_UJ))
+    local i cur_uj delta_uj
+    for i in "${!ENERGY_PATHS[@]}"; do
+        [[ -r "${ENERGY_PATHS[$i]}" ]] || continue
+        cur_uj="$(<"${ENERGY_PATHS[$i]}")"
+        delta_uj=$((cur_uj - PREV_UJS[i]))
         if [[ ${delta_uj} -lt 0 ]]; then
-            if [[ -n "${MAX_RANGE_UJ}" && ${MAX_RANGE_UJ} -gt 0 ]]; then
-                delta_uj=$((delta_uj + MAX_RANGE_UJ))
+            if [[ -n "${MAX_RANGE_UJS[$i]}" && ${MAX_RANGE_UJS[$i]} -gt 0 ]]; then
+                delta_uj=$((delta_uj + MAX_RANGE_UJS[i]))
                 WRAP_EVENTS=$((WRAP_EVENTS + 1))
             else
                 delta_uj=0
             fi
         fi
         ACCUM_UJ=$((ACCUM_UJ + delta_uj))
-        PREV_UJ="${cur_uj}"
-    fi
-    if [[ -n "${CORE_ENERGY_PATH}" && -r "${CORE_ENERGY_PATH}" ]]; then
-        local core_cur_uj core_delta_uj
-        core_cur_uj="$(<"${CORE_ENERGY_PATH}")"
-        core_delta_uj=$((core_cur_uj - CORE_PREV_UJ))
-        if [[ ${core_delta_uj} -lt 0 ]]; then
-            if [[ -n "${CORE_MAX_RANGE_UJ}" && ${CORE_MAX_RANGE_UJ} -gt 0 ]]; then
-                core_delta_uj=$((core_delta_uj + CORE_MAX_RANGE_UJ))
+        PREV_UJS[i]="${cur_uj}"
+    done
+    for i in "${!CORE_ENERGY_PATHS[@]}"; do
+        [[ -n "${CORE_ENERGY_PATHS[$i]}" && -r "${CORE_ENERGY_PATHS[$i]}" ]] || continue
+        cur_uj="$(<"${CORE_ENERGY_PATHS[$i]}")"
+        delta_uj=$((cur_uj - CORE_PREV_UJS[i]))
+        if [[ ${delta_uj} -lt 0 ]]; then
+            if [[ -n "${CORE_MAX_RANGE_UJS[$i]}" && ${CORE_MAX_RANGE_UJS[$i]} -gt 0 ]]; then
+                delta_uj=$((delta_uj + CORE_MAX_RANGE_UJS[i]))
             else
-                core_delta_uj=0
+                delta_uj=0
             fi
         fi
-        CORE_ACCUM_UJ=$((CORE_ACCUM_UJ + core_delta_uj))
-        CORE_PREV_UJ="${core_cur_uj}"
-    fi
+        CORE_ACCUM_UJ=$((CORE_ACCUM_UJ + delta_uj))
+        CORE_PREV_UJS[i]="${cur_uj}"
+    done
 }
 
-PREV_UJ="$(<"${ENERGY_PATH}")"
-CORE_PREV_UJ=""
-[[ -n "${CORE_ENERGY_PATH}" ]] && CORE_PREV_UJ="$(<"${CORE_ENERGY_PATH}")"
+PREV_UJS=()
+for _p in "${ENERGY_PATHS[@]}"; do
+    PREV_UJS+=("$(<"${_p}")")
+done
+CORE_PREV_UJS=()
+for _p in "${CORE_ENERGY_PATHS[@]}"; do
+    if [[ -n "${_p}" ]]; then
+        CORE_PREV_UJS+=("$(<"${_p}")")
+    else
+        CORE_PREV_UJS+=("0")
+    fi
+done
 START_TS="$(date +%s.%N)"
 
 # `set -e` would abort here before CMD_STATUS is captured, dropping the whole report (and the
@@ -240,9 +270,15 @@ set -e
 accumulate_tick
 END_TS="$(date +%s.%N)"
 
+ENERGY_PATHS_JOINED="$(IFS=,; echo "${ENERGY_PATHS[*]}")"
+CORE_PATH_PRESENT="no"
+for _p in "${CORE_ENERGY_PATHS[@]}"; do
+    [[ -n "${_p}" ]] && CORE_PATH_PRESENT="yes"
+done
+
 set +e
 REPORT="$(awk \
-    -v path="${ENERGY_PATH}" \
+    -v path="${ENERGY_PATHS_JOINED}" \
     -v accum_uj="${ACCUM_UJ}" \
     -v wrap_events="${WRAP_EVENTS}" \
     -v start_ts="${START_TS}" \
@@ -250,7 +286,7 @@ REPORT="$(awk \
     -v cmd_status="${CMD_STATUS}" \
     -v baseline_watts="${BASELINE_WATTS}" \
     -v core_baseline_watts="${CORE_BASELINE_WATTS}" \
-    -v core_path="${CORE_ENERGY_PATH}" \
+    -v core_path_present="${CORE_PATH_PRESENT}" \
     -v core_accum_uj="${CORE_ACCUM_UJ}" \
     -v cmd_str="${CMD_STR}" \
 'BEGIN {
@@ -269,7 +305,7 @@ REPORT="$(awk \
     core_available = "no"
     core_joules = 0.0
     core_watts = 0.0
-    if (core_path != "") {
+    if (core_path_present == "yes") {
         core_joules = core_accum_uj / 1000000.0
         core_watts = core_joules / dt
         core_available = "yes"
@@ -310,7 +346,7 @@ set -e
 if [[ ${AWK_STATUS} -ne 0 ]]; then
     REPORT="RAPL measurement
 Command: ${CMD_STR}
-- energy_path: ${ENERGY_PATH}
+- energy_path: ${ENERGY_PATHS_JOINED}
 - error: energy accounting failed (awk exit ${AWK_STATUS})
 - command_exit_code: ${CMD_STATUS}"
 fi
