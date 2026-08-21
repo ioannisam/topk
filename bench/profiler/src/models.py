@@ -98,6 +98,7 @@ class MeasurementRecord:
     seed: Optional[int] = None
     rep: Optional[int] = None
     board_baseline_watts: Optional[float] = None
+    core_baseline_watts: Optional[float] = None
     inproc_available: bool = False
     inproc_counters: str = ""
     inproc_iterations: Optional[int] = None

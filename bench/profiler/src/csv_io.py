@@ -104,6 +104,7 @@ def write_measurement_csv(records: Iterable[MeasurementRecord], out_path: str) -
                 "board_energy_joules",
                 "net_board_energy_joules",
                 "board_baseline_watts",
+                "core_baseline_watts",
             ]
         )
         for rec in records:
@@ -141,6 +142,7 @@ def write_measurement_csv(records: Iterable[MeasurementRecord], out_path: str) -
                     "" if rec.board_energy_joules is None else f"{rec.board_energy_joules:.12g}",
                     "" if rec.net_board_energy_joules is None else f"{rec.net_board_energy_joules:.12g}",
                     "" if rec.board_baseline_watts is None else f"{rec.board_baseline_watts:.12g}",
+                    "" if rec.core_baseline_watts is None else f"{rec.core_baseline_watts:.12g}",
                 ]
             )
 

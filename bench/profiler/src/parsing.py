@@ -428,6 +428,8 @@ def parse_measurements(paths: Iterable[str]) -> list[MeasurementRecord]:
                     rec.baseline_watts = parse_float(v)
                 elif k == "board_baseline_watts":
                     rec.board_baseline_watts = parse_float(v)
+                elif k == "core_baseline_watts":
+                    rec.core_baseline_watts = parse_float(v)
                 elif k == "net_energy_joules":
                     rec.net_energy_joules = parse_float(v)
                 elif k == "net_average_watts":
