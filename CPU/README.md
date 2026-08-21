@@ -5,7 +5,7 @@ This directory contains a parallel CPU implementation of bitonic top-k using C++
 It supports:
 - Full bitonic sorting network (reference path)
 - Trunc bitonic execution for top-k output
-- Map-reduce top-k execution (`algo=map_reduce`): per-tile heap top-k + final nth_element reduction
+- Map-reduce top-k execution (`algo=map_reduce`): per-tile heap top-k + final sorted reduction
 
 ## Layout
 
