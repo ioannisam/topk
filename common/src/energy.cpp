@@ -8,6 +8,7 @@
 #include <fstream>
 #include <string>
 #include <thread>
+#include <vector>
 
 #if defined(TOPK_WITH_NVML)
 #include <nvml.h>
@@ -105,21 +106,32 @@ class SystemCounter final : public Counter {
 	}
 
 	bool available() const override {
-		return package.valid || device_ready;
+		return !packages.empty() || device_ready;
 	}
 
 	Sample read() override {
 		Sample s;
-		s.package_j = package.joules();
-		s.core_j = core.joules();
+		for (RaplDomain& p : packages) {
+			s.package_j += p.joules();
+		}
+		for (RaplDomain& c : cores) {
+			s.core_j += c.joules();
+		}
 		s.device_j = device_joules();
 		return s;
 	}
 
 	std::string describe() const override {
 		std::string d;
-		d += package.valid ? "rapl:package" : "rapl:unavailable";
-		if (core.valid) {
+		if (!packages.empty()) {
+			d += "rapl:package";
+			if (packages.size() > 1) {
+				d += "x" + std::to_string(packages.size());
+			}
+		} else {
+			d += "rapl:unavailable";
+		}
+		if (!cores.empty()) {
 			d += "+core";
 		}
 		if (device_ready) {
@@ -143,16 +155,21 @@ class SystemCounter final : public Counter {
 			if (!read_line(dir + "/name").starts_with("package-")) {
 				continue;
 			}
-			if (!package.init(dir)) {
+			RaplDomain pkg;
+			if (!pkg.init(dir)) {
 				continue;
 			}
+			packages.push_back(pkg);
+
 			for (const auto& sub : fs::directory_iterator(entry.path(), ec)) {
 				if (read_line(sub.path().string() + "/name") == "core") {
-					core.init(sub.path().string());
+					RaplDomain core_domain;
+					if (core_domain.init(sub.path().string())) {
+						cores.push_back(core_domain);
+					}
 					break;
 				}
 			}
-			break;
 		}
 	}
 
@@ -213,8 +230,8 @@ class SystemCounter final : public Counter {
 #endif
 	}
 
-	RaplDomain package;
-	RaplDomain core;
+	std::vector<RaplDomain> packages;
+	std::vector<RaplDomain> cores;
 	bool device_ready = false;
 #if defined(TOPK_WITH_NVML)
 	static constexpr int kSamplePeriodMs = 2;
