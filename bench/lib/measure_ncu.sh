@@ -93,8 +93,10 @@ if [[ -n "${KERNEL_REGEX}" ]]; then
     NCU_ARGS+=(--kernel-name "regex:${KERNEL_REGEX}")
 fi
 
+set +e
 REPORT="$(ncu "${NCU_ARGS[@]}" "$@" 2>&1)"
 STATUS=$?
+set -e
 
 if [[ -n "${OUT_FILE}" ]]; then
     mkdir -p "$(dirname "${OUT_FILE}")"
