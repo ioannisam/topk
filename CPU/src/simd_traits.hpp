@@ -77,14 +77,18 @@ template <> struct SimdTraits512<float> {
 	}
 
 	template <int J> static Vec permutex(Vec v) {
-		if constexpr (J == 1)
+		if constexpr (J == 1) {
 			return _mm512_permutexvar_ps(_mm512_setr_epi32(1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14), v);
-		if constexpr (J == 2)
+		}
+		if constexpr (J == 2) {
 			return _mm512_permutexvar_ps(_mm512_setr_epi32(2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13), v);
-		if constexpr (J == 4)
+		}
+		if constexpr (J == 4) {
 			return _mm512_permutexvar_ps(_mm512_setr_epi32(4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11), v);
-		if constexpr (J == 8)
+		}
+		if constexpr (J == 8) {
 			return _mm512_permutexvar_ps(_mm512_setr_epi32(8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7), v);
+		}
 		return v;
 	}
 
@@ -204,12 +208,15 @@ template <> struct SimdTraits512<double> {
 	}
 
 	template <int J> static Vec permutex(Vec v) {
-		if constexpr (J == 1)
+		if constexpr (J == 1) {
 			return _mm512_permutexvar_pd(_mm512_setr_epi64(1, 0, 3, 2, 5, 4, 7, 6), v);
-		if constexpr (J == 2)
+		}
+		if constexpr (J == 2) {
 			return _mm512_permutexvar_pd(_mm512_setr_epi64(2, 3, 0, 1, 6, 7, 4, 5), v);
-		if constexpr (J == 4)
+		}
+		if constexpr (J == 4) {
 			return _mm512_permutexvar_pd(_mm512_setr_epi64(4, 5, 6, 7, 0, 1, 2, 3), v);
+		}
 		return v;
 	}
 
@@ -304,12 +311,15 @@ template <> struct SimdTraits256<float> {
 	}
 
 	template <int J> static Vec permutex(Vec v) {
-		if constexpr (J == 1)
+		if constexpr (J == 1) {
 			return _mm256_shuffle_ps(v, v, _MM_SHUFFLE(2, 3, 0, 1));
-		if constexpr (J == 2)
+		}
+		if constexpr (J == 2) {
 			return _mm256_shuffle_ps(v, v, _MM_SHUFFLE(1, 0, 3, 2));
-		if constexpr (J == 4)
+		}
+		if constexpr (J == 4) {
 			return _mm256_permute2f128_ps(v, v, 0x01);
+		}
 		return v;
 	}
 
@@ -356,12 +366,15 @@ template <> struct SimdTraits256<std::int32_t> {
 	}
 
 	template <int J> static Vec permutex(Vec v) {
-		if constexpr (J == 1)
+		if constexpr (J == 1) {
 			return _mm256_shuffle_epi32(v, _MM_SHUFFLE(2, 3, 0, 1));
-		if constexpr (J == 2)
+		}
+		if constexpr (J == 2) {
 			return _mm256_shuffle_epi32(v, _MM_SHUFFLE(1, 0, 3, 2));
-		if constexpr (J == 4)
+		}
+		if constexpr (J == 4) {
 			return _mm256_permute2x128_si256(v, v, 0x01);
+		}
 		return v;
 	}
 
@@ -446,10 +459,12 @@ template <> struct SimdTraits256<double> {
 	}
 
 	template <int J> static Vec permutex(Vec v) {
-		if constexpr (J == 1)
+		if constexpr (J == 1) {
 			return _mm256_permute_pd(v, 0x5);
-		if constexpr (J == 2)
+		}
+		if constexpr (J == 2) {
 			return _mm256_permute2f128_pd(v, v, 0x01);
+		}
 		return v;
 	}
 
@@ -528,24 +543,28 @@ template <typename T> struct has_simd256_width<T, std::void_t<decltype(SimdTrait
 template <bool WantMax, typename T>
 inline std::uint64_t get_candidate_mask_simd(const T* ptr, T threshold, bool use_512, bool use_256) {
 	if (use_512) {
-		if constexpr (has_simd512_width<T>::value)
+		if constexpr (has_simd512_width<T>::value) {
 			return SimdTraits512<T>::template get_candidate_mask<WantMax>(ptr, threshold);
+		}
 	}
 	if (use_256) {
-		if constexpr (has_simd256_width<T>::value)
+		if constexpr (has_simd256_width<T>::value) {
 			return SimdTraits256<T>::template get_candidate_mask<WantMax>(ptr, threshold);
+		}
 	}
 	return 0;
 }
 
 template <typename T> inline std::size_t simd_block_width(bool use_512, bool use_256) {
 	if (use_512) {
-		if constexpr (has_simd512_width<T>::value)
+		if constexpr (has_simd512_width<T>::value) {
 			return SimdTraits512<T>::width;
+		}
 	}
 	if (use_256) {
-		if constexpr (has_simd256_width<T>::value)
+		if constexpr (has_simd256_width<T>::value) {
 			return SimdTraits256<T>::width;
+		}
 	}
 	return 1;
 }

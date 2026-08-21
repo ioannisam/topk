@@ -32,12 +32,15 @@ inline void sift_down_max(std::vector<std::int32_t>& heap, std::size_t i) {
 		std::size_t best = i;
 		const std::size_t left = 2 * i + 1;
 		const std::size_t right = 2 * i + 2;
-		if (left < n && heap[left] > heap[best])
+		if (left < n && heap[left] > heap[best]) {
 			best = left;
-		if (right < n && heap[right] > heap[best])
+		}
+		if (right < n && heap[right] > heap[best]) {
 			best = right;
-		if (best == i)
+		}
+		if (best == i) {
 			break;
+		}
 		std::swap(heap[i], heap[best]);
 		i = best;
 	}
@@ -78,8 +81,9 @@ void reduce_batch(
 	const std::size_t total = valid_tiles * kTile;
 
 	for (std::size_t base = 0; base < total; base += kRunLen) {
-		if (base >= valid_elems)
+		if (base >= valid_elems) {
 			break;
+		}
 
 		const std::size_t run_len = std::min(kRunLen, valid_elems - base);
 		const std::int32_t* run = dst_map + base;
@@ -88,8 +92,9 @@ void reduce_batch(
 
 			if (heap.size() < k) {
 				heap.push_back(key);
-				if (heap.size() == k)
+				if (heap.size() == k) {
 					std::make_heap(heap.begin(), heap.end());
+				}
 			} else if (key < heap.front()) {
 				heap.front() = key;
 				sift_down_max(heap, 0);
@@ -273,8 +278,9 @@ bool is_offload_configured() {
 }
 
 template <typename T> RunStats run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) {
-	if (data.empty())
+	if (data.empty()) {
 		return RunStats{0.0, 0, 0, 1, true};
+	}
 
 	(void)npu::utils::open_device();
 	const npu::utils::OffloadConfig offload_cfg = npu::utils::load_offload_config();

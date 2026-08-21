@@ -28,12 +28,15 @@ template <bool WantMax> static void sift_down(std::vector<std::int32_t>& heap, s
 		std::size_t left = 2 * i + 1;
 		std::size_t right = 2 * i + 2;
 
-		if (left < n && Cmp{}(heap[best], heap[left]))
+		if (left < n && Cmp{}(heap[best], heap[left])) {
 			best = left;
-		if (right < n && Cmp{}(heap[best], heap[right]))
+		}
+		if (right < n && Cmp{}(heap[best], heap[right])) {
 			best = right;
-		if (best == i)
+		}
+		if (best == i) {
 			break;
+		}
 		std::swap(heap[i], heap[best]);
 		i = best;
 	}
@@ -54,8 +57,9 @@ std::size_t prepare_npu_batch(
 	int32_t* cfg_map = cfg_bo.map<int32_t*>();
 
 	if constexpr (std::is_same_v<T, std::int32_t>) {
-		if (current_batch > 0)
+		if (current_batch > 0) {
 			std::memcpy(src_map, data_ptr, current_batch * sizeof(std::int32_t));
+		}
 	} else {
 		npu::utils::encode_keys<T>(src_map, data_ptr, current_batch);
 	}
@@ -133,8 +137,9 @@ std::vector<T> run_map_reduce_offload_xrt(
 ) {
 	using Cmp = std::conditional_t<WantMax, std::greater<std::int32_t>, std::less<std::int32_t>>;
 
-	if (k == 0 || data.empty())
+	if (k == 0 || data.empty()) {
 		return {};
+	}
 
 	const std::size_t n = data.size();
 	k = std::min(k, n);
@@ -151,8 +156,9 @@ std::vector<T> run_map_reduce_offload_xrt(
 	sample_size = std::min(sample_size, n);
 
 	std::vector<std::int32_t> heap(sample_size);
-	for (std::size_t i = 0; i < sample_size; i++)
+	for (std::size_t i = 0; i < sample_size; i++) {
 		heap[i] = to_key<T>(data[i]);
+	}
 	std::nth_element(heap.begin(), heap.begin() + k - 1, heap.end(), Cmp{});
 	heap.resize(k);
 	std::make_heap(heap.begin(), heap.end(), Cmp{});
@@ -291,16 +297,18 @@ std::vector<T> run_map_reduce_offload_xrt(
 			for (std::size_t j = 0; j < n; j++) {
 				const std::int32_t key = to_key<T>(data[j]);
 				const bool keep = WantMax ? (key >= threshold) : (key <= threshold);
-				if (keep)
+				if (keep) {
 					candidates.push_back(data[j]);
+				}
 			}
 			const std::size_t take = std::min(kept_k, candidates.size());
 			std::partial_sort(candidates.begin(), candidates.begin() + take, candidates.end(), order);
 			result.assign(candidates.begin(), candidates.begin() + take);
 		} else {
 			result.resize(heap.size());
-			for (std::size_t i = 0; i < heap.size(); i++)
+			for (std::size_t i = 0; i < heap.size(); i++) {
 				result[i] = from_key<T>(heap[i]);
+			}
 			std::sort(result.begin(), result.end(), order);
 		}
 	}
@@ -332,8 +340,9 @@ std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max
 	}
 	npu::utils::require_xclbin_for(offload_cfg, "map_reduce");
 
-	if (want_max)
+	if (want_max) {
 		return run_map_reduce_offload_xrt<true>(data, k, offload_cfg, stats);
+	}
 	return run_map_reduce_offload_xrt<false>(data, k, offload_cfg, stats);
 }
 

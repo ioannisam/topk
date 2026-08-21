@@ -80,8 +80,9 @@ inline std::size_t safe_group_id(const xrt::kernel& kernel, int arg_index) {
 }
 
 inline unsigned int read_wait_timeout_ms() {
-	if (const char* timeout = read_env("NPU_OFFLOAD_WAIT_MS"))
+	if (const char* timeout = read_env("NPU_OFFLOAD_WAIT_MS")) {
 		return static_cast<unsigned int>(std::stoul(timeout));
+	}
 	return 5000u;
 }
 
@@ -152,8 +153,9 @@ struct SharedXrtState {
 	}
 
 	void allocate_mr_buffers(std::size_t batch_bytes) {
-		if (mr_batch_bytes >= batch_bytes)
+		if (mr_batch_bytes >= batch_bytes) {
 			return;
+		}
 
 		mr_cfg_bo.clear();
 		mr_dst_bo.clear();
@@ -170,8 +172,9 @@ struct SharedXrtState {
 	}
 
 	void allocate_bit_buffers(std::size_t batch_bytes) {
-		if (bit_batch_bytes >= batch_bytes)
+		if (bit_batch_bytes >= batch_bytes) {
 			return;
+		}
 
 		bit_dst_bo.clear();
 		bit_src_bo.clear();

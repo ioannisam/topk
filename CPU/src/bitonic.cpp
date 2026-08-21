@@ -20,9 +20,9 @@ struct IntraOp {
 	std::size_t stage;
 };
 
-// Inverse of a truncate layer's output mapping out = ((i >> 1) & ~(stride - 1)) | (i & (stride - 1)):
-// output o is the winner of the pair (src[base], src[base + stride]). Only equals 2 * o when o is
-// a multiple of stride, so the scalar paths cannot assume that.
+// o & ~(stride - 1) == (o / stride) * stride (which block are we in?)
+// o & (stride - 1) == o % stride (which element inside that block?)
+// return 2 * base + offset;
 inline std::size_t trunc_source_index(std::size_t o, std::size_t stride) {
 	return 2 * (o & ~(stride - 1)) + (o & (stride - 1));
 }
@@ -52,6 +52,7 @@ inline void apply_step(typename Tr::Vec& v, std::size_t idx, std::size_t stride,
 	}
 }
 
+// loop unrolling
 template <typename Tr>
 inline void apply_step4(
 	typename Tr::Vec& v0,
@@ -95,8 +96,9 @@ inline void apply_step4(
 
 template <typename Tr>
 inline typename Tr::Vec apply_intra_ops(typename Tr::Vec v, std::size_t idx, const IntraOp* ops, std::size_t nops) {
-	for (std::size_t o = 0; o < nops; o++)
+	for (std::size_t o = 0; o < nops; o++) {
 		apply_step<Tr>(v, idx, ops[o].stride, ops[o].stage);
+	}
 	return v;
 }
 
@@ -107,15 +109,18 @@ inline void replay_intra_scalar(T* ptr, std::size_t begin, std::size_t end, cons
 		const std::size_t stage = ops[o].stage;
 		for (std::size_t t = begin; t < end; t++) {
 			const std::size_t ixj = t ^ stride;
-			if (ixj <= t)
+			if (ixj <= t) {
 				continue;
+			}
 			const bool ascending = (t & stage) == 0;
 			if (ascending) {
-				if (ptr[t] > ptr[ixj])
+				if (ptr[t] > ptr[ixj]) {
 					std::swap(ptr[t], ptr[ixj]);
+				}
 			} else {
-				if (ptr[t] < ptr[ixj])
+				if (ptr[t] < ptr[ixj]) {
 					std::swap(ptr[t], ptr[ixj]);
+				}
 			}
 		}
 	}
@@ -134,8 +139,9 @@ void run_fused_intra(T* ptr, std::size_t begin, std::size_t end, const IntraOp* 
 		auto v1 = Tr::load(ptr + i + W);
 		auto v2 = Tr::load(ptr + i + 2 * W);
 		auto v3 = Tr::load(ptr + i + 3 * W);
-		for (std::size_t o = 0; o < nops; o++)
+		for (std::size_t o = 0; o < nops; o++) {
 			apply_step4<Tr>(v0, v1, v2, v3, i, W, ops[o].stride, ops[o].stage);
+		}
 		Tr::store(ptr + i, v0);
 		Tr::store(ptr + i + W, v1);
 		Tr::store(ptr + i + 2 * W, v2);
@@ -165,8 +171,9 @@ void run_fused_trunc_resort(
 		auto v1 = Tr::min(Tr::load(src + 2 * (o + W)), Tr::load(src + 2 * (o + W) + W));
 		auto v2 = Tr::min(Tr::load(src + 2 * (o + 2 * W)), Tr::load(src + 2 * (o + 2 * W) + W));
 		auto v3 = Tr::min(Tr::load(src + 2 * (o + 3 * W)), Tr::load(src + 2 * (o + 3 * W) + W));
-		for (std::size_t oi = 0; oi < nops; oi++)
+		for (std::size_t oi = 0; oi < nops; oi++) {
 			apply_step4<Tr>(v0, v1, v2, v3, o, W, ops[oi].stride, ops[oi].stage);
+		}
 		Tr::store(dst + o, v0);
 		Tr::store(dst + o + W, v1);
 		Tr::store(dst + o + 2 * W, v2);
@@ -202,8 +209,9 @@ void run_layer_inter_simd(
 		}
 
 		std::size_t chunk_end = std::min((i | (stride - 1)) + 1, end);
-		if (chunk_end > n)
+		if (chunk_end > n) {
 			chunk_end = n;
+		}
 
 		const bool asc = (i & stage) == 0;
 		if (asc) {
@@ -233,16 +241,18 @@ void run_layer_inter_simd(
 			}
 		}
 
-		// Scalar fallback
+		// scalar fallback
 		for (; i < chunk_end; i++) {
 			const std::size_t ixj = i + stride;
 			const bool ascending = (i & stage) == 0;
 			if (ascending) {
-				if (ptr[i] > ptr[ixj])
+				if (ptr[i] > ptr[ixj]) {
 					std::swap(ptr[i], ptr[ixj]);
+				}
 			} else {
-				if (ptr[i] < ptr[ixj])
+				if (ptr[i] < ptr[ixj]) {
 					std::swap(ptr[i], ptr[ixj]);
+				}
 			}
 		}
 	}
@@ -255,7 +265,7 @@ void run_layer_truncate_simd(
 	using TraitsT = Traits<T>;
 	std::size_t i = begin;
 
-	// Precompute masks to avoid integer division in the hot loop
+	// precompute masks to avoid integer division in the hot loop
 	const std::size_t stride_minus_1 = stride - 1;
 	const std::size_t stride_mask = ~stride_minus_1;
 
@@ -266,8 +276,9 @@ void run_layer_truncate_simd(
 		}
 
 		std::size_t chunk_end = std::min((i | stride_minus_1) + 1, end);
-		if (chunk_end > n)
+		if (chunk_end > n) {
 			chunk_end = n;
+		}
 
 		for (; i + TraitsT::width - 1 < chunk_end; i += TraitsT::width) {
 			std::size_t ixj = i + stride;
@@ -447,17 +458,20 @@ void run_normal_scalar(
 			continue;
 		}
 		std::size_t chunk_end = std::min((i | (stride - 1)) + 1, end);
-		if (chunk_end > active_n)
+		if (chunk_end > active_n) {
 			chunk_end = active_n;
+		}
 		for (; i < chunk_end; i++) {
 			const std::size_t ixj = i + stride;
 			const bool ascending = (i & stage) == 0;
 			if (ascending) {
-				if (ptr[i] > ptr[ixj])
+				if (ptr[i] > ptr[ixj]) {
 					std::swap(ptr[i], ptr[ixj]);
+				}
 			} else {
-				if (ptr[i] < ptr[ixj])
+				if (ptr[i] < ptr[ixj]) {
 					std::swap(ptr[i], ptr[ixj]);
+				}
 			}
 		}
 	}
@@ -482,11 +496,13 @@ void run_tiled(
 			const std::size_t stage = ops[o].stage;
 			if (stride < width) {
 				const IntraOp one{stride, stage};
-				if (!try_run_fused_intra<T>(ptr, tb, te, &one, 1, use_avx512))
+				if (!try_run_fused_intra<T>(ptr, tb, te, &one, 1, use_avx512)) {
 					run_normal_scalar(ptr, tb, te, stage, stride, active_n);
+				}
 			} else {
-				if (!try_run_inter<T>(ptr, tb, te, stage, stride, active_n, use_avx512))
+				if (!try_run_inter<T>(ptr, tb, te, stage, stride, active_n, use_avx512)) {
 					run_normal_scalar(ptr, tb, te, stage, stride, active_n);
+				}
 			}
 		}
 	}
@@ -524,11 +540,11 @@ enum class GroupKind { IntraRun, TiledRun, TruncResort, InterNormal, Truncate };
 
 struct Group {
 	GroupKind kind;
-	std::size_t active_n;	  // elements processed (input domain)
-	std::size_t out_active_n; // TruncResort: output element count (= active_n / 2)
-	std::size_t stride;		  // InterNormal / Truncate / TruncResort stride
-	std::size_t stage;		  // InterNormal
-	std::size_t ops_begin;	  // IntraRun / TiledRun / TruncResort: range into the flat ops vector
+	std::size_t active_n;
+	std::size_t out_active_n;
+	std::size_t stride;
+	std::size_t stage;
+	std::size_t ops_begin;
 	std::size_t ops_count;
 };
 
@@ -548,8 +564,9 @@ std::vector<Group> build_groups(
 	std::size_t run_max_stride = 0;
 
 	auto flush_run = [&]() {
-		if (!run_open)
+		if (!run_open) {
 			return;
+		}
 		const GroupKind kind = run_max_stride < width ? GroupKind::IntraRun : GroupKind::TiledRun;
 		groups.push_back(Group{kind, run_active_n, 0, run_max_stride, 0, run_ops_begin, ops.size() - run_ops_begin});
 		run_open = false;
@@ -590,8 +607,9 @@ std::vector<Group> build_groups(
 		}
 
 		if (tile_thresh > 0 && layer.stride <= tile_thresh) {
-			if (run_open && run_active_n != layer.active_n)
+			if (run_open && run_active_n != layer.active_n) {
 				flush_run();
+			}
 			if (!run_open) {
 				run_open = true;
 				run_active_n = layer.active_n;
@@ -665,11 +683,12 @@ void run_topk(
 	}
 
 	bool needs_alt = false;
-	for (const auto& g : groups)
+	for (const auto& g : groups) {
 		if (g.kind == GroupKind::Truncate || g.kind == GroupKind::TruncResort) {
 			needs_alt = true;
 			break;
 		}
+	}
 	std::unique_ptr<T[]> alt_buffer(needs_alt ? new T[n] : nullptr);
 	T* src = data.data();
 	T* dst = alt_buffer.get();
@@ -706,8 +725,9 @@ void run_topk(
 				if (begin >= end) {
 					barrier.wait();
 					if (writes_dst) {
-						if (tid == 0)
+						if (tid == 0) {
 							std::swap(src, dst);
+						}
 						barrier.wait();
 					}
 					continue;
@@ -771,8 +791,9 @@ void run_topk(
 								continue;
 							}
 							std::size_t chunk_end = std::min((i | stride_minus_1) + 1, end);
-							if (chunk_end > active_n)
+							if (chunk_end > active_n) {
 								chunk_end = active_n;
+							}
 							for (; i < chunk_end; i++) {
 								const std::size_t ixj = i + group.stride;
 								const std::size_t out_idx = ((i >> 1) & stride_mask) | (i & stride_minus_1);
@@ -787,8 +808,9 @@ void run_topk(
 				barrier.wait();
 
 				if (writes_dst) {
-					if (tid == 0)
+					if (tid == 0) {
 						std::swap(src, dst);
+					}
 					barrier.wait();
 				}
 			}

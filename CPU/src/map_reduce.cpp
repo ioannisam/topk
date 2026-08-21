@@ -28,10 +28,12 @@ template <typename T, typename Compare> void sift_down(std::vector<T>& heap, std
 		std::size_t left = 2 * i + 1;
 		std::size_t right = 2 * i + 2;
 
-		if (left < n && comp(heap[best], heap[left]))
+		if (left < n && comp(heap[best], heap[left])) {
 			best = left;
-		if (right < n && comp(heap[best], heap[right]))
+		}
+		if (right < n && comp(heap[best], heap[right])) {
 			best = right;
+		}
 
 		if (best != i) {
 			std::swap(heap[i], heap[best]);

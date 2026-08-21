@@ -140,8 +140,9 @@ __global__ __launch_bounds__(256, 4) void topk_map_kernel(
 						my_heap[c_my] = val;
 						c_my++;
 						if (c_my == k) {
-							for (int h = k / 2 - 1; h >= 0; h--)
+							for (int h = k / 2 - 1; h >= 0; h--) {
 								sift_down(my_heap, k, h, want_max);
+							}
 							my_thresh = my_heap[0];
 						}
 					} else if (beats_threshold(val, my_thresh, want_max)) {
@@ -189,8 +190,9 @@ __global__ __launch_bounds__(256, 4) void topk_map_kernel(
 						block_heap[block_heap_size] = val;
 						block_heap_size++;
 						if (block_heap_size == k) {
-							for (int h = k / 2 - 1; h >= 0; h--)
+							for (int h = k / 2 - 1; h >= 0; h--) {
 								sift_down(block_heap, k, h, want_max);
+							}
 							block_thresh = block_heap[0];
 						}
 					} else if (beats_threshold(val, block_thresh, want_max)) {
