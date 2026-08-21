@@ -144,8 +144,8 @@ def label_with_algorithm(label: str, algorithm: str, include_algorithm: bool) ->
 
 def select_time_ms(rec, metric: str) -> float | None:
     if metric == "algorithmic":
-        return rec.time_algorithmic_ms if rec.time_algorithmic_ms is not None else rec.time_end_to_end_ms
-    return rec.time_end_to_end_ms if rec.time_end_to_end_ms is not None else rec.time_algorithmic_ms
+        return rec.time_algorithmic_ms
+    return rec.time_end_to_end_ms
 
 
 def measured_loop_fraction(rec) -> float | None:
