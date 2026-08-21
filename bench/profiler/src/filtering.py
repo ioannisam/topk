@@ -13,11 +13,11 @@ def filter_records(
     k_value: Optional[int],
     backends: set[str],
     dists: Optional[set[str]] = None,
+    include_failed: bool = False,
 ) -> list[CaseRecord]:
     out: list[CaseRecord] = []
     for rec in records:
-        # drop failed runs
-        if not rec.pass_bool:
+        if not include_failed and not rec.pass_bool:
             continue
 
         if dtypes and rec.dtype not in dtypes:

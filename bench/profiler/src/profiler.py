@@ -319,6 +319,16 @@ def main() -> int:
             backends=backends,
             dists=dists,
         )
+        records_all_status = filter_records(
+            all_records,
+            dtypes=dtype_set,
+            algorithms=algorithms,
+            mode=args.mode,
+            k_value=args.k,
+            backends=backends,
+            dists=dists,
+            include_failed=True,
+        )
         dtype_measurements = filter_measurements(
             measurement_records,
             dtypes=dtype_set,
@@ -331,6 +341,7 @@ def main() -> int:
 
         # Create GT-stripped subsets for plots that shouldn't show the Ground Truth
         records_no_gt = [r for r in records if r.algorithm != "gt"]
+        records_no_gt_all_status = [r for r in records_all_status if r.algorithm != "gt"]
         dtype_measurements_no_gt = [m for m in dtype_measurements if m.algorithm != "gt"]
 
         records_fan = [r for r in records if not fanout_ks or r.k in fanout_ks]
@@ -339,7 +350,9 @@ def main() -> int:
             m for m in dtype_measurements_no_gt if not fanout_ks or m.k is None or m.k in fanout_ks
         ]
 
-        if not records and ("time-vs-n" in requested or "speedup-vs-gt" in requested or "pass-rate" in requested):
+        if not records and ("time-vs-n" in requested or "speedup-vs-gt" in requested):
+            print(f"No testcase records for dtype '{dtype_dir}' matched the selected filters.")
+        if not records_all_status and "pass-rate" in requested:
             print(f"No testcase records for dtype '{dtype_dir}' matched the selected filters.")
         if not dtype_measurements and any(
             p in requested
@@ -558,7 +571,7 @@ def main() -> int:
                 print(f"Skipped roofline-kernels ({dtype_dir}): {reason}.")
 
         if "pass-rate" in requested:
-            out = pass_rate.plot(records_no_gt, os.path.join(out_correctness, "pass_rate.png"))
+            out = pass_rate.plot(records_no_gt_all_status, os.path.join(out_correctness, "pass_rate.png"))
             if out:
                 collect_output(out)
             else:

@@ -178,7 +178,12 @@ def select_energy_joules(rec, metric: str, scope: str = "e2e") -> float | None:
     if scope == "algorithmic":
         return None
 
-    energy = rec.net_energy_joules if (net and rec.net_energy_joules is not None) else rec.energy_joules
+    if net:
+        if rec.net_energy_joules is None:
+            return None
+        energy = rec.net_energy_joules
+    else:
+        energy = rec.energy_joules
     if energy is None:
         return None
     fraction = measured_loop_fraction(rec)
@@ -188,7 +193,6 @@ def select_energy_joules(rec, metric: str, scope: str = "e2e") -> float | None:
 
 
 def select_elapsed_seconds(rec) -> float | None:
-    # Per-operation wall time over the same window select_energy_joules bills.
     ops = getattr(rec, "bench_ops", 1) or 1
     loop_s = getattr(rec, "inproc_loop_seconds", None)
     if loop_s:
@@ -199,8 +203,7 @@ def select_elapsed_seconds(rec) -> float | None:
 
 
 def select_power_watts(rec, metric: str) -> float | None:
-    # Average power is energy/time, invariant under per-op normalization.
-    if metric == "net" and rec.net_average_watts is not None:
+    if metric == "net":
         return rec.net_average_watts
     return rec.average_watts
 
