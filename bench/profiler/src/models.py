@@ -38,6 +38,7 @@ class CaseRecord:
     energy_loop_package_joules: Optional[float] = None
     energy_e2e_core_joules: Optional[float] = None
     energy_algo_core_joules: Optional[float] = None
+    energy_loop_core_joules: Optional[float] = None
     energy_e2e_device_joules: Optional[float] = None
     energy_algo_device_joules: Optional[float] = None
     energy_loop_device_joules: Optional[float] = None

@@ -80,6 +80,7 @@ ENERGY_FIELD_MAP = {
     "Energy loop package joules": "energy_loop_package_joules",
     "Energy e2e core joules": "energy_e2e_core_joules",
     "Energy algo core joules": "energy_algo_core_joules",
+    "Energy loop core joules": "energy_loop_core_joules",
     "Energy e2e device joules": "energy_e2e_device_joules",
     "Energy algo device joules": "energy_algo_device_joules",
     "Energy loop device joules": "energy_loop_device_joules",
@@ -299,6 +300,8 @@ def _parse_test_output_text(path: str) -> list[CaseRecord]:
                 elif key == "Mode":
                     current.mode = value.lower()
                 elif key == "Requested top-k":
+                    current.k = parse_int(value)
+                elif key == "Effective top-k (clamped to N)":
                     current.k = parse_int(value)
                 elif key == "Input size N (2^q)":
                     current.n = parse_int(value)
