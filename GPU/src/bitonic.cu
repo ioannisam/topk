@@ -4,6 +4,7 @@
 
 #include "common/energy.hpp"
 
+#include <chrono>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
@@ -205,6 +206,9 @@ T* execute_network_kernels(
 	const cudaEvent_t start = start_guard.get();
 	const cudaEvent_t stop = stop_guard.get();
 
+	common::energy::Scope energy_scope(common::energy::Channel::Algo);
+	const auto capture_t0 = std::chrono::high_resolution_clock::now();
+
 	CUDA_CHECK(cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal));
 
 	FusedLayers buffer;
@@ -224,6 +228,7 @@ T* execute_network_kernels(
 
 		bitonic_fused_wide<T, BITONIC_BLOCK_SIZE>
 			<<<grid, BITONIC_BLOCK_SIZE, smem_size, stream>>>(current_src, tile_elems, buffer);
+		CUDA_CHECK(cudaGetLastError());
 		out_launches++;
 		out_bytes += 2.0 * static_cast<double>(active_n) * sizeof(T);
 		buffer.count = 0;
@@ -243,6 +248,7 @@ T* execute_network_kernels(
 				bitonic_layer_global_coalesced_half2<<<grid, block_size, 0, stream>>>(
 					reinterpret_cast<__half2*>(current_src), vec_pairs, large_stage / 2, s / 2
 				);
+				CUDA_CHECK(cudaGetLastError());
 				out_launches++;
 				out_bytes += 2.0 * static_cast<double>(large_active) * sizeof(T);
 			}
@@ -278,6 +284,7 @@ T* execute_network_kernels(
 						<<<grid, block_size, 0, stream>>>(current_src, num_groups, large_stage, j_top);
 					break;
 				}
+				CUDA_CHECK(cudaGetLastError());
 				out_launches++;
 				out_bytes += 2.0 * static_cast<double>(large_active) * sizeof(T);
 				idx += static_cast<std::size_t>(t);
@@ -301,6 +308,7 @@ T* execute_network_kernels(
 
 			const dim3 grid(static_cast<unsigned int>((pairs + block_size - 1) / block_size));
 			bitonic_layer_truncate_kernel<<<grid, block_size, 0, stream>>>(current_src, current_dst, pairs, step);
+			CUDA_CHECK(cudaGetLastError());
 			out_launches++;
 			out_bytes += 3.0 * static_cast<double>(pairs) * sizeof(T);
 
@@ -346,7 +354,9 @@ T* execute_network_kernels(
 #endif
 	const cudaGraphExec_t instance = instance_guard.get();
 
-	common::energy::Scope energy_scope(common::energy::Channel::Algo);
+	const auto capture_t1 = std::chrono::high_resolution_clock::now();
+	const double capture_ms = std::chrono::duration<double, std::milli>(capture_t1 - capture_t0).count();
+
 	CUDA_CHECK(cudaEventRecord(start, stream));
 	CUDA_CHECK(cudaGraphLaunch(instance, stream));
 	CUDA_CHECK(cudaEventRecord(stop, stream));
@@ -356,7 +366,7 @@ T* execute_network_kernels(
 
 	float elapsed_ms_f = 0.0f;
 	CUDA_CHECK(cudaEventElapsedTime(&elapsed_ms_f, start, stop));
-	out_elapsed_ms = static_cast<double>(elapsed_ms_f);
+	out_elapsed_ms = capture_ms + static_cast<double>(elapsed_ms_f);
 
 	return current_src;
 }
