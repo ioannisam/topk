@@ -123,7 +123,10 @@ void print_configuration(
 	if (ex_threads.has_value()) {
 		print_key_value("Execution threads", ex_threads.value());
 	}
-	print_key_value("Requested top-k", cfg.k);
+	print_key_value("Requested top-k", cfg.k_requested);
+	if (cfg.k_requested != cfg.k) {
+		print_key_value("Effective top-k (clamped to N)", cfg.k);
+	}
 	print_key_value("Data type", dtype_name(cfg.dtype));
 	print_key_value("Algorithm", algorithm_name(cfg.algorithm));
 	print_key_value("Mode", (cfg.want_max ? "max" : "min"));
@@ -132,8 +135,7 @@ void print_configuration(
 	print_key_value("CPU reference verify", (cfg.verify_output ? "on" : "off"));
 	print_key_value("Random range", std::to_string(cfg.rand_min) + ".." + std::to_string(cfg.rand_max));
 	print_key_value("Input distribution", distribution_name(cfg.dist));
-	// run=both benchmarks the truncated and full networks separately, so the process performs
-	// two full warmup+measure loops. Whole-process energy is normalised by this count.
+
 	const std::size_t benchmarked_runs =
 		(cfg.algorithm == common::config::Algorithm::Bitonic && cfg.run_mode == common::config::RunMode::Both) ? 2u
 																											   : 1u;
@@ -158,8 +160,6 @@ void print_energy_lines(const common::energy::Summary& energy, const char* scope
 	const std::string title = scope != nullptr ? std::string("Energy (") + scope + ")" : "Energy";
 	print_section_header(title.c_str());
 	print_key_value("Energy counters", common::energy::counter().describe());
-	// Iteration count and loop wall time come from the clock, not the counters, so they stay
-	// meaningful (and the profiler needs them) even where RAPL/NVML is unreadable.
 	print_key_value("Energy iterations", static_cast<std::size_t>(energy.iterations));
 	print_key_value("Energy loop seconds", energy.loop_seconds, 6);
 	if (!energy.available) {
@@ -245,9 +245,6 @@ void print_output(const common::config::Config& cfg, const std::vector<std::stri
 
 	constexpr std::size_t values_per_row = 16;
 	const std::size_t width = number_width(output);
-
-	// With debug off, only preview the first row so large-k runs do not dump
-	// thousands of values into stdout (and into the profiler's captured output).
 	const std::size_t shown = cfg.debug_output ? output.size() : std::min(output.size(), values_per_row);
 
 	std::cout << "  Values:\n";

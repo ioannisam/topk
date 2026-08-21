@@ -45,7 +45,8 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 		throw std::invalid_argument(kUsage);
 	}
 
-	int q = -1;
+	// defaults
+	int q = -1; // required!
 	bool q_seen = false;
 	long long k_raw = -1;
 	bool k_seen = false;
@@ -61,6 +62,7 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 	DataType dtype = DataType::Int;
 	Distribution dist = Distribution::Uniform;
 
+	// parsing
 	for (std::size_t i = 0; i < tokens.size(); i++) {
 		const std::string& token = tokens[i];
 		if (!is_key_value_token(token)) {
@@ -148,15 +150,13 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 		throw std::invalid_argument("Unknown key token: " + token);
 	}
 
+	// validation
 	if (!q_seen) {
 		throw std::invalid_argument("q is required. Use q=<non-negative-int>");
 	}
-
 	if (rand_max < rand_min) {
 		throw std::invalid_argument("max must be >= min");
 	}
-
-	// Clamp here rather than in the generator so the reported range is the one actually sampled.
 	if (dtype == DataType::Half) {
 		rand_min = std::clamp(rand_min, -kHalfMax, kHalfMax);
 		rand_max = std::clamp(rand_max, -kHalfMax, kHalfMax);
@@ -164,19 +164,19 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 		rand_min = std::max(0, rand_min);
 		rand_max = std::max(0, rand_max);
 	}
-
 	const std::size_t n = std::size_t{1} << q;
 	std::size_t k = n;
+	std::size_t k_requested = n;
 	if (k_seen) {
-		k = static_cast<std::size_t>(k_raw);
-		if (k > n) {
-			k = n;
-		}
+		k_requested = static_cast<std::size_t>(k_raw);
+		k = std::min(k_requested, n);
 	}
 
+	// construct config
 	Config cfg{};
 	cfg.q = q;
 	cfg.k = k;
+	cfg.k_requested = k_requested;
 	cfg.want_max = want_max;
 	cfg.dtype = dtype;
 	cfg.algorithm = algorithm;

@@ -39,6 +39,7 @@ enum class Distribution {
 struct Config {
 	int q;
 	std::size_t k;
+	std::size_t k_requested;
 	bool want_max;
 	DataType dtype;
 	Algorithm algorithm;
