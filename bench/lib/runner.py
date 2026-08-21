@@ -57,10 +57,14 @@ def extract_field_watts(report_text, key):
     return None
 
 
-def capture_baseline_report(measure_cmd):
+def capture_baseline_report(measure_cmd, timeout_seconds):
     try:
-        result = subprocess.run(measure_cmd, capture_output=True, text=True, timeout=30)
-    except Exception:
+        result = subprocess.run(measure_cmd, capture_output=True, text=True, timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        print(f"warning: baseline capture timed out after {timeout_seconds:.0f}s: {' '.join(measure_cmd)}")
+        return ""
+    except Exception as exc:
+        print(f"warning: baseline capture failed: {exc}")
         return ""
     return result.stdout
 
@@ -172,13 +176,14 @@ def main():
     gpu_board_baseline_w = None
     if args.energy != "none":
         sleep_cmd = ["sleep", str(args.baseline_seconds)]
+        baseline_timeout = args.baseline_seconds + 30
         modes = {resolve_energy_mode(b, args.energy) for b in backends}
         if "rapl" in modes:
             rapl_cmd = [os.path.join(ROOT_DIR, "bench/lib/measure_rapl.sh")]
             if args.rapl_path:
                 rapl_cmd += ["--path", args.rapl_path]
             rapl_cmd += ["--"] + sleep_cmd
-            rapl_report = capture_baseline_report(rapl_cmd)
+            rapl_report = capture_baseline_report(rapl_cmd, baseline_timeout)
             rapl_baseline_w = extract_field_watts(rapl_report, "average_watts")
             rapl_core_baseline_w = extract_field_watts(rapl_report, "core_average_watts")
             print(f"Idle RAPL baseline: package={rapl_baseline_w} W core={rapl_core_baseline_w} W")
@@ -191,7 +196,7 @@ def main():
                 str(args.gpu_interval_ms),
                 "--",
             ] + sleep_cmd
-            gpu_report = capture_baseline_report(gpu_cmd)
+            gpu_report = capture_baseline_report(gpu_cmd, baseline_timeout)
             gpu_baseline_w = extract_field_watts(gpu_report, "average_watts")
             gpu_board_baseline_w = extract_field_watts(gpu_report, "board_average_watts")
             print(f"Idle GPU baseline: total={gpu_baseline_w} W board={gpu_board_baseline_w} W")
