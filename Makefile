@@ -146,7 +146,7 @@ benchmark:
 	echo "=== 2/6 Build ==="; \
 	$(MAKE) build-all && $(MAKE) verify-artifacts || exit 1; \
 	echo "=== 3/6 Pin conditions (GPU $(GPU_W) W) ==="; \
-	./scripts/pin_conditions.sh $(GPU_W) && pinned=1; \
+	./scripts/pin_conditions.sh $(GPU_W) && pinned=1 || exit 1; \
 	sudo -n chmod a+r /sys/class/powercap/intel-rapl:*/energy_uj \
 		/sys/class/powercap/intel-rapl:*/*/energy_uj 2>/dev/null || true; \
 	echo "=== 4/6 Measure ==="; \

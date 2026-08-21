@@ -12,16 +12,17 @@ set_governor() {
             return 0
         fi
     fi
-    local wrote=0
+    local total=0 wrote=0
     for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
         [[ -e "$f" ]] || continue
-        echo "$gov" | sudo tee "$f" >/dev/null 2>&1 && wrote=1
+        total=$((total + 1))
+        echo "$gov" | sudo tee "$f" >/dev/null 2>&1 && wrote=$((wrote + 1))
     done
-    if [[ "$wrote" -eq 1 ]]; then
+    if [[ "$total" -gt 0 && "$wrote" -eq "$total" ]]; then
         echo "CPU governor   -> ${gov} (sysfs)"
         return 0
     fi
-    echo "CPU governor   -> FAILED to set ${gov}" >&2
+    echo "CPU governor   -> FAILED to set ${gov} (${wrote}/${total} cores)" >&2
     return 1
 }
 
@@ -64,7 +65,7 @@ case "${ACTION}" in
         ;;
 esac
 
-set_governor performance
+set_governor performance || { echo "ABORT: failed to pin CPU governor to performance" >&2; exit 1; }
 set_boost 0
 if command -v nvidia-smi >/dev/null 2>&1; then
     sudo nvidia-smi -pm 1 >/dev/null 2>&1 && echo "GPU persistence -> on"
