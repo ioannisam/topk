@@ -25,18 +25,15 @@ Examples:
 Notes:
     - Uses Linux RAPL energy_uj counters (microjoules) (may need sudo).
     - Reports elapsed time, consumed energy and average power.
-    - Handles counter wraparound when max_energy_range_uj is available.
+    - Handles counter wraparound when max_energy_range_uj is available; polls every
+      RAPL_POLL_INTERVAL_S seconds (default 0.5) so multi-rollover runs stay correct too.
 EOF
 }
 
-# -L to follow the class symlinks, but depth 2 so the per-domain `device/` back-links do not
-# re-surface the same counters under aliased paths.
 discover_energy_paths() {
     find -L /sys/class/powercap -maxdepth 2 -name energy_uj -print 2>/dev/null | sort
 }
 
-# Match the in-process counter in common/src/energy.cpp: integrate the package domain, not
-# whichever energy_uj happens to sort first (psys and intel-rapl-mmio also expose one).
 find_default_energy_path() {
     local candidate domain_name
     while IFS= read -r candidate; do
@@ -178,54 +175,87 @@ for _sub in "${_pkg_dir}"/intel-rapl:*; do
     fi
 done
 
-START_UJ="$(<"${ENERGY_PATH}")"
-CORE_START_UJ=""
-[[ -n "${CORE_ENERGY_PATH}" ]] && CORE_START_UJ="$(<"${CORE_ENERGY_PATH}")"
+POLL_INTERVAL_S="${RAPL_POLL_INTERVAL_S:-0.5}"
+
+ACCUM_UJ=0
+CORE_ACCUM_UJ=0
+WRAP_EVENTS=0
+
+accumulate_tick() {
+    if [[ -r "${ENERGY_PATH}" ]]; then
+        local cur_uj delta_uj
+        cur_uj="$(<"${ENERGY_PATH}")"
+        delta_uj=$((cur_uj - PREV_UJ))
+        if [[ ${delta_uj} -lt 0 ]]; then
+            if [[ -n "${MAX_RANGE_UJ}" && ${MAX_RANGE_UJ} -gt 0 ]]; then
+                delta_uj=$((delta_uj + MAX_RANGE_UJ))
+                WRAP_EVENTS=$((WRAP_EVENTS + 1))
+            else
+                delta_uj=0
+            fi
+        fi
+        ACCUM_UJ=$((ACCUM_UJ + delta_uj))
+        PREV_UJ="${cur_uj}"
+    fi
+    if [[ -n "${CORE_ENERGY_PATH}" && -r "${CORE_ENERGY_PATH}" ]]; then
+        local core_cur_uj core_delta_uj
+        core_cur_uj="$(<"${CORE_ENERGY_PATH}")"
+        core_delta_uj=$((core_cur_uj - CORE_PREV_UJ))
+        if [[ ${core_delta_uj} -lt 0 ]]; then
+            if [[ -n "${CORE_MAX_RANGE_UJ}" && ${CORE_MAX_RANGE_UJ} -gt 0 ]]; then
+                core_delta_uj=$((core_delta_uj + CORE_MAX_RANGE_UJ))
+            else
+                core_delta_uj=0
+            fi
+        fi
+        CORE_ACCUM_UJ=$((CORE_ACCUM_UJ + core_delta_uj))
+        CORE_PREV_UJ="${core_cur_uj}"
+    fi
+}
+
+PREV_UJ="$(<"${ENERGY_PATH}")"
+CORE_PREV_UJ=""
+[[ -n "${CORE_ENERGY_PATH}" ]] && CORE_PREV_UJ="$(<"${CORE_ENERGY_PATH}")"
 START_TS="$(date +%s.%N)"
 
 # `set -e` would abort here before CMD_STATUS is captured, dropping the whole report (and the
 # --out file) for exactly the runs whose failure the profiler needs to see.
 set +e
-"$@"
+"$@" &
+CMD_PID=$!
+while kill -0 "${CMD_PID}" 2>/dev/null; do
+    sleep "${POLL_INTERVAL_S}" &
+    SLEEP_PID=$!
+    wait -n "${CMD_PID}" "${SLEEP_PID}" 2>/dev/null
+    if kill -0 "${SLEEP_PID}" 2>/dev/null; then
+        kill "${SLEEP_PID}" 2>/dev/null
+    fi
+    wait "${SLEEP_PID}" 2>/dev/null
+    kill -0 "${CMD_PID}" 2>/dev/null && accumulate_tick
+done
+wait "${CMD_PID}"
 CMD_STATUS=$?
 set -e
 
+accumulate_tick
 END_TS="$(date +%s.%N)"
-END_UJ="$(<"${ENERGY_PATH}")"
-CORE_END_UJ=""
-[[ -n "${CORE_ENERGY_PATH}" ]] && CORE_END_UJ="$(<"${CORE_ENERGY_PATH}")"
 
-# Same reasoning as the command above: a failed awk must not take the report (and the --out
-# file) with it, or the profiler loses the run it most needs to see.
 set +e
 REPORT="$(awk \
     -v path="${ENERGY_PATH}" \
-    -v start_uj="${START_UJ}" \
-    -v end_uj="${END_UJ}" \
+    -v accum_uj="${ACCUM_UJ}" \
+    -v wrap_events="${WRAP_EVENTS}" \
     -v start_ts="${START_TS}" \
     -v end_ts="${END_TS}" \
-    -v max_range_uj="${MAX_RANGE_UJ}" \
     -v cmd_status="${CMD_STATUS}" \
     -v baseline_watts="${BASELINE_WATTS}" \
     -v core_baseline_watts="${CORE_BASELINE_WATTS}" \
     -v core_path="${CORE_ENERGY_PATH}" \
-    -v core_start_uj="${CORE_START_UJ}" \
-    -v core_end_uj="${CORE_END_UJ}" \
-    -v core_max_range_uj="${CORE_MAX_RANGE_UJ}" \
+    -v core_accum_uj="${CORE_ACCUM_UJ}" \
     -v cmd_str="${CMD_STR}" \
 'BEGIN {
-    delta_uj = end_uj - start_uj
-    wrapped = "no"
-
-    if (delta_uj < 0) {
-        if (max_range_uj != "" && max_range_uj > 0) {
-            delta_uj += max_range_uj
-            wrapped = "yes"
-        } else {
-            print "error: negative energy delta and max_energy_range_uj unavailable" > "/dev/stderr"
-            exit 3
-        }
-    }
+    delta_uj = accum_uj
+    wrapped = (wrap_events > 0) ? "yes" : "no"
 
     dt = end_ts - start_ts
     if (dt <= 0) {
@@ -239,16 +269,10 @@ REPORT="$(awk \
     core_available = "no"
     core_joules = 0.0
     core_watts = 0.0
-    if (core_path != "" && core_start_uj != "" && core_end_uj != "") {
-        core_delta_uj = core_end_uj - core_start_uj
-        if (core_delta_uj < 0 && core_max_range_uj != "" && core_max_range_uj > 0) {
-            core_delta_uj += core_max_range_uj
-        }
-        if (core_delta_uj >= 0) {
-            core_joules = core_delta_uj / 1000000.0
-            core_watts = core_joules / dt
-            core_available = "yes"
-        }
+    if (core_path != "") {
+        core_joules = core_accum_uj / 1000000.0
+        core_watts = core_joules / dt
+        core_available = "yes"
     }
 
     print "RAPL measurement"

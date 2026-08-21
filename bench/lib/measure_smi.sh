@@ -174,16 +174,33 @@ fi
 samples_file="$(mktemp)"
 trap 'rm -f "${samples_file}"' EXIT
 
+HOST_PREV_UJ=""
+[[ -n "${HOST_ENERGY_PATH}" ]] && HOST_PREV_UJ="$(<"${HOST_ENERGY_PATH}")"
+HOST_ACCUM_UJ=0
+HOST_WRAP_EVENTS=0
+
 sample_once() {
     local ts power
     ts="$(date +%s.%N)"
     if power="$(read_gpu_power_w "${GPU_INDEX}")"; then
         printf '%s %s\n' "${ts}" "${power}" >>"${samples_file}"
     fi
+    if [[ -n "${HOST_ENERGY_PATH}" && -r "${HOST_ENERGY_PATH}" && -n "${HOST_PREV_UJ}" ]]; then
+        local host_cur_uj host_delta_uj
+        host_cur_uj="$(<"${HOST_ENERGY_PATH}")"
+        host_delta_uj=$((host_cur_uj - HOST_PREV_UJ))
+        if [[ ${host_delta_uj} -lt 0 ]]; then
+            if [[ -n "${HOST_MAX_RANGE_UJ}" && ${HOST_MAX_RANGE_UJ} -gt 0 ]]; then
+                host_delta_uj=$((host_delta_uj + HOST_MAX_RANGE_UJ))
+                HOST_WRAP_EVENTS=$((HOST_WRAP_EVENTS + 1))
+            else
+                host_delta_uj=0
+            fi
+        fi
+        HOST_ACCUM_UJ=$((HOST_ACCUM_UJ + host_delta_uj))
+        HOST_PREV_UJ="${host_cur_uj}"
+    fi
 }
-
-HOST_START_UJ=""
-[[ -n "${HOST_ENERGY_PATH}" ]] && HOST_START_UJ="$(<"${HOST_ENERGY_PATH}")"
 
 start_ts="$(date +%s.%N)"
 "$@" &
@@ -193,24 +210,23 @@ sample_once
 
 interval_s="$(awk -v ms="${INTERVAL_MS}" 'BEGIN { printf "%.6f", ms / 1000.0 }')"
 while kill -0 "${cmd_pid}" 2>/dev/null; do
-    sleep "${interval_s}"
-    sample_once
+    sleep "${interval_s}" &
+    sleep_pid=$!
+    wait -n "${cmd_pid}" "${sleep_pid}" 2>/dev/null || true
+    if kill -0 "${sleep_pid}" 2>/dev/null; then
+        kill "${sleep_pid}" 2>/dev/null
+    fi
+    wait "${sleep_pid}" 2>/dev/null || true
+    kill -0 "${cmd_pid}" 2>/dev/null && sample_once
 done
 
-# `set -e` would exit here on a non-zero command, dropping the report (and the --out file) for
-# exactly the runs whose failure the profiler needs to see.
 set +e
 wait "${cmd_pid}"
 cmd_status=$?
 set -e
 
-# Close the integration window at the workload boundary. Sampling after end_ts instead pulls an
-# idle reading into the final trapezoid segment, which understates energy on short runs.
 sample_once
 end_ts="$(date +%s.%N)"
-
-HOST_END_UJ=""
-[[ -n "${HOST_ENERGY_PATH}" ]] && HOST_END_UJ="$(<"${HOST_ENERGY_PATH}")"
 
 set +e
 REPORT="$(awk \
@@ -223,9 +239,8 @@ REPORT="$(awk \
     -v board_baseline_watts="${BOARD_BASELINE_WATTS}" \
     -v cmd_str="${CMD_STR}" \
     -v host_path="${HOST_ENERGY_PATH}" \
-    -v host_start_uj="${HOST_START_UJ}" \
-    -v host_end_uj="${HOST_END_UJ}" \
-    -v host_max_range_uj="${HOST_MAX_RANGE_UJ}" \
+    -v host_accum_uj="${HOST_ACCUM_UJ}" \
+    -v host_wrap_events="${HOST_WRAP_EVENTS}" \
 'BEGIN {
     n = 0
 }
@@ -259,15 +274,9 @@ END {
 
     host_energy = 0.0
     host_available = "no"
-    if (host_path != "" && host_start_uj != "" && host_end_uj != "") {
-        host_delta_uj = host_end_uj - host_start_uj
-        if (host_delta_uj < 0 && host_max_range_uj != "" && host_max_range_uj > 0) {
-            host_delta_uj += host_max_range_uj
-        }
-        if (host_delta_uj >= 0) {
-            host_energy = host_delta_uj / 1000000.0
-            host_available = "yes"
-        }
+    if (host_path != "") {
+        host_energy = host_accum_uj / 1000000.0
+        host_available = "yes"
     }
 
     energy = board_energy + host_energy
