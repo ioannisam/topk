@@ -222,9 +222,14 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 		common::reporting::print_key_value("Trunc bitonic algorithmic time (ms)", "skipped");
 	}
 
-	const char* stats_scope = run_both ? (run_trunc ? "trunc" : "full") : nullptr;
-	common::reporting::print_energy_lines(run_trunc ? trunc_stats.energy : full_stats.energy, stats_scope);
-	common::reporting::print_traffic_lines(run_trunc ? trunc_stats.traffic : full_stats.traffic, stats_scope);
+	if (run_full) {
+		common::reporting::print_energy_lines(full_stats.energy, run_both ? "full" : nullptr);
+		common::reporting::print_traffic_lines(full_stats.traffic, run_both ? "full" : nullptr);
+	}
+	if (run_trunc) {
+		common::reporting::print_energy_lines(trunc_stats.energy, run_both ? "trunc" : nullptr);
+		common::reporting::print_traffic_lines(trunc_stats.traffic, run_both ? "trunc" : nullptr);
+	}
 
 	if (run_trunc) {
 		common::reporting::print_skipped_comparators(full_cmp, trunc_cmp);
