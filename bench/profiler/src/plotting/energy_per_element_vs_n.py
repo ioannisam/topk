@@ -27,7 +27,7 @@ def plot(
         if rec.k is None or rec.n is None or rec.n <= 0:
             continue
         energy = select_energy_joules(rec, metric)
-        if energy is None or energy < 0:
+        if energy is None or energy <= 0:
             continue
         base_label = rec.backend if rec.backend else rec.source
         label = label_with_algorithm(base_label, rec.algorithm, include_algorithm)

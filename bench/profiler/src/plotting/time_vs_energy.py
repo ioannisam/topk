@@ -25,7 +25,7 @@ def plot(
     energy_map: dict[tuple[str, str, str, Optional[int], Optional[int], str], list[float]] = defaultdict(list)
     for rec in measurement_records:
         energy = select_energy_joules(rec, "total")
-        if energy is None or energy < 0 or rec.n is None or (compare_n is not None and rec.n != compare_n):
+        if energy is None or energy <= 0 or rec.n is None or (compare_n is not None and rec.n != compare_n):
             continue
         backend = rec.backend if rec.backend else rec.source
         key = (backend, rec.dtype, rec.mode, rec.k, rec.n, rec.algorithm)
