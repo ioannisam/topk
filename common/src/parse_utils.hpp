@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -35,6 +37,26 @@ inline bool parse_bool_value(const std::string& value, const char* field_name) {
 		return false;
 	}
 	throw std::invalid_argument(std::string(field_name) + " must be true/false");
+}
+
+inline std::size_t parse_threads_token(const std::string& value) {
+	const long long parsed = parse_signed_long(value, "threads");
+	if (parsed <= 0) {
+		throw std::invalid_argument("threads must be positive");
+	}
+	return static_cast<std::size_t>(parsed);
+}
+
+inline std::uint64_t parse_seed_token(const std::string& value) {
+	const long long parsed = parse_signed_long(value, "seed");
+	if (parsed < 0) {
+		throw std::invalid_argument("seed must be non-negative");
+	}
+	return static_cast<std::uint64_t>(parsed);
+}
+
+inline bool parse_debug_token(const std::string& value) {
+	return parse_bool_value(value, "debug");
 }
 
 } // namespace common::parse

@@ -28,8 +28,11 @@ RunMode parse_run_mode(const std::string& token);
 Distribution parse_distribution(const std::string& token);
 
 using common::parse::parse_bool_value;
+using common::parse::parse_debug_token;
 using common::parse::parse_int_field;
+using common::parse::parse_seed_token;
 using common::parse::parse_signed_long;
+using common::parse::parse_threads_token;
 
 bool is_dtype_token(const std::string& token) {
 	return token.starts_with("dtype=");
@@ -111,23 +114,15 @@ Config parse_tokens(const std::vector<std::string>& tokens) {
 			continue;
 		}
 		if (token.starts_with("debug=")) {
-			debug_output = parse_bool_value(token.substr(6), "debug");
+			debug_output = parse_debug_token(token.substr(6));
 			continue;
 		}
 		if (token.starts_with("threads=")) {
-			const long long parsed_threads = parse_signed_long(token.substr(8), "threads");
-			if (parsed_threads <= 0) {
-				throw std::invalid_argument("threads must be positive");
-			}
-			ex_threads = static_cast<std::size_t>(parsed_threads);
+			ex_threads = parse_threads_token(token.substr(8));
 			continue;
 		}
 		if (token.starts_with("seed=")) {
-			const long long parsed_seed = parse_signed_long(token.substr(5), "seed");
-			if (parsed_seed < 0) {
-				throw std::invalid_argument("seed must be non-negative");
-			}
-			seed = static_cast<std::uint64_t>(parsed_seed);
+			seed = parse_seed_token(token.substr(5));
 			continue;
 		}
 		if (token.starts_with("verify=")) {
