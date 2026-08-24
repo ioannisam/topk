@@ -6,9 +6,11 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include <cub/device/device_topk.cuh>
 #include <cuda/execution.determinism.h>
@@ -72,12 +74,14 @@ template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, boo
 	CUDA_CHECK(cudaMemcpy(data, d_out.get(), kk * sizeof(D), cudaMemcpyDeviceToHost));
 
 	if constexpr (sizeof(T) == 2) {
-		__half* h = reinterpret_cast<__half*>(data);
+		std::vector<__half> h(kk);
+		std::memcpy(h.data(), data, kk * sizeof(__half));
 		if (want_max) {
-			std::sort(h, h + kk, [](__half a, __half b) { return __half2float(a) > __half2float(b); });
+			std::sort(h.begin(), h.end(), [](__half a, __half b) { return __half2float(a) > __half2float(b); });
 		} else {
-			std::sort(h, h + kk, [](__half a, __half b) { return __half2float(a) < __half2float(b); });
+			std::sort(h.begin(), h.end(), [](__half a, __half b) { return __half2float(a) < __half2float(b); });
 		}
+		std::memcpy(data, h.data(), kk * sizeof(__half));
 	} else {
 		if (want_max) {
 			std::sort(data, data + kk, std::greater<T>());

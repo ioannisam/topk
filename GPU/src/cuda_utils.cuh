@@ -33,6 +33,7 @@ template <typename T> struct DeviceBuffer {
 		}
 	}
 
+	// forbid copying
 	DeviceBuffer(const DeviceBuffer&) = delete;
 	DeviceBuffer& operator=(const DeviceBuffer&) = delete;
 
@@ -62,6 +63,50 @@ template <typename T> struct DeviceBuffer {
 	}
 	T& operator[](std::size_t idx) const {
 		return ptr[idx];
+	}
+};
+
+template <typename T> struct PinnedBuffer {
+	T* ptr = nullptr;
+	std::size_t size = 0;
+
+	explicit PinnedBuffer(std::size_t num_elements) : size(num_elements) {
+		if (size > 0) {
+			CUDA_CHECK(cudaMallocHost(&ptr, size * sizeof(T)));
+		}
+	}
+
+	~PinnedBuffer() {
+		if (ptr != nullptr) {
+			cudaFreeHost(ptr);
+			ptr = nullptr;
+		}
+	}
+
+	// forbid copying
+	PinnedBuffer(const PinnedBuffer&) = delete;
+	PinnedBuffer& operator=(const PinnedBuffer&) = delete;
+
+	PinnedBuffer(PinnedBuffer&& other) noexcept : ptr(other.ptr), size(other.size) {
+		other.ptr = nullptr;
+		other.size = 0;
+	}
+
+	PinnedBuffer& operator=(PinnedBuffer&& other) noexcept {
+		if (this != &other) {
+			if (ptr != nullptr) {
+				cudaFreeHost(ptr);
+			}
+			ptr = other.ptr;
+			size = other.size;
+			other.ptr = nullptr;
+			other.size = 0;
+		}
+		return *this;
+	}
+
+	T* get() const {
+		return ptr;
 	}
 };
 

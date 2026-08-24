@@ -141,12 +141,12 @@ int execute(const Config& cfg) {
 
 	const std::vector<float> host_src = common::utils::generate_random_input<float>(n, cfg.seed, 0, 1000);
 
-	float* d_src = nullptr;
-	float* d_dst = nullptr;
-	float* d_out = nullptr;
-	CUDA_CHECK(cudaMalloc(&d_src, n * sizeof(float)));
-	CUDA_CHECK(cudaMalloc(&d_dst, n * sizeof(float)));
-	CUDA_CHECK(cudaMalloc(&d_out, static_cast<std::size_t>(grid_size) * kBlockSize * sizeof(float)));
+	gpu::utils::DeviceBuffer<float> d_src_buf(n);
+	gpu::utils::DeviceBuffer<float> d_dst_buf(n);
+	gpu::utils::DeviceBuffer<float> d_out_buf(static_cast<std::size_t>(grid_size) * kBlockSize);
+	float* const d_src = d_src_buf.get();
+	float* const d_dst = d_dst_buf.get();
+	float* const d_out = d_out_buf.get();
 	CUDA_CHECK(cudaMemcpy(d_src, host_src.data(), n * sizeof(float), cudaMemcpyHostToDevice));
 
 	const auto settle_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(kSettleSeconds);
@@ -212,8 +212,8 @@ int execute(const Config& cfg) {
 	}
 
 	if (common::roofline::includes(cfg.experiment, Experiment::Transfer)) {
-		float* pinned = nullptr;
-		CUDA_CHECK(cudaMallocHost(&pinned, n * sizeof(float)));
+		gpu::utils::PinnedBuffer<float> pinned_buf(n);
+		float* const pinned = pinned_buf.get();
 		std::memcpy(pinned, host_src.data(), n * sizeof(float));
 		std::vector<float> pageable(host_src);
 
@@ -248,13 +248,7 @@ int execute(const Config& cfg) {
 			CUDA_CHECK(cudaDeviceSynchronize());
 			return 0.0;
 		}));
-
-		CUDA_CHECK(cudaFreeHost(pinned));
 	}
-
-	CUDA_CHECK(cudaFree(d_src));
-	CUDA_CHECK(cudaFree(d_dst));
-	CUDA_CHECK(cudaFree(d_out));
 
 	common::roofline::report(cfg, "gpu", points);
 	return 0;

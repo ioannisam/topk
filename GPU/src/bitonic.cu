@@ -52,8 +52,8 @@ template <typename T> std::size_t tile_target_elems(std::size_t n) {
 }
 
 struct FusedLayers {
-	std::uint32_t stages[FUSED_LAYER_CAP];
-	std::uint32_t steps[FUSED_LAYER_CAP];
+	std::size_t stages[FUSED_LAYER_CAP];
+	std::size_t steps[FUSED_LAYER_CAP];
 	int count;
 };
 
@@ -321,8 +321,8 @@ T* execute_network_kernels(
 		out_final_n = layer.active_n;
 		if (fuses(layer.active_n, step)) {
 			flush_large();
-			buffer.stages[buffer.count] = static_cast<std::uint32_t>(stage);
-			buffer.steps[buffer.count] = static_cast<std::uint32_t>(step);
+			buffer.stages[buffer.count] = stage;
+			buffer.steps[buffer.count] = step;
 			buffer.count++;
 		} else {
 			large_steps.push_back(step);
