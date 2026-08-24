@@ -1,12 +1,12 @@
 #include "../include/algorithm.hpp"
 #include "simd_traits.hpp"
+#include "cpu_utils.hpp"
 
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <immintrin.h>
 #include <limits>
-#include <memory>
 #include <thread>
 #include <type_traits>
 #include <vector>
@@ -126,6 +126,7 @@ inline void replay_intra_scalar(T* ptr, std::size_t begin, std::size_t end, cons
 	}
 }
 
+// elements fit in a single SIMD register, can be fused into a single kernel
 template <typename T, template <typename> class Traits>
 void run_fused_intra(T* ptr, std::size_t begin, std::size_t end, const IntraOp* ops, std::size_t nops) {
 	using Tr = Traits<T>;
@@ -156,45 +157,35 @@ void run_fused_intra(T* ptr, std::size_t begin, std::size_t end, const IntraOp* 
 	replay_intra_scalar<T>(ptr, vec_end, end, ops, nops);
 }
 
-template <typename T, template <typename> class Traits>
-void run_fused_trunc_resort(
-	const T* src, T* dst, std::size_t obegin, std::size_t oend, const IntraOp* ops, std::size_t nops
+template <typename T>
+bool try_run_fused_intra(
+	T* ptr, std::size_t begin, std::size_t end, const IntraOp* ops, std::size_t nops, bool use_avx512
 ) {
-	using Tr = Traits<T>;
-	constexpr std::size_t W = Tr::width;
-	const std::size_t ovec_end = obegin + ((oend - obegin) / W) * W;
-	const std::size_t ovec4_end = obegin + ((oend - obegin) / (4 * W)) * (4 * W);
-
-	std::size_t o = obegin;
-	for (; o < ovec4_end; o += 4 * W) {
-		auto v0 = Tr::min(Tr::load(src + 2 * o), Tr::load(src + 2 * o + W));
-		auto v1 = Tr::min(Tr::load(src + 2 * (o + W)), Tr::load(src + 2 * (o + W) + W));
-		auto v2 = Tr::min(Tr::load(src + 2 * (o + 2 * W)), Tr::load(src + 2 * (o + 2 * W) + W));
-		auto v3 = Tr::min(Tr::load(src + 2 * (o + 3 * W)), Tr::load(src + 2 * (o + 3 * W) + W));
-		for (std::size_t oi = 0; oi < nops; oi++) {
-			apply_step4<Tr>(v0, v1, v2, v3, o, W, ops[oi].stride, ops[oi].stage);
+#if defined(__x86_64__) || defined(__i386__)
+	if (use_avx512) {
+		if constexpr (cpu::simd::has_simd512_width<T>::value) {
+			run_fused_intra<T, cpu::simd::SimdTraits512>(ptr, begin, end, ops, nops);
+			return true;
 		}
-		Tr::store(dst + o, v0);
-		Tr::store(dst + o + W, v1);
-		Tr::store(dst + o + 2 * W, v2);
-		Tr::store(dst + o + 3 * W, v3);
 	}
-	for (; o < ovec_end; o += W) {
-		const std::size_t in_base = 2 * o;
-		auto v_lo = Tr::load(src + in_base);
-		auto v_hi = Tr::load(src + in_base + W);
-		auto v = Tr::min(v_lo, v_hi);
-		v = apply_intra_ops<Tr>(v, o, ops, nops);
-		Tr::store(dst + o, v);
+	if (cpu::simd::cpu_supports_avx2()) {
+		if constexpr (cpu::simd::has_simd256_width<T>::value) {
+			run_fused_intra<T, cpu::simd::SimdTraits256>(ptr, begin, end, ops, nops);
+			return true;
+		}
 	}
-
-	for (std::size_t t = ovec_end; t < oend; t++) {
-		const std::size_t in_base = trunc_source_index(t, W);
-		dst[t] = std::min(src[in_base], src[in_base + W]);
-	}
-	replay_intra_scalar<T>(dst, ovec_end, oend, ops, nops);
+#else
+	(void)ptr;
+	(void)begin;
+	(void)end;
+	(void)ops;
+	(void)nops;
+	(void)use_avx512;
+#endif
+	return false;
 }
 
+// Normal, no fusion possible
 template <typename T, template <typename> class Traits>
 void run_layer_inter_simd(
 	T* ptr, std::size_t begin, std::size_t end, std::size_t stage, std::size_t stride, std::size_t n
@@ -258,6 +249,125 @@ void run_layer_inter_simd(
 	}
 }
 
+template <typename T>
+bool try_run_inter(
+	T* ptr, std::size_t begin, std::size_t end, std::size_t stage, std::size_t stride, std::size_t n, bool use_avx512
+) {
+#if defined(__x86_64__) || defined(__i386__)
+	if (use_avx512) {
+		if constexpr (cpu::simd::has_simd512_width<T>::value) {
+			if (stride >= cpu::simd::SimdTraits512<T>::width) {
+				run_layer_inter_simd<T, cpu::simd::SimdTraits512>(ptr, begin, end, stage, stride, n);
+				return true;
+			}
+		}
+	}
+	if (cpu::simd::cpu_supports_avx2()) {
+		if constexpr (cpu::simd::has_simd256_width<T>::value) {
+			if (stride >= cpu::simd::SimdTraits256<T>::width) {
+				run_layer_inter_simd<T, cpu::simd::SimdTraits256>(ptr, begin, end, stage, stride, n);
+				return true;
+			}
+		}
+	}
+#else
+	(void)ptr;
+	(void)begin;
+	(void)end;
+	(void)stage;
+	(void)stride;
+	(void)n;
+	(void)use_avx512;
+#endif
+	return false;
+}
+
+template <typename T>
+void run_normal_scalar(
+	T* ptr, std::size_t begin, std::size_t end, std::size_t stage, std::size_t stride, std::size_t active_n
+) {
+	std::size_t i = begin;
+	while (i < end) {
+		if ((i & stride) != 0) {
+			i = (i | ((stride << 1) - 1)) + 1;
+			continue;
+		}
+		std::size_t chunk_end = std::min((i | (stride - 1)) + 1, end);
+		if (chunk_end > active_n) {
+			chunk_end = active_n;
+		}
+		for (; i < chunk_end; i++) {
+			const std::size_t ixj = i + stride;
+			const bool ascending = (i & stage) == 0;
+			if (ascending) {
+				if (ptr[i] > ptr[ixj]) {
+					std::swap(ptr[i], ptr[ixj]);
+				}
+			} else {
+				if (ptr[i] < ptr[ixj]) {
+					std::swap(ptr[i], ptr[ixj]);
+				}
+			}
+		}
+	}
+}
+
+constexpr std::size_t kTileCapBytes = 524288;
+constexpr std::size_t kTileMinBytes = 16384;
+
+template <typename T> std::size_t pow2_floor_elems(std::size_t bytes) {
+	std::size_t w = bytes / sizeof(T);
+	std::size_t p = 1;
+	while (p * 2 <= w)
+		p <<= 1;
+	return p < 16 ? 16 : p;
+}
+
+template <typename T> std::size_t tile_cap_elems() {
+	return pow2_floor_elems<T>(kTileCapBytes);
+}
+
+template <typename T> std::size_t run_tile_elems(std::size_t max_stride) {
+	std::size_t want = 16;
+	while (want < (max_stride << 1))
+		want <<= 1;
+	const std::size_t lo = pow2_floor_elems<T>(kTileMinBytes);
+	return std::min(tile_cap_elems<T>(), std::max(lo, want));
+}
+
+// elements fit in a cache, can be fused into a single kernel
+template <typename T>
+void run_tiled(
+	T* ptr,
+	std::size_t begin,
+	std::size_t end,
+	const IntraOp* ops,
+	std::size_t nops,
+	std::size_t active_n,
+	std::size_t tile_w,
+	std::size_t width,
+	bool use_avx512
+) {
+	for (std::size_t tb = begin; tb < end; tb += tile_w) {
+		const std::size_t te = std::min(tb + tile_w, end);
+		for (std::size_t o = 0; o < nops; o++) {
+			const std::size_t stride = ops[o].stride;
+			const std::size_t stage = ops[o].stage;
+			if (stride < width) {
+				const IntraOp one{stride, stage};
+				if (!try_run_fused_intra<T>(ptr, tb, te, &one, 1, use_avx512)) {
+					run_normal_scalar(ptr, tb, te, stage, stride, active_n);
+				}
+			} else {
+				if (!try_run_inter<T>(ptr, tb, te, stage, stride, active_n, use_avx512)) {
+					run_normal_scalar(ptr, tb, te, stage, stride, active_n);
+				}
+			}
+		}
+	}
+}
+
+// Truncate, no fusion possible
 template <typename T, template <typename> class Traits>
 void run_layer_truncate_simd(
 	const T* src, T* dst, std::size_t begin, std::size_t end, std::size_t stride, std::size_t n
@@ -302,119 +412,6 @@ void run_layer_truncate_simd(
 }
 
 template <typename T>
-bool try_run_fused_intra(
-	T* ptr, std::size_t begin, std::size_t end, const IntraOp* ops, std::size_t nops, bool use_avx512
-) {
-#if defined(__x86_64__) || defined(__i386__)
-	if (use_avx512) {
-		if constexpr (cpu::simd::has_simd512_width<T>::value) {
-			run_fused_intra<T, cpu::simd::SimdTraits512>(ptr, begin, end, ops, nops);
-			return true;
-		}
-	}
-	if (cpu::simd::cpu_supports_avx2()) {
-		if constexpr (cpu::simd::has_simd256_width<T>::value) {
-			run_fused_intra<T, cpu::simd::SimdTraits256>(ptr, begin, end, ops, nops);
-			return true;
-		}
-	}
-#else
-	(void)ptr;
-	(void)begin;
-	(void)end;
-	(void)ops;
-	(void)nops;
-	(void)use_avx512;
-#endif
-	return false;
-}
-
-constexpr std::size_t kTileCapBytes = 524288;
-constexpr std::size_t kTileMinBytes = 16384;
-
-template <typename T> std::size_t pow2_floor_elems(std::size_t bytes) {
-	std::size_t w = bytes / sizeof(T);
-	std::size_t p = 1;
-	while (p * 2 <= w)
-		p <<= 1;
-	return p < 16 ? 16 : p;
-}
-
-template <typename T> std::size_t tile_cap_elems() {
-	return pow2_floor_elems<T>(kTileCapBytes);
-}
-
-template <typename T> std::size_t run_tile_elems(std::size_t max_stride) {
-	std::size_t want = 16;
-	while (want < (max_stride << 1))
-		want <<= 1;
-	const std::size_t lo = pow2_floor_elems<T>(kTileMinBytes);
-	return std::min(tile_cap_elems<T>(), std::max(lo, want));
-}
-
-template <typename T>
-bool try_run_fused_trunc_resort(
-	const T* src, T* dst, std::size_t obegin, std::size_t oend, const IntraOp* ops, std::size_t nops, bool use_avx512
-) {
-#if defined(__x86_64__) || defined(__i386__)
-	if (use_avx512) {
-		if constexpr (cpu::simd::has_simd512_width<T>::value) {
-			run_fused_trunc_resort<T, cpu::simd::SimdTraits512>(src, dst, obegin, oend, ops, nops);
-			return true;
-		}
-	}
-	if (cpu::simd::cpu_supports_avx2()) {
-		if constexpr (cpu::simd::has_simd256_width<T>::value) {
-			run_fused_trunc_resort<T, cpu::simd::SimdTraits256>(src, dst, obegin, oend, ops, nops);
-			return true;
-		}
-	}
-#else
-	(void)src;
-	(void)dst;
-	(void)obegin;
-	(void)oend;
-	(void)ops;
-	(void)nops;
-	(void)use_avx512;
-#endif
-	return false;
-}
-
-template <typename T>
-bool try_run_inter(
-	T* ptr, std::size_t begin, std::size_t end, std::size_t stage, std::size_t stride, std::size_t n, bool use_avx512
-) {
-#if defined(__x86_64__) || defined(__i386__)
-	if (use_avx512) {
-		if constexpr (cpu::simd::has_simd512_width<T>::value) {
-			if (stride >= cpu::simd::SimdTraits512<T>::width) {
-				run_layer_inter_simd<T, cpu::simd::SimdTraits512>(ptr, begin, end, stage, stride, n);
-				return true;
-			}
-		}
-	}
-	if (cpu::simd::cpu_supports_avx2()) {
-		if constexpr (cpu::simd::has_simd256_width<T>::value) {
-			if (stride >= cpu::simd::SimdTraits256<T>::width) {
-				run_layer_inter_simd<T, cpu::simd::SimdTraits256>(ptr, begin, end, stage, stride, n);
-				return true;
-			}
-		}
-	}
-#else
-	(void)ptr;
-	(void)begin;
-	(void)end;
-	(void)stage;
-	(void)stride;
-	(void)n;
-	(void)use_avx512;
-#endif
-	return false;
-}
-
-template <typename T>
 bool try_run_simd_layer_truncate(
 	const T* src, T* dst, std::size_t begin, std::size_t end, std::size_t stride, std::size_t n, bool use_avx512
 ) {
@@ -447,65 +444,73 @@ bool try_run_simd_layer_truncate(
 	return false;
 }
 
-template <typename T>
-void run_normal_scalar(
-	T* ptr, std::size_t begin, std::size_t end, std::size_t stage, std::size_t stride, std::size_t active_n
+// Truncate + IntraRun, can be fused into a single kernel
+template <typename T, template <typename> class Traits>
+void run_fused_trunc_resort(
+	const T* src, T* dst, std::size_t obegin, std::size_t oend, const IntraOp* ops, std::size_t nops
 ) {
-	std::size_t i = begin;
-	while (i < end) {
-		if ((i & stride) != 0) {
-			i = (i | ((stride << 1) - 1)) + 1;
-			continue;
+	using Tr = Traits<T>;
+	constexpr std::size_t W = Tr::width;
+	const std::size_t ovec_end = obegin + ((oend - obegin) / W) * W;
+	const std::size_t ovec4_end = obegin + ((oend - obegin) / (4 * W)) * (4 * W);
+
+	std::size_t o = obegin;
+	for (; o < ovec4_end; o += 4 * W) {
+		auto v0 = Tr::min(Tr::load(src + 2 * o), Tr::load(src + 2 * o + W));
+		auto v1 = Tr::min(Tr::load(src + 2 * (o + W)), Tr::load(src + 2 * (o + W) + W));
+		auto v2 = Tr::min(Tr::load(src + 2 * (o + 2 * W)), Tr::load(src + 2 * (o + 2 * W) + W));
+		auto v3 = Tr::min(Tr::load(src + 2 * (o + 3 * W)), Tr::load(src + 2 * (o + 3 * W) + W));
+		for (std::size_t oi = 0; oi < nops; oi++) {
+			apply_step4<Tr>(v0, v1, v2, v3, o, W, ops[oi].stride, ops[oi].stage);
 		}
-		std::size_t chunk_end = std::min((i | (stride - 1)) + 1, end);
-		if (chunk_end > active_n) {
-			chunk_end = active_n;
-		}
-		for (; i < chunk_end; i++) {
-			const std::size_t ixj = i + stride;
-			const bool ascending = (i & stage) == 0;
-			if (ascending) {
-				if (ptr[i] > ptr[ixj]) {
-					std::swap(ptr[i], ptr[ixj]);
-				}
-			} else {
-				if (ptr[i] < ptr[ixj]) {
-					std::swap(ptr[i], ptr[ixj]);
-				}
-			}
-		}
+		Tr::store(dst + o, v0);
+		Tr::store(dst + o + W, v1);
+		Tr::store(dst + o + 2 * W, v2);
+		Tr::store(dst + o + 3 * W, v3);
 	}
+	for (; o < ovec_end; o += W) {
+		const std::size_t in_base = 2 * o;
+		auto v_lo = Tr::load(src + in_base);
+		auto v_hi = Tr::load(src + in_base + W);
+		auto v = Tr::min(v_lo, v_hi);
+		v = apply_intra_ops<Tr>(v, o, ops, nops);
+		Tr::store(dst + o, v);
+	}
+
+	for (std::size_t t = ovec_end; t < oend; t++) {
+		const std::size_t in_base = trunc_source_index(t, W);
+		dst[t] = std::min(src[in_base], src[in_base + W]);
+	}
+	replay_intra_scalar<T>(dst, ovec_end, oend, ops, nops);
 }
 
 template <typename T>
-void run_tiled(
-	T* ptr,
-	std::size_t begin,
-	std::size_t end,
-	const IntraOp* ops,
-	std::size_t nops,
-	std::size_t active_n,
-	std::size_t tile_w,
-	std::size_t width,
-	bool use_avx512
+bool try_run_fused_trunc_resort(
+	const T* src, T* dst, std::size_t obegin, std::size_t oend, const IntraOp* ops, std::size_t nops, bool use_avx512
 ) {
-	for (std::size_t tb = begin; tb < end; tb += tile_w) {
-		const std::size_t te = std::min(tb + tile_w, end);
-		for (std::size_t o = 0; o < nops; o++) {
-			const std::size_t stride = ops[o].stride;
-			const std::size_t stage = ops[o].stage;
-			if (stride < width) {
-				const IntraOp one{stride, stage};
-				if (!try_run_fused_intra<T>(ptr, tb, te, &one, 1, use_avx512)) {
-					run_normal_scalar(ptr, tb, te, stage, stride, active_n);
-				}
-			} else {
-				if (!try_run_inter<T>(ptr, tb, te, stage, stride, active_n, use_avx512)) {
-					run_normal_scalar(ptr, tb, te, stage, stride, active_n);
-				}
-			}
+#if defined(__x86_64__) || defined(__i386__)
+	if (use_avx512) {
+		if constexpr (cpu::simd::has_simd512_width<T>::value) {
+			run_fused_trunc_resort<T, cpu::simd::SimdTraits512>(src, dst, obegin, oend, ops, nops);
+			return true;
 		}
 	}
+	if (cpu::simd::cpu_supports_avx2()) {
+		if constexpr (cpu::simd::has_simd256_width<T>::value) {
+			run_fused_trunc_resort<T, cpu::simd::SimdTraits256>(src, dst, obegin, oend, ops, nops);
+			return true;
+		}
+	}
+#else
+	(void)src;
+	(void)dst;
+	(void)obegin;
+	(void)oend;
+	(void)ops;
+	(void)nops;
+	(void)use_avx512;
+#endif
+	return false;
 }
 
 class SpinBarrier {
@@ -536,7 +541,14 @@ class SpinBarrier {
 	alignas(64) std::atomic<std::size_t> generation;
 };
 
-enum class GroupKind { IntraRun, TiledRun, TruncResort, InterNormal, Truncate };
+// limit unecessary trips to the RAM
+enum class GroupKind {
+	IntraRun,
+	TiledRun,
+	InterNormal,
+	Truncate,
+	TruncResort,
+};
 
 struct Group {
 	GroupKind kind;
@@ -581,6 +593,8 @@ std::vector<Group> build_groups(
 			if (width > 0 && layer.stride == width) {
 				const std::size_t out_active_n = layer.active_n / 2;
 				const std::size_t ops_begin = ops.size();
+
+				// look ahead to see if we can fuse the truncation with the next few sorts
 				std::size_t look = li + 1;
 				while (look < layers.size() && layers[look].type == common::bitonic::LayerType::Normal &&
 					   layers[look].active_n == out_active_n && layers[look].stride <= imax) {
@@ -606,6 +620,7 @@ std::vector<Group> build_groups(
 			continue;
 		}
 
+		// nearby elemets' kernels fused
 		if (tile_thresh > 0 && layer.stride <= tile_thresh) {
 			if (run_open && run_active_n != layer.active_n) {
 				flush_run();
@@ -619,7 +634,7 @@ std::vector<Group> build_groups(
 			ops.push_back(IntraOp{layer.stride, layer.stage});
 			run_max_stride = std::max(run_max_stride, layer.stride);
 		} else {
-			flush_run();
+			flush_run(); // close previous group
 			groups.push_back(Group{GroupKind::InterNormal, layer.active_n, 0, layer.stride, layer.stage, 0, 0});
 		}
 	}
@@ -635,13 +650,13 @@ template <typename T> double group_traffic_bytes(const std::vector<Group>& group
 		case GroupKind::IntraRun:
 		case GroupKind::TiledRun:
 		case GroupKind::InterNormal:
-			elems += 2.0 * active; // in-place: one read + one write per element
-			break;
-		case GroupKind::TruncResort:
-			elems += active + static_cast<double>(g.out_active_n);
+			elems += 2.0 * active;
 			break;
 		case GroupKind::Truncate:
 			elems += active + active / 2.0;
+			break;
+		case GroupKind::TruncResort:
+			elems += active + static_cast<double>(g.out_active_n);
 			break;
 		}
 	}
@@ -689,21 +704,24 @@ void run_topk(
 			break;
 		}
 	}
-	std::unique_ptr<T[]> alt_buffer(needs_alt ? new T[n] : nullptr);
+	static std::vector<T> alt_storage;
+	if (needs_alt && alt_storage.size() < n) {
+		alt_storage.resize(n);
+	}
 	T* src = data.data();
-	T* dst = alt_buffer.get();
+	T* dst = needs_alt ? alt_storage.data() : nullptr;
 
 	SpinBarrier barrier(workers);
-	std::vector<std::thread> pool;
-	pool.reserve(workers);
+	static cpu::utils::WorkerPool pool(cpu::kMaxWorkers);
 
-	for (std::size_t tid = 0; tid < workers; tid++) {
-		pool.emplace_back([&, tid]() {
+	pool.run([&](std::size_t tid) {
+		if (tid < workers) {
 			for (const auto& group : groups) {
 				const std::size_t active_n = group.active_n;
 				const bool writes_dst = group.kind == GroupKind::Truncate || group.kind == GroupKind::TruncResort;
 				const std::size_t slice_n = group.kind == GroupKind::TruncResort ? group.out_active_n : active_n;
 
+				// typical cache line size is 64 bytes
 				const std::size_t gran =
 					group.kind == GroupKind::TiledRun ? run_tile_elems<T>(group.stride) : (64 / sizeof(T));
 
@@ -753,25 +771,10 @@ void run_topk(
 						ops.data() + group.ops_begin,
 						group.ops_count,
 						active_n,
-						run_tile_elems<T>(group.stride),
+						gran,
 						cpu::simd::simd_block_width<T>(use_avx512, use_avx2),
 						use_avx512
 					);
-					break;
-				}
-				case GroupKind::TruncResort: {
-					if (!try_run_fused_trunc_resort<T>(
-							src, dst, begin, end, ops.data() + group.ops_begin, group.ops_count, use_avx512
-						)) {
-						for (std::size_t o = begin; o < end; o++) {
-							const std::size_t in_base = trunc_source_index(o, group.stride);
-							dst[o] = std::min(src[in_base], src[in_base + group.stride]);
-						}
-						for (std::size_t oi = 0; oi < group.ops_count; oi++) {
-							const IntraOp& op = ops[group.ops_begin + oi];
-							run_normal_scalar(dst, begin, end, op.stage, op.stride, group.out_active_n);
-						}
-					}
 					break;
 				}
 				case GroupKind::InterNormal: {
@@ -803,6 +806,21 @@ void run_topk(
 					}
 					break;
 				}
+				case GroupKind::TruncResort: {
+					if (!try_run_fused_trunc_resort<T>(
+							src, dst, begin, end, ops.data() + group.ops_begin, group.ops_count, use_avx512
+						)) {
+						for (std::size_t o = begin; o < end; o++) {
+							const std::size_t in_base = trunc_source_index(o, group.stride);
+							dst[o] = std::min(src[in_base], src[in_base + group.stride]);
+						}
+						for (std::size_t oi = 0; oi < group.ops_count; oi++) {
+							const IntraOp& op = ops[group.ops_begin + oi];
+							run_normal_scalar(dst, begin, end, op.stage, op.stride, group.out_active_n);
+						}
+					}
+					break;
+				}
 				}
 
 				barrier.wait();
@@ -814,12 +832,8 @@ void run_topk(
 					barrier.wait();
 				}
 			}
-		});
-	}
-
-	for (auto& t : pool) {
-		t.join();
-	}
+		}
+	});
 
 	if (src != data.data()) {
 		const std::size_t result_n = layers.empty() ? n : layers.back().active_n;

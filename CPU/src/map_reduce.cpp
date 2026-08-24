@@ -1,12 +1,12 @@
 #include "../include/algorithm.hpp"
 #include "simd_traits.hpp"
+#include "cpu_utils.hpp"
 
 #include <algorithm>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <thread>
 #include <type_traits>
 #include <vector>
 
@@ -165,25 +165,15 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 	const bool use_avx2 = cpu::simd::cpu_supports_avx2();
 
 	std::vector<std::vector<T>> local_topk(workers);
-	std::vector<std::thread> pool;
-	pool.reserve(workers > 0 ? workers - 1 : 0);
+	static cpu::utils::WorkerPool pool(cpu::kMaxWorkers);
 
-	for (std::size_t tid = 0; tid + 1 < workers; tid++) {
-		pool.emplace_back([&, tid]() {
+	pool.run([&](std::size_t tid) {
+		if (tid < workers) {
 			const std::size_t begin = (n * tid) / workers;
 			const std::size_t end = (n * (tid + 1)) / workers;
 			local_topk[tid] = map<WantMax>(data, begin, end, k, use_avx512f, use_avx2);
-		});
-	}
-	// avoid main thread becoming idle
-	const std::size_t last_tid = workers - 1;
-	const std::size_t begin = (n * last_tid) / workers;
-	const std::size_t end = n;
-	local_topk[last_tid] = map<WantMax>(data, begin, end, k, use_avx512f, use_avx2);
-
-	for (auto& t : pool) {
-		t.join();
-	}
+		}
+	});
 
 	using HeapCompare = std::conditional_t<WantMax, std::greater<T>, std::less<T>>;
 	std::vector<T>& final_heap = local_topk[0];

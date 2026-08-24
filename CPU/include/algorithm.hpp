@@ -7,6 +7,7 @@
 
 namespace cpu {
 
+// physical cores; SMT siblings add barrier contention, not bandwidth (measured)
 constexpr std::size_t kMaxWorkers = 8;
 
 } // namespace cpu
