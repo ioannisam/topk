@@ -223,18 +223,25 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 		return 0;
 	}
 
-	cudaDeviceProp prop{};
-	CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
 	const int block_size = 256;
-
 	const size_t shared_mem_size = 0;
 
-	int num_blocks;
-	CUDA_CHECK(
-		cudaOccupancyMaxActiveBlocksPerMultiprocessor(&num_blocks, topk_map_kernel<D>, block_size, shared_mem_size)
-	);
-	num_blocks = map_blocks_per_sm(num_blocks, prop.multiProcessorCount, n, k);
-	int grid_size = prop.multiProcessorCount * num_blocks;
+	struct DeviceInfo {
+		int multiprocessor_count;
+		int max_active_blocks;
+	};
+	static const DeviceInfo device_info = [&]() {
+		cudaDeviceProp prop{};
+		CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
+		int blocks = 0;
+		CUDA_CHECK(
+			cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks, topk_map_kernel<D>, block_size, shared_mem_size)
+		);
+		return DeviceInfo{prop.multiProcessorCount, blocks};
+	}();
+
+	int num_blocks = map_blocks_per_sm(device_info.max_active_blocks, device_info.multiprocessor_count, n, k);
+	int grid_size = device_info.multiprocessor_count * num_blocks;
 
 	const size_t max_workspace_bytes = 1024ULL * 1024ULL * 512ULL;
 	const size_t bytes_per_thread = k * sizeof(D);
