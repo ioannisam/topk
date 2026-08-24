@@ -33,6 +33,33 @@ from .plotting import memory_bandwidth_vs_n
 from .plotting import roof_utilization
 from .plotting import roofline, walls
 
+PLOT_CHOICES = [
+    "time-vs-n",
+    "time-vs-n-algo-compare",
+    "time-vs-n-backend-compare",
+    "time-vs-n-metric-compare",
+    "speedup-vs-gt",
+    "pass-rate",
+    "energy-by-source",
+    "power-by-source",
+    "energy-vs-n",
+    "energy-vs-n-metric-compare",
+    "power-vs-n",
+    "energy-by-backend",
+    "power-by-backend",
+    "time-vs-energy",
+    "edp-vs-n",
+    "energy-per-element-vs-n",
+    "time-per-element-vs-n",
+    "memory-bandwidth-vs-n",
+    "roof-utilization",
+    "roofline",
+    "roofline-kernels",
+    "time-vs-n-k-colored",
+    "heatmap-time",
+    "dist-compare",
+]
+
 
 def metric_path(out_dir: str, name: str, metric: str) -> str:
     base, ext = os.path.splitext(name)
@@ -60,34 +87,7 @@ def parse_args() -> argparse.Namespace:
         "--plot",
         nargs="+",
         default=["all"],
-        choices=[
-            "all",
-            "none",
-            "time-vs-n",
-            "time-vs-n-algo-compare",
-            "time-vs-n-backend-compare",
-            "time-vs-n-metric-compare",
-            "speedup-vs-gt",
-            "pass-rate",
-            "energy-by-source",
-            "power-by-source",
-            "energy-vs-n",
-            "energy-vs-n-metric-compare",
-            "power-vs-n",
-            "energy-by-backend",
-            "power-by-backend",
-            "time-vs-energy",
-            "edp-vs-n",
-            "energy-per-element-vs-n",
-            "time-per-element-vs-n",
-            "memory-bandwidth-vs-n",
-            "roof-utilization",
-            "roofline",
-            "roofline-kernels",
-            "time-vs-n-k-colored",
-            "heatmap-time",
-            "dist-compare",
-        ],
+        choices=["all", "none", *PLOT_CHOICES],
         help="Plot(s) to generate.",
     )
     parser.add_argument(
@@ -246,32 +246,7 @@ def main() -> int:
 
     requested = set(args.plot)
     if "all" in requested:
-        requested = {
-            "time-vs-n",
-            "time-vs-n-algo-compare",
-            "time-vs-n-backend-compare",
-            "time-vs-n-metric-compare",
-            "speedup-vs-gt",
-            "pass-rate",
-            "energy-by-source",
-            "power-by-source",
-            "energy-vs-n",
-            "energy-vs-n-metric-compare",
-            "power-vs-n",
-            "energy-by-backend",
-            "power-by-backend",
-            "time-vs-energy",
-            "edp-vs-n",
-            "energy-per-element-vs-n",
-            "time-per-element-vs-n",
-            "memory-bandwidth-vs-n",
-            "roof-utilization",
-            "roofline",
-            "roofline-kernels",
-            "time-vs-n-k-colored",
-            "heatmap-time",
-            "dist-compare",
-        }
+        requested = set(PLOT_CHOICES)
     if "none" in requested:
         requested.remove("none")
 
@@ -295,6 +270,18 @@ def main() -> int:
             generated.extend(out)
         else:
             generated.append(out)
+
+    def run_metric_family(name, module, data, filename, extra_args, skip_message, out_dir) -> None:
+        if name not in requested:
+            return
+        produced = False
+        for metric in energy_metrics:
+            out = module.plot(data, metric_path(out_dir, filename, metric), *extra_args, metric)
+            if out:
+                collect_output(out)
+                produced = True
+        if not produced:
+            print(f"Skipped {name} ({dtype_dir}): {skip_message}")
 
     # Generate plots per dtype into separate directories.
     for dtype in dtypes_to_plot:
@@ -578,119 +565,75 @@ def main() -> int:
                 print(f"Skipped pass-rate ({dtype_dir}): no records found.")
 
         # Energy tools use stripped data
-        if "energy-by-source" in requested:
-            produced = False
-            for metric in energy_metrics:
-                out = energy_by_source.plot(
-                    dtype_measurements_no_gt,
-                    metric_path(out_energy, "energy_by_source.png", metric),
-                    args.agg,
-                    args.compare_n,
-                    metric,
-                )
-                if out:
-                    collect_output(out)
-                    produced = True
-            if not produced:
-                print(f"Skipped energy-by-source ({dtype_dir}): no measurement energy points found.")
+        run_metric_family(
+            "energy-by-source",
+            energy_by_source,
+            dtype_measurements_no_gt,
+            "energy_by_source.png",
+            (args.agg, args.compare_n),
+            "no measurement energy points found.",
+            out_energy,
+        )
 
-        if "power-by-source" in requested:
-            produced = False
-            for metric in energy_metrics:
-                out = power_by_source.plot(
-                    dtype_measurements_no_gt,
-                    metric_path(out_energy, "power_by_source.png", metric),
-                    args.agg,
-                    args.compare_n,
-                    metric,
-                )
-                if out:
-                    collect_output(out)
-                    produced = True
-            if not produced:
-                print(f"Skipped power-by-source ({dtype_dir}): no measurement power points found.")
+        run_metric_family(
+            "power-by-source",
+            power_by_source,
+            dtype_measurements_no_gt,
+            "power_by_source.png",
+            (args.agg, args.compare_n),
+            "no measurement power points found.",
+            out_energy,
+        )
 
-        if "energy-vs-n" in requested:
-            produced = False
-            for metric in energy_metrics:
-                out = energy_vs_n.plot(
-                    measurements_no_gt_fan,
-                    metric_path(out_energy, "energy_vs_n.png", metric),
-                    args.agg,
-                    args.error_bars,
-                    metric,
-                )
-                if out:
-                    collect_output(out)
-                    produced = True
-            if not produced:
-                print(f"Skipped energy-vs-n ({dtype_dir}): no measurement records with inferred N were found.")
+        run_metric_family(
+            "energy-vs-n",
+            energy_vs_n,
+            measurements_no_gt_fan,
+            "energy_vs_n.png",
+            (args.agg, args.error_bars),
+            "no measurement records with inferred N were found.",
+            out_energy,
+        )
 
-        if "energy-vs-n-metric-compare" in requested:
-            produced = False
-            for metric in energy_metrics:
-                out = energy_vs_n_metric_compare.plot(
-                    dtype_measurements_no_gt,
-                    metric_path(out_energy, "energy_vs_n_metric_compare.png", metric),
-                    args.agg,
-                    args.error_bars,
-                    metric,
-                )
-                if out:
-                    collect_output(out)
-                    produced = True
-            if not produced:
-                print(f"Skipped energy-vs-n-metric-compare ({dtype_dir}): no measurement records with times found.")
+        run_metric_family(
+            "energy-vs-n-metric-compare",
+            energy_vs_n_metric_compare,
+            dtype_measurements_no_gt,
+            "energy_vs_n_metric_compare.png",
+            (args.agg, args.error_bars),
+            "no measurement records with times found.",
+            out_energy,
+        )
 
-        if "power-vs-n" in requested:
-            produced = False
-            for metric in energy_metrics:
-                out = power_vs_n.plot(
-                    measurements_no_gt_fan,
-                    metric_path(out_energy, "power_vs_n.png", metric),
-                    args.agg,
-                    args.error_bars,
-                    metric,
-                )
-                if out:
-                    collect_output(out)
-                    produced = True
-            if not produced:
-                print(f"Skipped power-vs-n ({dtype_dir}): no measurement records with inferred N were found.")
+        run_metric_family(
+            "power-vs-n",
+            power_vs_n,
+            measurements_no_gt_fan,
+            "power_vs_n.png",
+            (args.agg, args.error_bars),
+            "no measurement records with inferred N were found.",
+            out_energy,
+        )
 
-        if "energy-by-backend" in requested:
-            produced = False
-            for metric in energy_metrics:
-                out = energy_by_backend.plot(
-                    measurements_no_gt_fan,
-                    metric_path(out_energy, "energy_by_backend.png", metric),
-                    args.agg,
-                    args.compare_n,
-                    args.error_bars,
-                    metric,
-                )
-                if out:
-                    collect_output(out)
-                    produced = True
-            if not produced:
-                print(f"Skipped energy-by-backend ({dtype_dir}): no matching measurement energy points found.")
+        run_metric_family(
+            "energy-by-backend",
+            energy_by_backend,
+            measurements_no_gt_fan,
+            "energy_by_backend.png",
+            (args.agg, args.compare_n, args.error_bars),
+            "no matching measurement energy points found.",
+            out_energy,
+        )
 
-        if "power-by-backend" in requested:
-            produced = False
-            for metric in energy_metrics:
-                out = power_by_backend.plot(
-                    measurements_no_gt_fan,
-                    metric_path(out_energy, "power_by_backend.png", metric),
-                    args.agg,
-                    args.compare_n,
-                    args.error_bars,
-                    metric,
-                )
-                if out:
-                    collect_output(out)
-                    produced = True
-            if not produced:
-                print(f"Skipped power-by-backend ({dtype_dir}): no matching measurement power points found.")
+        run_metric_family(
+            "power-by-backend",
+            power_by_backend,
+            measurements_no_gt_fan,
+            "power_by_backend.png",
+            (args.agg, args.compare_n, args.error_bars),
+            "no matching measurement power points found.",
+            out_energy,
+        )
 
         if "time-vs-energy" in requested:
             out = time_vs_energy.plot(
@@ -705,42 +648,25 @@ def main() -> int:
             else:
                 print(f"Skipped time-vs-energy ({dtype_dir}): no matched runtime and energy records were found.")
 
-        if "edp-vs-n" in requested:
-            produced = False
-            for metric in energy_metrics:
-                out = edp_vs_n.plot(
-                    measurements_no_gt_fan,
-                    metric_path(out_energy, "edp_vs_n.png", metric),
-                    args.agg,
-                    args.error_bars,
-                    metric,
-                )
-                if out:
-                    collect_output(out)
-                    produced = True
-            if not produced:
-                print(
-                    f"Skipped edp-vs-n ({dtype_dir}): no measurement records with elapsed time and energy were found."
-                )
+        run_metric_family(
+            "edp-vs-n",
+            edp_vs_n,
+            measurements_no_gt_fan,
+            "edp_vs_n.png",
+            (args.agg, args.error_bars),
+            "no measurement records with elapsed time and energy were found.",
+            out_energy,
+        )
 
-        if "energy-per-element-vs-n" in requested:
-            produced = False
-            for metric in energy_metrics:
-                out = energy_per_element_vs_n.plot(
-                    measurements_no_gt_fan,
-                    metric_path(out_energy, "energy_per_element_vs_n.png", metric),
-                    args.agg,
-                    args.error_bars,
-                    metric,
-                )
-                if out:
-                    collect_output(out)
-                    produced = True
-            if not produced:
-                print(
-                    f"Skipped energy-per-element-vs-n ({dtype_dir}): "
-                    "no measurement records with N and energy were found."
-                )
+        run_metric_family(
+            "energy-per-element-vs-n",
+            energy_per_element_vs_n,
+            measurements_no_gt_fan,
+            "energy_per_element_vs_n.png",
+            (args.agg, args.error_bars),
+            "no measurement records with N and energy were found.",
+            out_energy,
+        )
 
     if args.roofline_csv_out:
         if roofline_points:
