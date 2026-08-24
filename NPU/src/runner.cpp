@@ -32,7 +32,9 @@ struct Context {
 };
 
 Context build_context(const Config& cfg) {
-	(void)cfg;
+	if (cfg.ex_threads != 0) {
+		std::cerr << "warning: threads= is not applicable to the NPU backend and will be ignored\n";
+	}
 	const std::size_t hw_threads = std::max<std::size_t>(1, std::thread::hardware_concurrency());
 	const std::size_t ex_threads = 1;
 	return Context{
@@ -44,6 +46,7 @@ Context build_context(const Config& cfg) {
 	};
 }
 
+// Bitonic Hooks
 template <typename T> class NpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
   public:
 	explicit NpuBitonicRunnerHooks(const Context& ctx) : context(ctx) {
@@ -55,7 +58,9 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 		);
 	}
 
-	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) override {
+	common::topk::BasicRunStats run(
+		std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, bool is_truncated_pass
+	) override {
 		std::vector<T> data_backup = data;
 
 		auto best = common::benchmark::run_benchmark(
@@ -83,15 +88,7 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 		npu::bitonic::RunStats best_stats = best.sample.stats;
 		data = std::move(best.sample.value);
 
-		bool is_trunc = false;
-		for (const auto& l : layers) {
-			if (l.type == common::bitonic::LayerType::Truncate) {
-				is_trunc = true;
-				break;
-			}
-		}
-
-		if (is_trunc) {
+		if (is_truncated_pass) {
 			last_trunc_stats = best_stats;
 		} else {
 			last_full_stats = best_stats;
@@ -117,6 +114,7 @@ template <typename T> class NpuBitonicRunnerHooks final : public common::topk::B
 	npu::bitonic::RunStats last_trunc_stats{0.0, 0, 0, 0, false};
 };
 
+// MapReduce Hooks
 template <typename T> class NpuMapReduceRunnerHooks final : public common::topk::MapReduceRunnerHooks<T> {
   public:
 	explicit NpuMapReduceRunnerHooks(const Context& ctx) : context(ctx) {
@@ -175,6 +173,7 @@ template <typename T> class NpuMapReduceRunnerHooks final : public common::topk:
 	npu::map_reduce::RunStats last_run_stats{0.0, 0, false};
 };
 
+// Ground Truth Hooks
 template <typename T> class NpuGroundTruthHooks final : public common::topk::GroundTruthRunnerHooks<T> {
   public:
 	explicit NpuGroundTruthHooks(const Context& ctx) : context(ctx) {
@@ -189,34 +188,11 @@ template <typename T> class NpuGroundTruthHooks final : public common::topk::Gro
 	std::vector<T> run(
 		const std::vector<T>& input, const Config& cfg, common::topk::GroundTruthRunStats* stats
 	) override {
-		const std::size_t k = std::min(cfg.k, input.size());
-
-		auto best = common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValue<std::vector<T>> {
-			std::vector<T> temp = input;
-			auto t0 = std::chrono::high_resolution_clock::now();
-			common::energy::FullScope energy_scope;
-
-			npu::ground_truth::run_topk(temp, k, cfg.want_max);
-
-			energy_scope.close();
-			auto t1 = std::chrono::high_resolution_clock::now();
-			double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-
-			if (k > 0 && k < temp.size()) {
-				temp.resize(k);
-			} else if (k == 0) {
-				temp.clear();
+		return common::topk::run_ground_truth_benchmark<T>(
+			input, cfg, stats, [](std::vector<T>& temp, std::size_t k, bool want_max) {
+				npu::ground_truth::run_topk(temp, k, want_max);
 			}
-
-			return common::benchmark::TimedValue<std::vector<T>>{elapsed_wall_ms, elapsed_wall_ms, std::move(temp)};
-		});
-
-		if (stats != nullptr) {
-			common::topk::fill_timing_stats(*stats, best);
-			stats->traffic.bytes_moved = static_cast<double>(input.size() + k) * static_cast<double>(sizeof(T));
-		}
-
-		return std::move(best.sample.value);
+		);
 	}
 
 	void print_debug_metrics(const Config&, const common::topk::GroundTruthRunStats&) override {
@@ -227,19 +203,25 @@ template <typename T> class NpuGroundTruthHooks final : public common::topk::Gro
 	Context context;
 };
 
+// Dispatch
 template <typename T> int topk_typed(const Config& cfg) {
 	const Context ctx = build_context(cfg);
 
-	if (cfg.algorithm == Algorithm::Bitonic) {
+	switch (cfg.algorithm) {
+	case Algorithm::Bitonic: {
 		NpuBitonicRunnerHooks<T> hooks(ctx);
 		return common::topk::execute_bitonic<T>(cfg, hooks);
 	}
-	if (cfg.algorithm == Algorithm::GroundTruth) {
+	case Algorithm::GroundTruth: {
 		NpuGroundTruthHooks<T> hooks(ctx);
 		return common::topk::execute_ground_truth<T>(cfg, hooks);
 	}
-	NpuMapReduceRunnerHooks<T> hooks(ctx);
-	return common::topk::execute_map_reduce<T>(cfg, hooks);
+	case Algorithm::MapReduce: {
+		NpuMapReduceRunnerHooks<T> hooks(ctx);
+		return common::topk::execute_map_reduce<T>(cfg, hooks);
+	}
+	}
+	throw std::invalid_argument("Unsupported algorithm");
 }
 
 } // namespace

@@ -11,8 +11,10 @@
 #include <type_traits>
 #include <vector>
 
+#include "common/benchmark.hpp"
 #include "common/bitonic.hpp"
 #include "common/config.hpp"
+#include "common/energy.hpp"
 #include "common/random.hpp"
 #include "common/reporting.hpp"
 #include "common/stats.hpp"
@@ -45,7 +47,9 @@ template <typename T> class BitonicRunnerHooks {
 	virtual ~BitonicRunnerHooks() = default;
 
 	virtual void print_configuration(const common::config::Config& cfg, std::size_t n) = 0;
-	virtual BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) = 0;
+	virtual BasicRunStats run(
+		std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, bool is_truncated_pass
+	) = 0;
 
 	virtual void print_debug_metrics(const common::config::Config& cfg, const BitonicRunStats& stats) = 0;
 };
@@ -152,6 +156,40 @@ std::vector<T> build_output(const std::vector<T>& network_out, const common::con
 	return output;
 }
 
+template <typename T, typename RunFn>
+std::vector<T> run_ground_truth_benchmark(
+	const std::vector<T>& input, const common::config::Config& cfg, GroundTruthRunStats* stats, RunFn&& run_fn
+) {
+	const std::size_t k = std::min(cfg.k, input.size());
+
+	auto best = common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValue<std::vector<T>> {
+		std::vector<T> temp = input;
+		auto t0 = std::chrono::high_resolution_clock::now();
+		common::energy::FullScope energy_scope;
+
+		run_fn(temp, k, cfg.want_max);
+
+		energy_scope.close();
+		auto t1 = std::chrono::high_resolution_clock::now();
+		double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+		if (k > 0 && k < temp.size()) {
+			temp.resize(k);
+		} else if (k == 0) {
+			temp.clear();
+		}
+
+		return common::benchmark::TimedValue<std::vector<T>>{elapsed_wall_ms, elapsed_wall_ms, std::move(temp)};
+	});
+
+	if (stats != nullptr) {
+		common::topk::fill_timing_stats(*stats, best);
+		stats->traffic.bytes_moved = static_cast<double>(input.size() + k) * static_cast<double>(sizeof(T));
+	}
+
+	return std::move(best.sample.value);
+}
+
 template <typename T> int execute_bitonic(const common::config::Config& cfg, BitonicRunnerHooks<T>& hooks) {
 	const std::size_t n = std::size_t{1} << cfg.q;
 	hooks.print_configuration(cfg, n);
@@ -177,7 +215,10 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 
 	if (run_trunc) {
 		trunc = input;
-		trunc_stats = hooks.run(trunc, trunc_layers);
+		trunc_stats = hooks.run(trunc, trunc_layers, true);
+		if (trunc.size() < cfg.k) {
+			throw std::runtime_error("Truncated bitonic network returned fewer than k elements");
+		}
 		if (trunc_stats.traffic.compare_ops == 0.0) {
 			trunc_stats.traffic.compare_ops = static_cast<double>(trunc_cmp);
 			trunc_stats.traffic.ops_exact = true;
@@ -185,7 +226,10 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 	}
 	if (run_full) {
 		full = input;
-		full_stats = hooks.run(full, full_layers);
+		full_stats = hooks.run(full, full_layers, false);
+		if (full.size() < cfg.k) {
+			throw std::runtime_error("Full bitonic network returned fewer than k elements");
+		}
 		if (full_stats.traffic.compare_ops == 0.0) {
 			full_stats.traffic.compare_ops = static_cast<double>(full_cmp);
 			full_stats.traffic.ops_exact = true;
@@ -299,11 +343,12 @@ template <typename T> int execute_map_reduce(const common::config::Config& cfg, 
 	common::reporting::print_check_result(
 		"Top-k correctness vs CPU sorted reference", check_vs_reference, reference_ok
 	);
+
+	hooks.print_debug_metrics(cfg, run_stats);
+
 	if (!reference_ok) {
 		return 2;
 	}
-
-	hooks.print_debug_metrics(cfg, run_stats);
 
 	common::reporting::print_output(cfg, common::utils::format_output(output));
 	return 0;
@@ -342,11 +387,12 @@ template <typename T> int execute_ground_truth(const common::config::Config& cfg
 	common::reporting::print_check_result(
 		"Top-k correctness vs CPU sorted reference", check_vs_reference, reference_ok
 	);
+
+	hooks.print_debug_metrics(cfg, run_stats);
+
 	if (!reference_ok) {
 		return 2;
 	}
-
-	hooks.print_debug_metrics(cfg, run_stats);
 
 	common::reporting::print_output(cfg, common::utils::format_output(output));
 	return 0;

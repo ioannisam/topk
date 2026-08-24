@@ -21,10 +21,7 @@ using common::config::Algorithm;
 using common::config::Config;
 using common::config::DataType;
 
-// ==========================================
 // Bitonic Hooks
-// ==========================================
-
 template <typename T> class GpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
   public:
 	explicit GpuBitonicRunnerHooks() : device_name(gpu::bitonic::query_device_name()) {
@@ -34,7 +31,9 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 		gpu::reporting::print_configuration(cfg, n, device_name);
 	}
 
-	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) override {
+	common::topk::BasicRunStats run(
+		std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, bool is_truncated_pass
+	) override {
 		std::vector<T> data_backup = data;
 
 		auto best = common::benchmark::run_benchmark(
@@ -62,15 +61,7 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 		gpu::bitonic::RunStats best_stats = best.sample.stats;
 		data = std::move(best.sample.value);
 
-		bool is_trunc = false;
-		for (const auto& l : layers) {
-			if (l.type == common::bitonic::LayerType::Truncate) {
-				is_trunc = true;
-				break;
-			}
-		}
-
-		if (is_trunc) {
+		if (is_truncated_pass) {
 			last_trunc_stats = best_stats;
 		} else {
 			last_full_stats = best_stats;
@@ -96,10 +87,7 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 	gpu::bitonic::RunStats last_trunc_stats{0.0, 0, 0, 0};
 };
 
-// ==========================================
 // MapReduce Hooks
-// ==========================================
-
 template <typename T> class GpuMapReduceHooks final : public common::topk::MapReduceRunnerHooks<T> {
   public:
 	explicit GpuMapReduceHooks() : device_name(gpu::bitonic::query_device_name()) {
@@ -155,10 +143,7 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 	gpu::map_reduce::RunStats last_stats{0.0, 0, 0, 0};
 };
 
-// ==========================================
 // Ground Truth Hooks
-// ==========================================
-
 template <typename T> class GpuGroundTruthHooks final : public common::topk::GroundTruthRunnerHooks<T> {
   public:
 	explicit GpuGroundTruthHooks() : device_name(gpu::bitonic::query_device_name()) {
@@ -212,20 +197,23 @@ template <typename T> class GpuGroundTruthHooks final : public common::topk::Gro
 	std::string device_name;
 };
 
-// ==========================================
 // Dispatch
-// ==========================================
-
 template <typename T> int topk_typed(const Config& cfg) {
-	if (cfg.algorithm == Algorithm::MapReduce) {
+	switch (cfg.algorithm) {
+	case Algorithm::MapReduce: {
 		GpuMapReduceHooks<T> hooks;
 		return common::topk::execute_map_reduce<T>(cfg, hooks);
-	} else if (cfg.algorithm == Algorithm::GroundTruth) {
+	}
+	case Algorithm::GroundTruth: {
 		GpuGroundTruthHooks<T> hooks;
 		return common::topk::execute_ground_truth<T>(cfg, hooks);
 	}
-	GpuBitonicRunnerHooks<T> hooks;
-	return common::topk::execute_bitonic<T>(cfg, hooks);
+	case Algorithm::Bitonic: {
+		GpuBitonicRunnerHooks<T> hooks;
+		return common::topk::execute_bitonic<T>(cfg, hooks);
+	}
+	}
+	throw std::invalid_argument("Unsupported algorithm");
 }
 
 } // namespace

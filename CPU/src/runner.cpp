@@ -35,10 +35,7 @@ Context build_context(const Config& cfg) {
 	return Context{hw_threads, ex_threads};
 }
 
-// ==========================================
 // Bitonic Hooks
-// ==========================================
-
 template <typename T> class CpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
   public:
 	explicit CpuBitonicRunnerHooks(const Context& ctx) : context(ctx) {
@@ -48,7 +45,9 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 		cpu::reporting::print_configuration(cfg, context.ex_threads, n);
 	}
 
-	common::topk::BasicRunStats run(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) override {
+	common::topk::BasicRunStats run(
+		std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers, bool
+	) override {
 		std::vector<T> data_backup = data;
 		double bytes_moved = 0.0;
 
@@ -83,10 +82,7 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 	std::size_t actual_workers = 0;
 };
 
-// ==========================================
 // MapReduce Hooks
-// ==========================================
-
 template <typename T> class CpuMapReduceHooks final : public common::topk::MapReduceRunnerHooks<T> {
   public:
 	explicit CpuMapReduceHooks(const Context& ctx) : context(ctx) {
@@ -137,10 +133,7 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 	Context context;
 };
 
-// ==========================================
 // Ground Truth Hooks
-// ==========================================
-
 template <typename T> class CpuGroundTruthHooks final : public common::topk::GroundTruthRunnerHooks<T> {
   public:
 	explicit CpuGroundTruthHooks(const Context& ctx) : context(ctx) {
@@ -153,34 +146,11 @@ template <typename T> class CpuGroundTruthHooks final : public common::topk::Gro
 	std::vector<T> run(
 		const std::vector<T>& input, const Config& cfg, common::topk::GroundTruthRunStats* stats
 	) override {
-		const std::size_t k = std::min(cfg.k, input.size());
-
-		auto best = common::benchmark::run_benchmark([&]() -> common::benchmark::TimedValue<std::vector<T>> {
-			std::vector<T> temp = input;
-			auto t0 = std::chrono::high_resolution_clock::now();
-			common::energy::FullScope energy_scope;
-
-			cpu::ground_truth::run_topk(temp, k, cfg.want_max);
-
-			energy_scope.close();
-			auto t1 = std::chrono::high_resolution_clock::now();
-			double elapsed_wall_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-
-			if (k > 0 && k < temp.size()) {
-				temp.resize(k);
-			} else if (k == 0) {
-				temp.clear();
+		return common::topk::run_ground_truth_benchmark<T>(
+			input, cfg, stats, [](std::vector<T>& temp, std::size_t k, bool want_max) {
+				cpu::ground_truth::run_topk(temp, k, want_max);
 			}
-
-			return common::benchmark::TimedValue<std::vector<T>>{elapsed_wall_ms, elapsed_wall_ms, std::move(temp)};
-		});
-
-		if (stats != nullptr) {
-			common::topk::fill_timing_stats(*stats, best);
-			stats->traffic.bytes_moved = static_cast<double>(input.size() + k) * static_cast<double>(sizeof(T));
-		}
-
-		return std::move(best.sample.value);
+		);
 	}
 
 	void print_debug_metrics(const Config&, const common::topk::GroundTruthRunStats&) override {
@@ -191,23 +161,25 @@ template <typename T> class CpuGroundTruthHooks final : public common::topk::Gro
 	Context context;
 };
 
-// ==========================================
 // Dispatch
-// ==========================================
-
 template <typename T> int topk_typed(const Config& cfg) {
 	const Context ctx = build_context(cfg);
 
-	if (cfg.algorithm == Algorithm::MapReduce) {
+	switch (cfg.algorithm) {
+	case Algorithm::MapReduce: {
 		CpuMapReduceHooks<T> hooks(ctx);
 		return common::topk::execute_map_reduce<T>(cfg, hooks);
-	} else if (cfg.algorithm == Algorithm::GroundTruth) {
+	}
+	case Algorithm::GroundTruth: {
 		CpuGroundTruthHooks<T> hooks(ctx);
 		return common::topk::execute_ground_truth<T>(cfg, hooks);
 	}
-
-	CpuBitonicRunnerHooks<T> hooks(ctx);
-	return common::topk::execute_bitonic<T>(cfg, hooks);
+	case Algorithm::Bitonic: {
+		CpuBitonicRunnerHooks<T> hooks(ctx);
+		return common::topk::execute_bitonic<T>(cfg, hooks);
+	}
+	}
+	throw std::invalid_argument("Unsupported algorithm");
 }
 
 } // namespace

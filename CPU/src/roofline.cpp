@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
+#include <cstring>
 #include <exception>
 #include <iostream>
 #include <thread>
@@ -238,6 +239,20 @@ int execute(const Config& cfg) {
 			const double moved = static_cast<double>(elems) * sizeof(float) * static_cast<double>(repeats);
 			points.push_back(measure("cache_read", 0, elems, moved, 0.0, [&]() {
 				return run_fma(src.data(), elems, threads, 0, repeats);
+			}));
+		}
+	}
+
+	if (common::roofline::includes(cfg.experiment, Experiment::Transfer)) {
+		for (const std::size_t size : cfg.sizes) {
+			const std::size_t elems = std::max<std::size_t>(1, size / sizeof(float));
+			if (elems > n) {
+				continue;
+			}
+			const double moved = static_cast<double>(elems) * sizeof(float);
+			points.push_back(measure("stage_write", 0, elems, moved, 0.0, [&]() {
+				std::memcpy(dst.data(), src.data(), elems * sizeof(float));
+				return 0.0;
 			}));
 		}
 	}
