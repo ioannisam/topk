@@ -217,6 +217,7 @@ RunStats run_network_offload_xrt(
 		}
 	}
 
+	std::size_t written = 0;
 	{
 		npu::PhaseTimer timer(phases.finalize_ms);
 		if constexpr (sizeof(T) == 8) {
@@ -238,16 +239,19 @@ RunStats run_network_offload_xrt(
 			for (std::size_t i = 0; i < take; i++) {
 				data[i] = candidates[i];
 			}
+			written = take;
 		} else {
 			std::sort(heap.begin(), heap.end());
 			for (std::size_t i = 0; i < heap.size(); i++) {
 				data[i] = from_key<T>(heap[i]);
 			}
+			written = heap.size();
 		}
 	}
 
 	energy_scope.close();
 	auto t1 = std::chrono::high_resolution_clock::now();
+	data.resize(written);
 
 	const std::size_t comparators = total_tiles * (kTile / kRunLen) * common::bitonic::count_full_comparators(kRunLen);
 	return RunStats{

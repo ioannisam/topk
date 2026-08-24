@@ -841,10 +841,11 @@ void run_topk(
 	worker_fn(workers - 1);
 	pool.join();
 
+	const std::size_t result_n = layers.empty() ? n : layers.back().active_n;
 	if (src != data.data()) {
-		const std::size_t result_n = layers.empty() ? n : layers.back().active_n;
 		std::copy(src, src + result_n, data.begin());
 	}
+	data.resize(result_n);
 }
 
 template void run_topk<std::int32_t>(
