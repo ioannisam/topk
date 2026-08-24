@@ -294,6 +294,7 @@ END {
     print "- sample_interval_ms: " interval_ms
     print "- sample_count: " n
     print "- host_rapl_available: " host_available
+    print "- host_wrapped: " ((host_wrap_events + 0) > 0 ? "yes" : "no")
     printf("- elapsed_seconds: %.6f\n", dt_total)
     printf("- board_energy_joules: %.6f\n", board_energy)
     printf("- board_average_watts: %.6f\n", board_energy / dt_total)
