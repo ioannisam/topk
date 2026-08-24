@@ -49,11 +49,13 @@ std::string read_line(const std::string& path) {
 
 struct RaplDomain {
 	std::string energy_path;
+	std::ifstream stream;
 	std::uint64_t range_uj = 0;
 	bool range_known = false;
 	std::uint64_t last_uj = 0;
 	double accumulated_j = 0.0;
 	bool valid = false;
+	bool degraded = false;
 
 	bool init(const std::string& dir) {
 		energy_path = dir + "/energy_uj";
@@ -64,6 +66,7 @@ struct RaplDomain {
 		range_known = read_uint64(dir + "/max_energy_range_uj", range_uj) && range_uj != 0;
 		last_uj = probe;
 		valid = true;
+		stream.open(energy_path);
 		return true;
 	}
 
@@ -71,8 +74,10 @@ struct RaplDomain {
 		if (!valid) {
 			return 0.0;
 		}
+		stream.clear();
+		stream.seekg(0);
 		std::uint64_t now = 0;
-		if (!read_uint64(energy_path, now)) {
+		if (!(stream >> now)) {
 			return accumulated_j;
 		}
 		if (now >= last_uj) {
@@ -80,6 +85,8 @@ struct RaplDomain {
 		} else if (range_known) {
 			// now < last_uj and the wrap point is known: a rollover occurred.
 			accumulated_j += static_cast<double>(range_uj - last_uj + now) * 1e-6;
+		} else {
+			degraded = true;
 		}
 		last_uj = now;
 		return accumulated_j;
@@ -113,9 +120,11 @@ class SystemCounter final : public Counter {
 		Sample s;
 		for (RaplDomain& p : packages) {
 			s.package_j += p.joules();
+			s.degraded = s.degraded || p.degraded;
 		}
 		for (RaplDomain& c : cores) {
 			s.core_j += c.joules();
+			s.degraded = s.degraded || c.degraded;
 		}
 		s.device_j = device_joules();
 		return s;
@@ -125,9 +134,13 @@ class SystemCounter final : public Counter {
 		std::string d;
 		if (!packages.empty()) {
 			d += "rapl:package";
-			if (packages.size() > 1) {
+			if (packages.size() != packages_discovered) {
+				d += "x" + std::to_string(packages.size()) + "/" + std::to_string(packages_discovered);
+			} else if (packages.size() > 1) {
 				d += "x" + std::to_string(packages.size());
 			}
+		} else if (packages_discovered > 0) {
+			d += "rapl:unavailable(0/" + std::to_string(packages_discovered) + ")";
 		} else {
 			d += "rapl:unavailable";
 		}
@@ -155,17 +168,18 @@ class SystemCounter final : public Counter {
 			if (!read_line(dir + "/name").starts_with("package-")) {
 				continue;
 			}
+			packages_discovered++;
 			RaplDomain pkg;
 			if (!pkg.init(dir)) {
 				continue;
 			}
-			packages.push_back(pkg);
+			packages.push_back(std::move(pkg));
 
 			for (const auto& sub : fs::directory_iterator(entry.path(), ec)) {
 				if (read_line(sub.path().string() + "/name") == "core") {
 					RaplDomain core_domain;
 					if (core_domain.init(sub.path().string())) {
-						cores.push_back(core_domain);
+						cores.push_back(std::move(core_domain));
 					}
 					break;
 				}
@@ -232,6 +246,7 @@ class SystemCounter final : public Counter {
 
 	std::vector<RaplDomain> packages;
 	std::vector<RaplDomain> cores;
+	std::size_t packages_discovered = 0;
 	bool device_ready = false;
 #if defined(TOPK_WITH_NVML)
 	static constexpr int kSamplePeriodMs = 2;
@@ -296,9 +311,10 @@ void Scope::close() {
 	}
 }
 
-FullScope::FullScope() : start_seconds(0.0), active(g_depth[0] == 0 && g_depth[1] == 0) {
-	g_depth[0]++;
-	g_depth[1]++;
+FullScope::FullScope()
+	: start_seconds(0.0), active(g_depth[index_of(Channel::E2e)] == 0 && g_depth[index_of(Channel::Algo)] == 0) {
+	g_depth[index_of(Channel::E2e)]++;
+	g_depth[index_of(Channel::Algo)]++;
 	if (active) {
 		start = counter().read();
 		start_seconds = now_seconds();
@@ -314,7 +330,8 @@ void FullScope::close() {
 		return;
 	}
 	closed = true;
-	for (std::size_t i = 0; i < 2; i++) {
+	const std::size_t indices[2] = {index_of(Channel::E2e), index_of(Channel::Algo)};
+	for (const std::size_t i : indices) {
 		if (g_depth[i] > 0) {
 			g_depth[i]--;
 		}
@@ -322,7 +339,7 @@ void FullScope::close() {
 	if (active) {
 		const Sample delta = counter().read() - start;
 		const double seconds = now_seconds() - start_seconds;
-		for (std::size_t i = 0; i < 2; i++) {
+		for (const std::size_t i : indices) {
 			g_accumulator[i] += delta;
 			g_seconds[i] += seconds;
 			g_count[i]++;

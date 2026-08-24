@@ -8,6 +8,7 @@ struct Sample {
 	double package_j = 0.0;
 	double core_j = 0.0;
 	double device_j = 0.0;
+	bool degraded = false;
 
 	double total() const {
 		return package_j + device_j;
@@ -15,13 +16,19 @@ struct Sample {
 };
 
 inline Sample operator-(const Sample& lhs, const Sample& rhs) {
-	return Sample{lhs.package_j - rhs.package_j, lhs.core_j - rhs.core_j, lhs.device_j - rhs.device_j};
+	return Sample{
+		lhs.package_j - rhs.package_j,
+		lhs.core_j - rhs.core_j,
+		lhs.device_j - rhs.device_j,
+		lhs.degraded || rhs.degraded
+	};
 }
 
 inline Sample& operator+=(Sample& lhs, const Sample& rhs) {
 	lhs.package_j += rhs.package_j;
 	lhs.core_j += rhs.core_j;
 	lhs.device_j += rhs.device_j;
+	lhs.degraded = lhs.degraded || rhs.degraded;
 	return lhs;
 }
 

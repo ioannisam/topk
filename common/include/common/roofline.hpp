@@ -41,8 +41,6 @@ inline bool includes(Experiment selected, Experiment part) {
 	return selected == part;
 }
 
-// `ops` is whatever operation the kernel counts: FLOPs for fma, compare-exchanges for
-// cmp. The kernel column is what defines the unit, so the field stays generic.
 struct Point {
 	std::string kernel;
 	int ops_per_elem;
