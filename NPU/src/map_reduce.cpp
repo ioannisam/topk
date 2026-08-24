@@ -64,13 +64,7 @@ std::size_t prepare_npu_batch(
 		npu::utils::encode_keys<T>(src_map, data_ptr, current_batch);
 	}
 
-	struct alignas(16) CfgWord {
-		int32_t threshold;
-		int32_t want_max;
-		int32_t sentinel;
-		int32_t padding;
-	};
-
+	using CfgWord = npu::utils::MrCfgWord;
 	CfgWord current_cfg = {threshold_key, WantMax ? 1 : 0, sentinel_key, 0};
 
 	CfgWord* cfg_words = reinterpret_cast<CfgWord*>(cfg_map);
@@ -166,7 +160,7 @@ std::vector<T> run_map_reduce_offload_xrt(
 	sample_timer.reset();
 
 	auto setup_timer = std::make_unique<npu::PhaseTimer>(phases.setup_ms);
-	const std::size_t BATCH_CHUNKS = 1024;
+	const std::size_t BATCH_CHUNKS = npu::utils::kMrBatchChunks;
 	const std::size_t chunk_size = 1024;
 	const std::size_t batch_size = BATCH_CHUNKS * chunk_size;
 	const std::size_t batch_bytes = batch_size * sizeof(std::int32_t);

@@ -120,6 +120,15 @@ inline std::vector<uint32_t> load_instruction_sequence(const std::string& xclbin
 	return insts;
 }
 
+constexpr std::size_t kMrBatchChunks = 1024;
+
+struct alignas(16) MrCfgWord {
+	int32_t threshold;
+	int32_t want_max;
+	int32_t sentinel;
+	int32_t padding;
+};
+
 struct SharedXrtState {
 	xrt::device dev;
 	xrt::xclbin xclbin;
@@ -163,7 +172,7 @@ struct SharedXrtState {
 
 		for (int i = 0; i < 2; i++) {
 			mr_cfg_bo.push_back(
-				xrt::bo(dev, 4096 * sizeof(int32_t), xrt::bo::flags::host_only, safe_group_id(kernel, 3))
+				xrt::bo(dev, kMrBatchChunks * sizeof(MrCfgWord), xrt::bo::flags::host_only, safe_group_id(kernel, 3))
 			);
 			mr_dst_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, safe_group_id(kernel, 4)));
 			mr_src_bo.push_back(xrt::bo(dev, batch_bytes, xrt::bo::flags::host_only, safe_group_id(kernel, 5)));
