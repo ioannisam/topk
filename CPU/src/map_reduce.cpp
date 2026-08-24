@@ -165,15 +165,21 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 	const bool use_avx2 = cpu::simd::cpu_supports_avx2();
 
 	std::vector<std::vector<T>> local_topk(workers);
-	static cpu::utils::WorkerPool pool(cpu::kMaxWorkers);
+	static cpu::utils::WorkerPool pool(cpu::kMaxWorkers - 1);
 
-	pool.run([&](std::size_t tid) {
-		if (tid < workers) {
-			const std::size_t begin = (n * tid) / workers;
-			const std::size_t end = (n * (tid + 1)) / workers;
-			local_topk[tid] = map<WantMax>(data, begin, end, k, use_avx512f, use_avx2);
+	auto worker_fn = [&](std::size_t tid) {
+		const std::size_t begin = (n * tid) / workers;
+		const std::size_t end = (n * (tid + 1)) / workers;
+		local_topk[tid] = map<WantMax>(data, begin, end, k, use_avx512f, use_avx2);
+	};
+
+	pool.dispatch([&](std::size_t tid) {
+		if (tid < workers - 1) {
+			worker_fn(tid);
 		}
 	});
+	worker_fn(workers - 1);
+	pool.join();
 
 	using HeapCompare = std::conditional_t<WantMax, std::greater<T>, std::less<T>>;
 	std::vector<T>& final_heap = local_topk[0];

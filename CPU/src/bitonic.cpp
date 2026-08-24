@@ -712,128 +712,134 @@ void run_topk(
 	T* dst = needs_alt ? alt_storage.data() : nullptr;
 
 	SpinBarrier barrier(workers);
-	static cpu::utils::WorkerPool pool(cpu::kMaxWorkers);
+	static cpu::utils::WorkerPool pool(cpu::kMaxWorkers - 1);
 
-	pool.run([&](std::size_t tid) {
-		if (tid < workers) {
-			for (const auto& group : groups) {
-				const std::size_t active_n = group.active_n;
-				const bool writes_dst = group.kind == GroupKind::Truncate || group.kind == GroupKind::TruncResort;
-				const std::size_t slice_n = group.kind == GroupKind::TruncResort ? group.out_active_n : active_n;
+	auto worker_fn = [&](std::size_t tid) {
+		for (const auto& group : groups) {
+			const std::size_t active_n = group.active_n;
+			const bool writes_dst = group.kind == GroupKind::Truncate || group.kind == GroupKind::TruncResort;
+			const std::size_t slice_n = group.kind == GroupKind::TruncResort ? group.out_active_n : active_n;
 
-				// typical cache line size is 64 bytes
-				const std::size_t gran =
-					group.kind == GroupKind::TiledRun ? run_tile_elems<T>(group.stride) : (64 / sizeof(T));
+			// typical cache line size is 64 bytes
+			const std::size_t gran =
+				group.kind == GroupKind::TiledRun ? run_tile_elems<T>(group.stride) : (64 / sizeof(T));
 
-				std::size_t effective_workers = workers;
-				if (slice_n < effective_workers * gran) {
-					effective_workers = std::max<std::size_t>(1, slice_n / gran);
-				}
+			std::size_t effective_workers = workers;
+			if (slice_n < effective_workers * gran) {
+				effective_workers = std::max<std::size_t>(1, slice_n / gran);
+			}
 
-				std::size_t begin = 0;
-				std::size_t end = 0;
-				if (tid < effective_workers) {
-					std::size_t raw_begin = (slice_n * tid) / effective_workers;
-					std::size_t raw_end = (slice_n * (tid + 1)) / effective_workers;
+			std::size_t begin = 0;
+			std::size_t end = 0;
+			if (tid < effective_workers) {
+				std::size_t raw_begin = (slice_n * tid) / effective_workers;
+				std::size_t raw_end = (slice_n * (tid + 1)) / effective_workers;
 
-					begin = (raw_begin / gran) * gran;
-					end = (tid + 1 == effective_workers) ? slice_n : ((raw_end / gran) * gran);
-				}
+				begin = (raw_begin / gran) * gran;
+				end = (tid + 1 == effective_workers) ? slice_n : ((raw_end / gran) * gran);
+			}
 
-				if (begin >= end) {
-					barrier.wait();
-					if (writes_dst) {
-						if (tid == 0) {
-							std::swap(src, dst);
-						}
-						barrier.wait();
-					}
-					continue;
-				}
-
-				switch (group.kind) {
-				case GroupKind::IntraRun: {
-					if (!try_run_fused_intra<T>(
-							src, begin, end, ops.data() + group.ops_begin, group.ops_count, use_avx512
-						)) {
-						for (std::size_t o = 0; o < group.ops_count; o++) {
-							const IntraOp& op = ops[group.ops_begin + o];
-							run_normal_scalar(src, begin, end, op.stage, op.stride, active_n);
-						}
-					}
-					break;
-				}
-				case GroupKind::TiledRun: {
-					run_tiled<T>(
-						src,
-						begin,
-						end,
-						ops.data() + group.ops_begin,
-						group.ops_count,
-						active_n,
-						gran,
-						cpu::simd::simd_block_width<T>(use_avx512, use_avx2),
-						use_avx512
-					);
-					break;
-				}
-				case GroupKind::InterNormal: {
-					if (!try_run_inter<T>(src, begin, end, group.stage, group.stride, active_n, use_avx512)) {
-						run_normal_scalar(src, begin, end, group.stage, group.stride, active_n);
-					}
-					break;
-				}
-				case GroupKind::Truncate: {
-					if (!try_run_simd_layer_truncate<T>(src, dst, begin, end, group.stride, active_n, use_avx512)) {
-						std::size_t i = begin;
-						const std::size_t stride_minus_1 = group.stride - 1;
-						const std::size_t stride_mask = ~stride_minus_1;
-						while (i < end) {
-							if ((i & group.stride) != 0) {
-								i = (i | ((group.stride << 1) - 1)) + 1;
-								continue;
-							}
-							std::size_t chunk_end = std::min((i | stride_minus_1) + 1, end);
-							if (chunk_end > active_n) {
-								chunk_end = active_n;
-							}
-							for (; i < chunk_end; i++) {
-								const std::size_t ixj = i + group.stride;
-								const std::size_t out_idx = ((i >> 1) & stride_mask) | (i & stride_minus_1);
-								dst[out_idx] = std::min(src[i], src[ixj]);
-							}
-						}
-					}
-					break;
-				}
-				case GroupKind::TruncResort: {
-					if (!try_run_fused_trunc_resort<T>(
-							src, dst, begin, end, ops.data() + group.ops_begin, group.ops_count, use_avx512
-						)) {
-						for (std::size_t o = begin; o < end; o++) {
-							const std::size_t in_base = trunc_source_index(o, group.stride);
-							dst[o] = std::min(src[in_base], src[in_base + group.stride]);
-						}
-						for (std::size_t oi = 0; oi < group.ops_count; oi++) {
-							const IntraOp& op = ops[group.ops_begin + oi];
-							run_normal_scalar(dst, begin, end, op.stage, op.stride, group.out_active_n);
-						}
-					}
-					break;
-				}
-				}
-
+			if (begin >= end) {
 				barrier.wait();
-
 				if (writes_dst) {
 					if (tid == 0) {
 						std::swap(src, dst);
 					}
 					barrier.wait();
 				}
+				continue;
+			}
+
+			switch (group.kind) {
+			case GroupKind::IntraRun: {
+				if (!try_run_fused_intra<T>(
+						src, begin, end, ops.data() + group.ops_begin, group.ops_count, use_avx512
+					)) {
+					for (std::size_t o = 0; o < group.ops_count; o++) {
+						const IntraOp& op = ops[group.ops_begin + o];
+						run_normal_scalar(src, begin, end, op.stage, op.stride, active_n);
+					}
+				}
+				break;
+			}
+			case GroupKind::TiledRun: {
+				run_tiled<T>(
+					src,
+					begin,
+					end,
+					ops.data() + group.ops_begin,
+					group.ops_count,
+					active_n,
+					gran,
+					cpu::simd::simd_block_width<T>(use_avx512, use_avx2),
+					use_avx512
+				);
+				break;
+			}
+			case GroupKind::InterNormal: {
+				if (!try_run_inter<T>(src, begin, end, group.stage, group.stride, active_n, use_avx512)) {
+					run_normal_scalar(src, begin, end, group.stage, group.stride, active_n);
+				}
+				break;
+			}
+			case GroupKind::Truncate: {
+				if (!try_run_simd_layer_truncate<T>(src, dst, begin, end, group.stride, active_n, use_avx512)) {
+					std::size_t i = begin;
+					const std::size_t stride_minus_1 = group.stride - 1;
+					const std::size_t stride_mask = ~stride_minus_1;
+					while (i < end) {
+						if ((i & group.stride) != 0) {
+							i = (i | ((group.stride << 1) - 1)) + 1;
+							continue;
+						}
+						std::size_t chunk_end = std::min((i | stride_minus_1) + 1, end);
+						if (chunk_end > active_n) {
+							chunk_end = active_n;
+						}
+						for (; i < chunk_end; i++) {
+							const std::size_t ixj = i + group.stride;
+							const std::size_t out_idx = ((i >> 1) & stride_mask) | (i & stride_minus_1);
+							dst[out_idx] = std::min(src[i], src[ixj]);
+						}
+					}
+				}
+				break;
+			}
+			case GroupKind::TruncResort: {
+				if (!try_run_fused_trunc_resort<T>(
+						src, dst, begin, end, ops.data() + group.ops_begin, group.ops_count, use_avx512
+					)) {
+					for (std::size_t o = begin; o < end; o++) {
+						const std::size_t in_base = trunc_source_index(o, group.stride);
+						dst[o] = std::min(src[in_base], src[in_base + group.stride]);
+					}
+					for (std::size_t oi = 0; oi < group.ops_count; oi++) {
+						const IntraOp& op = ops[group.ops_begin + oi];
+						run_normal_scalar(dst, begin, end, op.stage, op.stride, group.out_active_n);
+					}
+				}
+				break;
+			}
+			}
+
+			barrier.wait();
+
+			if (writes_dst) {
+				if (tid == 0) {
+					std::swap(src, dst);
+				}
+				barrier.wait();
 			}
 		}
+	};
+
+	pool.dispatch([&](std::size_t tid) {
+		if (tid < workers - 1) {
+			worker_fn(tid);
+		}
 	});
+	worker_fn(workers - 1);
+	pool.join();
 
 	if (src != data.data()) {
 		const std::size_t result_n = layers.empty() ? n : layers.back().active_n;

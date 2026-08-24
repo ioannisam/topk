@@ -36,10 +36,14 @@ class WorkerPool {
 		return num_workers;
 	}
 
-	void run(std::function<void(std::size_t)> fn) {
+	// caller doesn't remain idle
+	void dispatch(std::function<void(std::size_t)> fn) {
 		task = std::move(fn);
 		done.store(0, std::memory_order_relaxed);
 		gen.fetch_add(1, std::memory_order_release);
+	}
+
+	void join() {
 		while (done.load(std::memory_order_acquire) < num_workers) {
 #if defined(__x86_64__) || defined(__i386__)
 			_mm_pause();
