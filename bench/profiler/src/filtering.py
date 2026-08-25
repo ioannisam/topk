@@ -51,15 +51,15 @@ def filter_measurements(
         if rec.command_exit_code is not None and rec.command_exit_code != 0:
             continue
 
-        if dtypes and rec.dtype and rec.dtype not in dtypes:
+        if dtypes and rec.dtype not in dtypes:
             continue
         if algorithms and rec.algorithm not in algorithms:
             continue
-        if mode and rec.mode and rec.mode != mode:
+        if mode and rec.mode != mode:
             continue
-        if k_value is not None and rec.k is not None and rec.k != k_value:
+        if k_value is not None and rec.k != k_value:
             continue
-        if backends and rec.backend and rec.backend not in backends:
+        if backends and rec.backend not in backends:
             continue
         if dists and rec.dist and rec.dist not in dists:
             continue
