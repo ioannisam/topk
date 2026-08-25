@@ -194,10 +194,10 @@ def select_energy_joules(rec, metric: str, scope: str = "e2e") -> float | None:
 
 def select_elapsed_seconds(rec) -> float | None:
     ops = getattr(rec, "bench_ops", 1) or 1
-    loop_s = getattr(rec, "inproc_loop_seconds", None)
-    if loop_s:
+    e2e_s = getattr(rec, "inproc_e2e_seconds", None)
+    if e2e_s:
         iterations = getattr(rec, "inproc_iterations", None) or ops
-        return loop_s / iterations
+        return e2e_s / iterations
     if rec.elapsed_seconds is None:
         return None
     return rec.elapsed_seconds / ops
