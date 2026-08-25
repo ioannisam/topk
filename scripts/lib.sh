@@ -91,7 +91,7 @@ run_suite() {
         for ((i=1; i<=runs; i++)); do
             local ERR_LOG; ERR_LOG="$(mktemp)"
             local RAW_OUTPUT
-            RAW_OUTPUT=$(timeout --preserve-status "${TIMEOUT_SECONDS}"s "${cmd[@]}" 2>>"${ERR_LOG}") || exit_code=$?
+            RAW_OUTPUT=$(timeout "${TIMEOUT_SECONDS}"s "${cmd[@]}" 2>>"${ERR_LOG}") || exit_code=$?
 
             if [[ ${exit_code} -ne 0 ]]; then
                 found_e2e=0; found_algo=0; min_e2e=""; min_algo=""
