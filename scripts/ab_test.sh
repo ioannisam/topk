@@ -38,7 +38,7 @@ if ! run_suite "Current Changes" "${TMP_NEW}"; then exit 1; fi
 
 echo -e "\n=== Phase 2: Testing BASELINE (HEAD) ==="
 echo "Stashing current changes..."
-git stash push -q -u -m "perf_ab_test_temp"
+git stash push -q -u -m "perf_ab_test_temp" || { echo "Error: Failed to stash current changes." >&2; exit 1; }
 STASHED=1
 
 if ! run_suite "Baseline (HEAD)" "${TMP_BASE}"; then exit 1; fi
