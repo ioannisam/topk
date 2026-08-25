@@ -14,7 +14,7 @@
 namespace common::config {
 namespace {
 
-constexpr long long kMaxQ = 63; // n = 1 << q
+constexpr long long kMaxQ = 62; // n = 1 << q; 63 overflows the stage-doubling loops in bitonic.cpp
 constexpr int kHalfMax = 65504; // largest finite magnitude representable by IEEE binary16.
 
 constexpr const char* kUsage = "Usage: ./topk q=<q> [k=<k>] [mode=min|max] [dtype=<type>] "
