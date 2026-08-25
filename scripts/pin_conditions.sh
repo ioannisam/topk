@@ -29,8 +29,11 @@ set_governor() {
 set_boost() {
     local on="$1"
     if [[ -e /sys/devices/system/cpu/cpufreq/boost ]]; then
-        echo "$on" | sudo tee /sys/devices/system/cpu/cpufreq/boost >/dev/null 2>&1 \
-            && echo "CPU boost      -> ${on}"
+        if echo "$on" | sudo tee /sys/devices/system/cpu/cpufreq/boost >/dev/null 2>&1; then
+            echo "CPU boost      -> ${on}"
+        else
+            echo "WARNING: failed to set CPU boost -> ${on}" >&2
+        fi
     fi
 }
 
@@ -68,9 +71,10 @@ esac
 set_governor performance || { echo "ABORT: failed to pin CPU governor to performance" >&2; exit 1; }
 set_boost 0
 if command -v nvidia-smi >/dev/null 2>&1; then
-    sudo nvidia-smi -pm 1 >/dev/null 2>&1 && echo "GPU persistence -> on"
+    sudo nvidia-smi -pm 1 >/dev/null 2>&1 && echo "GPU persistence -> on" || echo "WARNING: failed to enable GPU persistence" >&2
     if [[ -n "${GPU_POWER_W}" ]]; then
-        sudo nvidia-smi -pl "${GPU_POWER_W}" >/dev/null 2>&1 && echo "GPU power cap  -> ${GPU_POWER_W} W"
+        sudo nvidia-smi -pl "${GPU_POWER_W}" >/dev/null 2>&1 && echo "GPU power cap  -> ${GPU_POWER_W} W" \
+            || echo "WARNING: failed to set GPU power cap -> ${GPU_POWER_W} W" >&2
     fi
 fi
 echo
