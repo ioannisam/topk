@@ -27,7 +27,7 @@ by the architecture.} The inversion in Section~\ref{sec:eval-time-k}
 appears across all three architectures. The fastest implementation for k
 equal to 8 is the slowest for k equal to 131072, a slowdown by a factor of
 2800, while the sorting network on the same device is penalised by only a
-factor of seven. The cause is structural rather than implementation-specific:
+factor of six. The cause is structural rather than implementation-specific:
 the heap only begins to filter once it is full, so the available
 parallelism is capped by the ratio $n/k$. The fact that independent work on
 different hardware arrives at the same distinction and addresses it with
@@ -46,21 +46,21 @@ verifiable, because it conceals exactly the cost that determines whether
 offloading is worthwhile.
 
 \paragraph{Low power does not imply low energy.} The neural processing unit
-has the lowest power draw of any implementation, \qty{8.1}{\watt} against
-\qty{8.5}{\watt} for the processor and \qty{18.6}{\watt} for the graphics
-processing unit, and at the same time consumes five times more energy than
-the processor. The five percent advantage in power is wiped out by the
-sevenfold disadvantage in duration. Moreover, as shown in
+has the lowest power draw of any implementation, \qty{6.7}{\watt} against
+\qty{7.8}{\watt} for the processor and \qty{15.2}{\watt} for the graphics
+processing unit, and at the same time consumes over four times more energy than
+the processor. The thirteen-percent advantage in power is wiped out by the
+eightfold disadvantage in duration. Moreover, as shown in
 Section~\ref{sec:eval-energy}, there is no substantial trade-off between
 time and energy for this problem: power varies among the implementations by
 only a factor of 2.3, while time varies by four orders of magnitude, so the
-product follows time. Of the 315 measured cases, only one belongs to the
-Pareto front, and it runs on the processor.
+product follows time. Of the 209 measured cases, only two belong to the
+Pareto front, and both run on the processor.
 
 Overall, for top-k selection with small k, offloading to an accelerator
 does not merely fail to deliver a benefit; it is measurably worse than not
 offloading at all, with the energy-delay product trailing by a factor of
-between twenty-two and eighty-eight relative to map-reduce on the
+between twenty-eight and seventy-eight relative to map-reduce on the
 processor. The conclusion does not concern the quality of the accelerators
 but the match between workload and architecture. The design principle of
 neural processing units, as stated in Section~\ref{sec:bg-arch-npu}, is to
@@ -72,7 +72,7 @@ waiting for the device, is the quantitative expression of this mismatch.
 
 Finally, the sole exception deserves comment. For half-precision numbers,
 bitonic sort on the neural processing unit outperforms its ground truth in
-fifty-six measured cases. The analysis in Section~\ref{sec:eval-dtypes}
+twenty-nine measured cases. The analysis in Section~\ref{sec:eval-dtypes}
 shows, however, that this advantage arises because the library handles this
 particular type poorly, not because the device handles it well. This
 example is instructive methodologically: a speed-up over a baseline

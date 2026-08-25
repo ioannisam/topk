@@ -58,11 +58,17 @@ computation.
     \label{fig:eval-time-n-k8}
 \end{figure}
 
-In the upper figure, which concerns the algorithmic scope, the GPU is the
-fastest architecture across the entire range of sizes, from the smallest to
-the largest. At the smallest input it completes in \qty{0.008}{\milli\second}
-against \qty{0.048}{\milli\second} for the CPU, and at the largest in
-\qty{0.42}{\milli\second} against \qty{1.41}{\milli\second}.
+In the upper figure, which concerns the algorithmic scope, the ranking is not
+one-sided. The GPU is fastest at the smallest input, completing in
+\qty{0.010}{\milli\second} against \qty{0.022}{\milli\second} for the CPU,
+and again at the largest, in \qty{0.43}{\milli\second} against
+\qty{1.23}{\milli\second}; for nearly the entire range in between, the CPU is
+the faster of the two, since its persistent thread pool now removes per-call
+overhead that used to dominate at these sizes. The exact size at which the
+two swap places is itself unstable across repeated runs of the same sweep:
+at these small absolute times, both architectures sit close enough to the
+timer's resolution that the ranking there reflects measurement noise rather
+than a fixed architectural difference.
 
 The other two architectures show a clear floor at small sizes. The NPU curves
 remain completely flat around half a millisecond up to about $2^{16}$
@@ -74,9 +80,9 @@ millisecond.
 This picture, however, is completely reversed in the lower figure, once the
 measurement includes data transfer as well. In the end-to-end scope the CPU is
 faster than every other architecture at \emph{all} sizes examined, including
-the largest: the GPU kernel's \qty{0.42}{\milli\second} becomes
-\qty{5.81}{\milli\second} in total, while the CPU remains at
-\qty{1.41}{\milli\second}, since for it the two scopes coincide.
+the largest: the GPU kernel's \qty{0.43}{\milli\second} becomes
+\qty{5.69}{\milli\second} in total, while the CPU remains at
+\qty{1.23}{\milli\second}, since for it the two scopes coincide.
 
 This contrast is the first appearance of a pattern that recurs throughout the
 chapter. The algorithmic scope measures how well each device performs the
@@ -85,7 +91,7 @@ it in the first place. The two answers do not coincide, and
 section~\ref{sec:eval-energy} shows that it is the second that also
 determines the energy picture.
 
-The NPU requires \qty{10.46}{\milli\second} at the largest input, i.e. more
+The NPU requires \qty{9.97}{\milli\second} at the largest input, i.e. more
 than any other architecture under either scope, for the reasons given in
 section~\ref{sec:npu-bottlenecks}.
 
@@ -98,9 +104,15 @@ section~\ref{sec:npu-bottlenecks}.
 
 Comparing the same bitonic sort across the three architectures is
 illuminating, because the same level schedule is executed and the difference
-is due solely to the implementation. The GPU outperforms the CPU by a factor
-of eight, as expected from the difference in available bandwidth. The NPU sits
-close to the CPU, which is consistent with the finding that its time is spent
+is due solely to the implementation. The two general-purpose architectures
+trade places along the range: the CPU is faster than the GPU through most of
+the small-to-medium sizes, since it now amortises its fixed per-call overhead
+well there, and the GPU pulls ahead only at the largest sizes, reaching a
+factor of six at the largest size examined, consistent with the difference in
+available bandwidth. As with the comparison above, the exact size at which
+the two swap places moves between repeated runs of the same sweep and should
+not be read as a fixed threshold. The NPU sits close to the CPU at these
+larger sizes, which is consistent with the finding that its time is spent
 almost entirely on the host.
 
 \subsection{Dependence on the parameter k}
@@ -142,12 +154,12 @@ on the GPU the same curves are separated by three orders of magnitude.
         & \multicolumn{2}{c}{k=8} & \multicolumn{2}{c}{k=131072} \\
         Implementation & ms & rank & ms & rank \\
         \hline
-        GPU map-reduce & 0.42 & 1 & 1191.44 & 6 \\
-        GPU bitonic & 1.22 & 2 & 8.00 & 1 \\
-        CPU map-reduce & 1.41 & 3 & 62.45 & 5 \\
-        NPU bitonic & 8.79 & 4 & 56.99 & 3 \\
-        CPU bitonic & 10.10 & 5 & 47.67 & 2 \\
-        NPU map-reduce & 10.46 & 6 & 60.30 & 4 \\
+        GPU map-reduce & 0.43 & 1 & 1191.37 & 6 \\
+        GPU bitonic & 1.34 & 3 & 8.22 & 1 \\
+        CPU map-reduce & 1.23 & 2 & 60.37 & 5 \\
+        NPU bitonic & 8.17 & 5 & 56.70 & 3 \\
+        CPU bitonic & 8.01 & 4 & 43.33 & 2 \\
+        NPU map-reduce & 9.97 & 6 & 59.69 & 4 \\
         \hline
     \end{tabular}
     \caption[Algorithmic time for the two extremes of k]{Algorithmic time for the two extremes of k, at an input of $2^{24}$
@@ -159,7 +171,11 @@ on the GPU the same curves are separated by three orders of magnitude.
 The fastest implementation for small k becomes the slowest for large k, a
 difference of three orders of magnitude. GPU map-reduce slows down by a
 factor of 2800 between the two extremes, whereas bitonic sort on the same
-architecture slows down by barely a factor of seven.
+architecture slows down by barely a factor of six. At small k the two CPU
+implementations now also rank ahead of their position at large k, map-reduce
+overtaking GPU bitonic and bitonic overtaking NPU bitonic, but the reversal
+itself is unaffected: the implementation cheapest at k equal to 8 is never the
+implementation cheapest at k equal to 131072.
 
 The reversal is not a peculiarity of this implementation. Independent studies
 on GPUs from two different vendors report the same dependence on k and
@@ -248,8 +264,8 @@ algorithmic.
 
 The largest speedup in the entire figure appears elsewhere, however, and is a
 consequence of the reversal in section~\ref{sec:eval-time-k}. For large k,
-where heap-based selection collapses, bitonic sort on the CPU reaches nearly
-seven times faster than the library. The reason is that the library, too,
+where heap-based selection collapses, bitonic sort on the CPU reaches roughly
+six times faster than the library. The reason is that the library, too,
 relies on a heap of size k and suffers the same overhead, while the sorting
 network remains essentially unaffected. The advantage weakens as the input
 grows further and the network's data traffic starts to dominate, narrowing to
@@ -382,8 +398,9 @@ working set stops fitting in the last level.
 
 Utilisation of the memory ceiling increases with input size and stabilises once
 the working set exceeds the cache. At the largest input, bitonic sort on the
-CPU reaches two-thirds of the ceiling, and on the GPU a comparable percentage,
-while utilisation of the compute ceiling remains below five percent.
+CPU reaches about four-fifths of the ceiling, noticeably ahead of the GPU's
+three-fifths, while utilisation of the compute ceiling remains below five
+percent on both.
 
 The juxtaposition of bitonic sort with the library on the GPU deserves
 particular attention, because it shows that proximity to the ceiling does not
@@ -424,12 +441,12 @@ section~\ref{sec:meth-energy-scope}: each architecture is charged the total
 cost of solving the problem, including the host.
 
 At the largest input and for small k, CPU map-reduce consumes about
-\qty{20}{\milli\joule} per run and is the most economical implementation. The
-corresponding implementations on the GPU consume from \qty{129}{\milli\joule}
-to \qty{150}{\milli\joule}, i.e. up to seven times more, despite being faster
+\qty{19}{\milli\joule} per run and is the most economical implementation. The
+corresponding implementations on the GPU consume from \qty{108}{\milli\joule}
+to \qty{128}{\milli\joule}, i.e. up to seven times more, despite being faster
 in the algorithmic scope. The most expensive implementation of all is bitonic
 sort on the GPU, while the corresponding CPU implementation costs
-\qty{141}{\milli\joule}.
+\qty{118}{\milli\joule}.
 
 The apparent contradiction is explained by section~\ref{sec:gpu-memory}. The
 GPU's algorithmic scope includes only the kernel, while the end-to-end scope
@@ -448,15 +465,15 @@ board power, is not more economical.
 Juxtaposing figures~\ref{fig:eval-energy} and~\ref{fig:eval-power} highlights
 a distinction that is easy to conflate, and one that particularly concerns
 the NPU. This device has the \emph{lowest} power draw of all
-implementations, with map-reduce measuring \qty{8.1}{\watt} against
-\qty{8.5}{\watt} for the corresponding CPU implementation and
-\qty{18.6}{\watt} for the GPU.
+implementations, with map-reduce measuring \qty{6.7}{\watt} against
+\qty{7.8}{\watt} for the corresponding CPU implementation and
+\qty{15.2}{\watt} for the GPU.
 
-Nonetheless it consumes five times the energy of CPU map-reduce,
-\qty{0.097}{\joule} against \qty{0.020}{\joule}. The reason is that energy is
-the product of power and time, and the NPU needs roughly seven times the time
-for the same task. The five-percent advantage in power is wiped out by the
-sevenfold disadvantage in duration.
+Nonetheless it consumes over four times the energy of CPU map-reduce,
+\qty{0.080}{\joule} against \qty{0.019}{\joule}. The reason is that energy is
+the product of power and time, and the NPU needs roughly eight times the time
+for the same task. The thirteen-percent advantage in power is wiped out by the
+eightfold disadvantage in duration.
 
 This observation generalises: low power does not imply low energy. The
 principle that moving data costs more energy than the computation itself
@@ -483,10 +500,11 @@ improving one criterion requires giving up ground on the other.
 
 The result is illuminating precisely because it is negative. The
 measurements form a narrow diagonal band, with a correlation coefficient
-between the logarithms of time and energy equal to 0.97. Of the 315 cases,
-only one belongs to the front. That is, no substantial trade-off exists
-between speed and energy for this problem: the fastest configuration is also
-the most economical.
+between the logarithms of time and energy equal to 0.97. Of the 209 cases,
+only two belong to the front, and both are the same implementation, CPU
+map-reduce, at two neighbouring input sizes. That is, no substantial
+trade-off exists between speed and energy for this problem: the fastest
+configuration is also the most economical.
 
 The reason follows from the two preceding figures. Power varies among
 implementations by barely a factor of 2.3, while time varies by four orders
@@ -512,11 +530,16 @@ The energy-delay product condenses the two criteria into one and rewards
 implementations that are simultaneously fast and economical. The resulting
 ranking is the clearest in the entire chapter. CPU map-reduce has the lowest
 product of any implementation, with the next-lowest, GPU map-reduce, trailing
-by a factor of twenty-two, and the worst by a factor of eighty-eight.
+by a factor of twenty-eight, and the worst by a factor of seventy-eight.
 
-The gap widens further as the input shrinks: at the medium sizes of the
-figure, no other implementation comes within less than two orders of
-magnitude.
+CPU map-reduce is the lowest-product implementation across almost the entire
+range; the sole exception is the smallest size shown, where its net energy
+reading falls to zero, below the resolution of the counter at that duration,
+leaving CPU bitonic nominally lowest there instead. Elsewhere, the size of
+the gap to the next implementation is not monotonic: it fluctuates between
+roughly one and two and a half orders of magnitude, as CPU bitonic and CPU
+map-reduce trade the runner-up position depending on the exact input size.
+The ranking itself is never seriously in doubt; only the margin is noisy.
 
 This result is the most counterintuitive of those presented here. For top-k
 selection with small k, offloading to an accelerator does not merely fail to
@@ -531,11 +554,11 @@ pay off energetically; it is clearly worse than not offloading at all.
         \hline
         Implementation & half & int & uint & float & double \\
         \hline
-        CPU bitonic & 5.67 & 10.10 & 10.57 & 10.18 & 17.89 \\
-        CPU map-reduce & 0.48 & 1.41 & 1.39 & 1.53 & 2.47 \\
-        CPU reference & 13.34 & 4.71 & 4.73 & 5.61 & 5.63 \\
-        GPU bitonic & 0.75 & 1.22 & 1.25 & 1.20 & 2.73 \\
-        NPU bitonic & 8.18 & 8.79 & 8.91 & 8.77 & 28.36 \\
+        CPU bitonic & 4.60 & 8.01 & 7.93 & 8.01 & 14.03 \\
+        CPU map-reduce & 0.39 & 1.23 & 1.22 & 1.22 & 2.35 \\
+        CPU reference & 13.27 & 4.65 & 4.63 & 5.50 & 5.54 \\
+        GPU bitonic & 0.88 & 1.34 & 1.37 & 1.34 & 2.89 \\
+        NPU bitonic & 7.71 & 8.17 & 8.37 & 8.23 & 25.38 \\
         \hline
     \end{tabular}
     \caption[Algorithmic time by data type]{Algorithmic time by data type, in ms, for $2^{24}$ elements and k
@@ -562,7 +585,7 @@ not sufficient to express 64-bit values.
 
 The combination of these two opposite behaviours produces the single point in
 the entire work where the NPU outperforms its own library. For half
-precision, bitonic sort on the NPU is faster than the library in twenty-eight
+precision, bitonic sort on the NPU is faster than the library in twenty-nine
 of the measured cases, with the largest gap reaching a factor of two and a
 half. The phenomenon appears more weakly in the other two floating-point
 types, and never appears for the integer types.
@@ -584,11 +607,11 @@ established solution is weakest, not where the NPU is strongest.
         \hline
         Implementation & uniform & adversarial & sorted & reverse \\
         \hline
-        CPU bitonic & 44.50 & 44.75 & 44.57 & 44.41 \\
-        GPU bitonic & 7.99 & 8.07 & 7.96 & 7.96 \\
-        CPU reference & 74.03 & 73.91 & 766.66 & 10.65 \\
-        NPU bitonic & 57.22 & 56.95 & 679.00 & 13.20 \\
-        GPU map-reduce & 1192.75 & 1193.12 & 1141.87 & 1109.16 \\
+        CPU bitonic & 42.98 & 43.20 & 43.16 & 43.05 \\
+        GPU bitonic & 8.08 & 8.24 & 8.09 & 8.13 \\
+        CPU reference & 73.97 & 73.91 & 765.13 & 10.60 \\
+        NPU bitonic & 56.69 & 56.56 & 678.15 & 12.78 \\
+        GPU map-reduce & 1190.89 & 1190.89 & 1138.59 & 1105.88 \\
         \hline
     \end{tabular}
     \caption[Algorithmic time by input distribution]{Algorithmic time by input distribution, in ms, for single precision,
@@ -642,14 +665,14 @@ a heap inherits it.
 
 Two observations deserve particular attention. First, bitonic sort on the NPU
 \emph{is} sensitive to the distribution, unlike the other two architectures,
-with a variation factor of fifty-one. This sensitivity does not originate in
+with a variation factor of fifty-three. This sensitivity does not originate in
 the array, which executes a fixed network, but in the heap-based merge
 performed by the host, which, as shown in section~\ref{sec:npu-pipeline},
 dominates the time.
 
 Second, juxtaposing the two values of k isolates the cause of the
 sensitivity. GPU map-reduce is sensitive for k equal to 8, where the sorted
-input slows it down by a factor of 4.2, but becomes nearly unaffected for k
+input slows it down by a factor of 4.3, but becomes nearly unaffected for k
 equal to 131072, where the same input changes it by only 4\%. The same code,
 with the same data, changes behaviour because the limiting factor changes: in
 the second case it is not rejection that limits it but the lack of
