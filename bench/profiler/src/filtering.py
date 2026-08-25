@@ -30,7 +30,7 @@ def filter_records(
             continue
         if backends and rec.backend not in backends:
             continue
-        if dists and rec.dist and rec.dist not in dists:
+        if dists and rec.dist not in dists:
             continue
         out.append(rec)
     return out
@@ -61,7 +61,7 @@ def filter_measurements(
             continue
         if backends and rec.backend not in backends:
             continue
-        if dists and rec.dist and rec.dist not in dists:
+        if dists and rec.dist not in dists:
             continue
         out.append(rec)
     return out
