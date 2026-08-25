@@ -92,7 +92,8 @@ class FullScope {
   private:
 	Sample start;
 	double start_seconds;
-	bool active;
+	bool active_e2e;
+	bool active_algo;
 	bool closed = false;
 };
 

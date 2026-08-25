@@ -312,10 +312,11 @@ void Scope::close() {
 }
 
 FullScope::FullScope()
-	: start_seconds(0.0), active(g_depth[index_of(Channel::E2e)] == 0 && g_depth[index_of(Channel::Algo)] == 0) {
+	: start_seconds(0.0), active_e2e(g_depth[index_of(Channel::E2e)] == 0),
+	  active_algo(g_depth[index_of(Channel::Algo)] == 0) {
 	g_depth[index_of(Channel::E2e)]++;
 	g_depth[index_of(Channel::Algo)]++;
-	if (active) {
+	if (active_e2e || active_algo) {
 		start = counter().read();
 		start_seconds = now_seconds();
 	}
@@ -330,21 +331,30 @@ void FullScope::close() {
 		return;
 	}
 	closed = true;
-	const std::size_t indices[2] = {index_of(Channel::E2e), index_of(Channel::Algo)};
-	for (const std::size_t i : indices) {
-		if (g_depth[i] > 0) {
-			g_depth[i]--;
-		}
+	const std::size_t e2e_i = index_of(Channel::E2e);
+	const std::size_t algo_i = index_of(Channel::Algo);
+	if (g_depth[e2e_i] > 0) {
+		g_depth[e2e_i]--;
 	}
-	if (active) {
+	if (g_depth[algo_i] > 0) {
+		g_depth[algo_i]--;
+	}
+
+	if (active_e2e || active_algo) {
 		const Sample delta = counter().read() - start;
 		const double seconds = now_seconds() - start_seconds;
-		for (const std::size_t i : indices) {
-			g_accumulator[i] += delta;
-			g_seconds[i] += seconds;
-			g_count[i]++;
+		if (active_e2e) {
+			g_accumulator[e2e_i] += delta;
+			g_seconds[e2e_i] += seconds;
+			g_count[e2e_i]++;
 		}
-		active = false;
+		if (active_algo) {
+			g_accumulator[algo_i] += delta;
+			g_seconds[algo_i] += seconds;
+			g_count[algo_i]++;
+		}
+		active_e2e = false;
+		active_algo = false;
 	}
 }
 
