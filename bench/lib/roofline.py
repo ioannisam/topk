@@ -113,6 +113,10 @@ def main():
     raw_chunks = []
 
     for index, backend in enumerate(args.backends):
+        if index > 0 and args.cooldown > 0:
+            print(f"  cooldown {args.cooldown}s")
+            time.sleep(args.cooldown)
+
         binary = resolve_binary_path(backend)
         if not os.path.isfile(binary):
             print(f"skip {backend}: binary not found at {binary}")
@@ -169,10 +173,6 @@ def main():
                 f"  {point['kernel']:<18} ops={point['ops_per_elem']:<4} "
                 f"{point['gbytes_per_s']:>8.2f} GB/s  {point['gops_per_s']:>10.2f} Gop/s"
             )
-
-        if args.cooldown > 0 and index + 1 < len(args.backends):
-            print(f"  cooldown {args.cooldown}s")
-            time.sleep(args.cooldown)
 
     os.makedirs(os.path.dirname(args.output_json), exist_ok=True)
     with open(args.output_json, "w", encoding="utf-8") as f_json:
