@@ -223,7 +223,7 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 		return 0;
 	}
 
-	const int block_size = 256;
+	const int block_size = MAP_BLOCK_SIZE;
 	const size_t shared_mem_size = 0;
 
 	struct DeviceInfo {
