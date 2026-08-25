@@ -3,7 +3,15 @@ import os
 from collections import defaultdict
 from typing import Optional
 from ..models import CaseRecord, MeasurementRecord
-from .common import aggregate_value, label_with_algorithm, plt, select_energy_joules, select_time_ms, style_axes
+from .common import (
+    aggregate_value,
+    label_with_algorithm,
+    metric_title_suffix,
+    plt,
+    select_energy_joules,
+    select_time_ms,
+    style_axes,
+)
 
 
 def plot(
@@ -12,6 +20,7 @@ def plot(
     out_path: str,
     agg: str,
     compare_n: Optional[int],
+    metric: str = "total",
 ) -> Optional[str]:
     time_map: dict[tuple[str, str, str, Optional[int], Optional[int], str], list[float]] = defaultdict(list)
     for rec in case_records:
@@ -24,7 +33,7 @@ def plot(
 
     energy_map: dict[tuple[str, str, str, Optional[int], Optional[int], str], list[float]] = defaultdict(list)
     for rec in measurement_records:
-        energy = select_energy_joules(rec, "total")
+        energy = select_energy_joules(rec, metric)
         if energy is None or energy <= 0 or rec.n is None or (compare_n is not None and rec.n != compare_n):
             continue
         backend = rec.backend if rec.backend else rec.source
@@ -56,10 +65,10 @@ def plot(
 
     ax.set_xscale("log")
     ax.set_yscale("log")
-    title = "End-to-end Time vs Energy (Pareto View)"
+    title = "End-to-end Time vs Energy (Pareto View)" + metric_title_suffix(metric)
     if compare_n is not None:
         title += f" (N={compare_n})"
-    style_axes(ax, title, "End-to-end time per op (ms)", "End-to-end energy per op (J)")
+    style_axes(ax, title, "End-to-end time per op (ms)", f"End-to-end energy per op (J){metric_title_suffix(metric)}")
     ax.legend(title="Configuration", loc="best")
     fig.tight_layout()
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)

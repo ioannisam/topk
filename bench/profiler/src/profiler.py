@@ -636,16 +636,20 @@ def main() -> int:
         )
 
         if "time-vs-energy" in requested:
-            out = time_vs_energy.plot(
-                records_no_gt,
-                dtype_measurements_no_gt,
-                os.path.join(out_energy, "time_vs_energy.png"),
-                args.agg,
-                args.compare_n,
-            )
-            if out:
-                collect_output(out)
-            else:
+            produced = False
+            for metric in energy_metrics:
+                out = time_vs_energy.plot(
+                    records_no_gt,
+                    dtype_measurements_no_gt,
+                    metric_path(out_energy, "time_vs_energy.png", metric),
+                    args.agg,
+                    args.compare_n,
+                    metric,
+                )
+                if out:
+                    collect_output(out)
+                    produced = True
+            if not produced:
                 print(f"Skipped time-vs-energy ({dtype_dir}): no matched runtime and energy records were found.")
 
         run_metric_family(
