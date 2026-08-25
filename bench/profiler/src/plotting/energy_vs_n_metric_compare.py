@@ -19,9 +19,7 @@ from .common import (
 def plot(
     records: list[MeasurementRecord], out_path: str, agg: str, error_bars: str, metric: str = "total"
 ) -> Optional[list[str]]:
-    # Mirror of time_vs_n_metric_compare for energy: per backend, overlay the
-    # measured end-to-end energy and the estimated algorithmic energy
-    # (e2e_energy * algo_time / e2e_time).
+
     grouped: dict[str, dict[str, dict[str, dict[int, list[float]]]]] = defaultdict(
         lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     )
