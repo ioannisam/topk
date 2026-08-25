@@ -165,7 +165,7 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 	const bool use_avx2 = cpu::simd::cpu_supports_avx2();
 
 	std::vector<std::vector<T>> local_topk(workers);
-	static cpu::utils::WorkerPool pool(cpu::kMaxWorkers - 1);
+	static cpu::utils::WorkerPool pool(workers - 1);
 
 	auto worker_fn = [&](std::size_t tid) {
 		const std::size_t begin = (n * tid) / workers;

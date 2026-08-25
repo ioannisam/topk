@@ -712,7 +712,7 @@ void run_topk(
 	T* dst = needs_alt ? alt_storage.data() : nullptr;
 
 	SpinBarrier barrier(workers);
-	static cpu::utils::WorkerPool pool(cpu::kMaxWorkers - 1);
+	static cpu::utils::WorkerPool pool(workers - 1);
 
 	auto worker_fn = [&](std::size_t tid) {
 		for (const auto& group : groups) {
