@@ -198,9 +198,10 @@ std::vector<T> run_map_reduce_offload_xrt(
 	std::size_t total_chunks = 0;
 
 	auto account_batch = [&](std::size_t batch, std::size_t chunks) {
-		const double chunk_bytes = static_cast<double>(chunks) * chunk_size * sizeof(std::int32_t);
-		bytes_moved += static_cast<double>(batch) * sizeof(T) + 6.0 * chunk_bytes;
-		total_chunks += chunks;
+		const double valid_chunk_bytes = static_cast<double>(chunks) * chunk_size * sizeof(std::int32_t);
+		const double kernel_chunk_bytes = static_cast<double>(BATCH_CHUNKS) * chunk_size * sizeof(std::int32_t);
+		bytes_moved += static_cast<double>(batch) * sizeof(T) + 4.0 * valid_chunk_bytes + 2.0 * kernel_chunk_bytes;
+		total_chunks += BATCH_CHUNKS;
 	};
 
 	if (offset < n) {

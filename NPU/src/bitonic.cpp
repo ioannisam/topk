@@ -129,9 +129,10 @@ RunStats run_network_offload_xrt(
 	double bytes_moved = 0.0;
 
 	auto account_batch = [&](std::size_t batch, std::size_t tiles) {
-		const double tile_bytes = static_cast<double>(tiles) * kTile * sizeof(std::int32_t);
-		bytes_moved += static_cast<double>(batch) * sizeof(T) + 6.0 * tile_bytes;
-		total_tiles += tiles;
+		const double valid_tile_bytes = static_cast<double>(tiles) * kTile * sizeof(std::int32_t);
+		const double kernel_tile_bytes = static_cast<double>(kBatchChunks) * kTile * sizeof(std::int32_t);
+		bytes_moved += static_cast<double>(batch) * sizeof(T) + 4.0 * valid_tile_bytes + 2.0 * kernel_tile_bytes;
+		total_tiles += kBatchChunks;
 	};
 
 	auto t0 = std::chrono::high_resolution_clock::now();
