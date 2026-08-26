@@ -60,6 +60,10 @@ def parse_roofline_stdout(text):
             continue
         fields = stripped.split(",")[1:]
         if len(fields) != len(SCHEMA):
+            print(
+                f"warning: malformed ROOFLINE line, expected {len(SCHEMA)} fields, got {len(fields)}: {stripped}",
+                file=sys.stderr,
+            )
             continue
         point = {}
         for name, raw in zip(SCHEMA, fields):
