@@ -412,7 +412,7 @@ def main() -> int:
 
         if "time-vs-n-metric-compare" in requested:
             out = time_vs_n_metric_compare.plot(
-                records_no_gt,
+                records_no_gt_fan,
                 os.path.join(out_time, "time_vs_n_metric_compare.png"),
                 args.agg,
                 args.error_bars,
@@ -598,7 +598,7 @@ def main() -> int:
         run_metric_family(
             "energy-vs-n-metric-compare",
             energy_vs_n_metric_compare,
-            dtype_measurements_no_gt,
+            measurements_no_gt_fan,
             "energy_vs_n_metric_compare.png",
             (args.agg, args.error_bars),
             "no measurement records with times found.",
