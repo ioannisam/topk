@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -57,16 +58,29 @@ def extract_field_watts(report_text, key):
     return None
 
 
+def run_in_own_group(cmd, timeout_seconds, env=None):
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, start_new_session=True
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout_seconds)
+        return stdout, stderr, proc.returncode, False
+    except subprocess.TimeoutExpired:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        stdout, stderr = proc.communicate()
+        return stdout, stderr, -1, True
+
+
 def capture_baseline_report(measure_cmd, timeout_seconds):
     try:
-        result = subprocess.run(measure_cmd, capture_output=True, text=True, timeout=timeout_seconds)
-    except subprocess.TimeoutExpired:
-        print(f"warning: baseline capture timed out after {timeout_seconds:.0f}s: {' '.join(measure_cmd)}")
-        return ""
+        stdout, _stderr, _returncode, timed_out = run_in_own_group(measure_cmd, timeout_seconds)
     except Exception as exc:
         print(f"warning: baseline capture failed: {exc}")
         return ""
-    return result.stdout
+    if timed_out:
+        print(f"warning: baseline capture timed out after {timeout_seconds:.0f}s: {' '.join(measure_cmd)}")
+        return ""
+    return stdout
 
 
 def parse_args():
@@ -326,21 +340,12 @@ def main():
                                         if energy_mode == "gpu" and gpu_board_baseline_w is not None:
                                             run_cmd += ["--board-baseline-watts", str(gpu_board_baseline_w)]
                                         run_cmd += ["--", binary_path] + case_args
-                                    try:
-                                        result = subprocess.run(
-                                            run_cmd,
-                                            capture_output=True,
-                                            text=True,
-                                            env=case_env,
-                                            timeout=args.case_timeout_seconds,
-                                        )
-                                        stdout = result.stdout
-                                        stderr = result.stderr
-                                        returncode = result.returncode
-                                    except subprocess.TimeoutExpired as exc:
-                                        stdout = exc.stdout or ""
-                                        stderr = (exc.stderr or "") + f"\ntimed out after {args.case_timeout_seconds}s"
-                                        returncode = -1
+                                    stdout, stderr, returncode, timed_out = run_in_own_group(
+                                        run_cmd, args.case_timeout_seconds, env=case_env
+                                    )
+                                    stdout = stdout or ""
+                                    if timed_out:
+                                        stderr = (stderr or "") + f"\ntimed out after {args.case_timeout_seconds}s"
 
                                     label = f"{base_case_name} {dist} seed={seed}" + (
                                         f" rep={rep}" if args.repeats > 1 else ""
@@ -427,7 +432,14 @@ def main():
     print(f"Wrote detailed text output to: {args.output_raw}")
     print(f"Wrote structured JSON output to: {args.output_json}")
 
-    sys.exit(1 if json_data["summary"]["total_fail"] > 0 else 0)
+    total_pass = json_data["summary"]["total_pass"]
+    total_fail = json_data["summary"]["total_fail"]
+    if total_fail > 0:
+        sys.exit(1)
+    if total_pass == 0:
+        print("ERROR: no cases ran (0 passed, 0 failed)", file=sys.stderr)
+        sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == "__main__":
