@@ -19,7 +19,7 @@ TIMEOUT_SECONDS="${TOPK_TEST_TIMEOUT_SECONDS:-300}"
 
 cd "${ROOT_DIR}" || { echo "Error: Cannot cd to ${ROOT_DIR}" >&2; exit 1; }
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then echo "Error: Not a git repo." >&2; exit 1; fi
-if git diff --quiet && git diff --cached --quiet; then echo "Error: No uncommitted changes to test against HEAD!" >&2; exit 1; fi
+if [[ -z "$(git status --porcelain --untracked-files=normal)" ]]; then echo "Error: No uncommitted changes to test against HEAD!" >&2; exit 1; fi
 
 TMP_NEW="$(mktemp)"; TMP_BASE="$(mktemp)"; STASHED=0
 
