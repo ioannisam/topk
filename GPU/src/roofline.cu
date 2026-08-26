@@ -135,7 +135,9 @@ int resolve_grid_size(std::size_t n) {
 } // namespace
 
 int execute(const Config& cfg) {
-	const std::size_t n = std::max<std::size_t>(kBlockSize * kChains, cfg.bytes / sizeof(float));
+	constexpr std::size_t kChainAlign = static_cast<std::size_t>(kChains) * 2;
+	const std::size_t raw_n = std::max<std::size_t>(kBlockSize * kChains, cfg.bytes / sizeof(float));
+	const std::size_t n = ((raw_n + kChainAlign - 1) / kChainAlign) * kChainAlign;
 	const double read_bytes = static_cast<double>(n) * sizeof(float);
 	const int grid_size = resolve_grid_size(n);
 
