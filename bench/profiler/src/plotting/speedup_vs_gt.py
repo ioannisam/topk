@@ -10,8 +10,8 @@ from .common import aggregate_value, plt, select_time_ms, style_axes
 
 
 def plot(records: list[CaseRecord], out_path: str, agg: str) -> Optional[list[str]]:
-    # gt_algo_lists: backend -> k -> (dtype, mode, n) -> list[time]
-    gt_algo_lists: dict[str, dict[int, dict[tuple[str, str, int], list[float]]]] = defaultdict(
+    # gt_algo_lists: backend -> k -> (dtype, mode, dist, n) -> list[time]
+    gt_algo_lists: dict[str, dict[int, dict[tuple[str, str, str, int], list[float]]]] = defaultdict(
         lambda: defaultdict(lambda: defaultdict(list))
     )
     for rec in records:
@@ -19,9 +19,9 @@ def plot(records: list[CaseRecord], out_path: str, agg: str) -> Optional[list[st
             continue
         t_algo = select_time_ms(rec, "algorithmic")
         if t_algo is not None and t_algo > 0:
-            gt_algo_lists[rec.backend][rec.k][(rec.dtype, rec.mode, rec.n)].append(t_algo)
+            gt_algo_lists[rec.backend][rec.k][(rec.dtype, rec.mode, rec.dist, rec.n)].append(t_algo)
 
-    gt_algo: dict[str, dict[int, dict[tuple[str, str, int], float]]] = defaultdict(lambda: defaultdict(dict))
+    gt_algo: dict[str, dict[int, dict[tuple[str, str, str, int], float]]] = defaultdict(lambda: defaultdict(dict))
     for b, k_map in gt_algo_lists.items():
         for k, config_map in k_map.items():
             for config_tuple, times in config_map.items():
@@ -37,7 +37,7 @@ def plot(records: list[CaseRecord], out_path: str, agg: str) -> Optional[list[st
             continue
 
         # Securely Look up the GT runtime for this specific backend!
-        gt_t_algo = gt_algo.get(rec.backend, {}).get(rec.k, {}).get((rec.dtype, rec.mode, rec.n))
+        gt_t_algo = gt_algo.get(rec.backend, {}).get(rec.k, {}).get((rec.dtype, rec.mode, rec.dist, rec.n))
         t_algo = select_time_ms(rec, "algorithmic")
 
         if gt_t_algo is not None and t_algo is not None and t_algo > 0:

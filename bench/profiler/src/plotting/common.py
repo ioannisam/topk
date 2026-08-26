@@ -200,7 +200,11 @@ def select_elapsed_seconds(rec) -> float | None:
         return e2e_s / iterations
     if rec.elapsed_seconds is None:
         return None
-    return rec.elapsed_seconds / ops
+    elapsed = rec.elapsed_seconds
+    fraction = measured_loop_fraction(rec)
+    if fraction is not None:
+        elapsed *= fraction
+    return elapsed / ops
 
 
 def select_power_watts(rec, metric: str) -> float | None:
