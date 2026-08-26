@@ -162,7 +162,8 @@ void print_energy_lines(const common::energy::Summary& energy, const char* scope
 	print_key_value("Energy counters", common::energy::counter().describe());
 	print_key_value("Energy iterations", static_cast<std::size_t>(energy.iterations));
 	print_key_value("Energy loop seconds", energy.loop_seconds, 6);
-	const bool degraded = energy.e2e_total.degraded || energy.algo_total.degraded || energy.loop_total.degraded;
+	const bool degraded = energy.e2e_total.degraded || energy.algo_total.degraded || energy.loop_total.degraded ||
+						  energy.wait_total.degraded;
 	print_key_value(
 		"Energy status",
 		!energy.available ? "unavailable" : (degraded ? "degraded (counter wrap, range unknown)" : "ok")

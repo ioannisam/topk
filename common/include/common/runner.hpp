@@ -280,7 +280,7 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 	}
 
 	BitonicRunStats debug_stats{};
-	debug_stats.layer_count = trunc_layers.size();
+	debug_stats.layer_count = run_trunc ? trunc_layers.size() : full_layers.size();
 	debug_stats.full_comparators = full_cmp;
 	debug_stats.trunc_comparators = trunc_cmp;
 	debug_stats.full_run_stats = run_full ? &full_stats : nullptr;
