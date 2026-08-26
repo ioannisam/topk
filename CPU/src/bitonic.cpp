@@ -687,7 +687,8 @@ void run_topk(
 		max_layer_stage = std::max(max_layer_stage, layer.stage);
 	}
 	const bool use_avx512 = cpu::simd::use_avx512() &&
-							max_layer_stage <= static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max());
+							max_layer_stage <= static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max()) &&
+							n <= static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max());
 	const bool use_avx2 = cpu::simd::cpu_supports_avx2();
 
 	std::vector<IntraOp> ops;
