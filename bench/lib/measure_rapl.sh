@@ -248,8 +248,14 @@ for _p in "${CORE_ENERGY_PATHS[@]}"; do
 done
 START_TS="$(date +%s.%N)"
 
-# `set -e` would abort here before CMD_STATUS is captured, dropping the whole report (and the
-# --out file) for exactly the runs whose failure the profiler needs to see.
+CMD_PID=""
+cleanup() {
+    if [[ -n "${CMD_PID}" ]] && kill -0 "${CMD_PID}" 2>/dev/null; then
+        kill "${CMD_PID}" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+
 set +e
 "$@" &
 CMD_PID=$!

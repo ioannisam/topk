@@ -176,7 +176,14 @@ HOST_ENERGY_PATH=""
 [[ ${#HOST_ENERGY_PATHS[@]} -gt 0 ]] && HOST_ENERGY_PATH="$(IFS=,; echo "${HOST_ENERGY_PATHS[*]}")"
 
 samples_file="$(mktemp)"
-trap 'rm -f "${samples_file}"' EXIT
+cmd_pid=""
+cleanup() {
+    rm -f "${samples_file}"
+    if [[ -n "${cmd_pid}" ]] && kill -0 "${cmd_pid}" 2>/dev/null; then
+        kill "${cmd_pid}" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
 
 HOST_PREV_UJS=()
 for _p in "${HOST_ENERGY_PATHS[@]}"; do
@@ -220,7 +227,7 @@ while kill -0 "${cmd_pid}" 2>/dev/null; do
     sleep_pid=$!
     wait -n "${cmd_pid}" "${sleep_pid}" 2>/dev/null || true
     if kill -0 "${sleep_pid}" 2>/dev/null; then
-        kill "${sleep_pid}" 2>/dev/null
+        kill "${sleep_pid}" 2>/dev/null || true
     fi
     wait "${sleep_pid}" 2>/dev/null || true
     kill -0 "${cmd_pid}" 2>/dev/null && sample_once

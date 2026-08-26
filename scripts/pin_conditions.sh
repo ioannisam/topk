@@ -53,7 +53,7 @@ case "${ACTION}" in
         exit 0
         ;;
     restore)
-        set_governor schedutil || set_governor ondemand
+        set_governor schedutil || set_governor ondemand || echo "WARNING: failed to restore CPU governor" >&2
         set_boost 1
         if command -v nvidia-smi >/dev/null 2>&1; then
             default_w="$(nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')"
