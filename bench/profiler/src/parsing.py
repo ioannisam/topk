@@ -366,6 +366,7 @@ def parse_measurements(paths: Iterable[str]) -> list[MeasurementRecord]:
             with open(path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
         except FileNotFoundError:
+            print(f"Warning: {path} not found.")
             continue
 
         base = os.path.basename(path)
@@ -455,7 +456,8 @@ def parse_roofline(paths: Iterable[str]) -> list[RooflinePoint]:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 payload = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"Warning: Could not parse JSON from {path}: {e}")
             continue
 
         for entry in payload.get("points", []):
@@ -477,6 +479,7 @@ def parse_roofline(paths: Iterable[str]) -> list[RooflinePoint]:
                         joules_per_iter=float(entry["joules_per_iter"]),
                     )
                 )
-            except (KeyError, TypeError, ValueError):
+            except (KeyError, TypeError, ValueError) as e:
+                print(f"Warning: Skipping malformed roofline point in {path}: {e}")
                 continue
     return points

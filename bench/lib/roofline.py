@@ -116,73 +116,74 @@ def main():
     }
     raw_chunks = []
 
-    for index, backend in enumerate(args.backends):
-        if index > 0 and args.cooldown > 0:
-            print(f"  cooldown {args.cooldown}s")
-            time.sleep(args.cooldown)
+    try:
+        for index, backend in enumerate(args.backends):
+            if index > 0 and args.cooldown > 0:
+                print(f"  cooldown {args.cooldown}s")
+                time.sleep(args.cooldown)
 
-        binary = resolve_binary_path(backend)
-        if not os.path.isfile(binary):
-            print(f"skip {backend}: binary not found at {binary}")
-            json_data["failures"].append({"backend": backend, "reason": f"binary not found: {binary}"})
-            continue
+            binary = resolve_binary_path(backend)
+            if not os.path.isfile(binary):
+                print(f"skip {backend}: binary not found at {binary}")
+                json_data["failures"].append({"backend": backend, "reason": f"binary not found: {binary}"})
+                continue
 
-        cmd = [
-            binary,
-            f"exp={args.exp}",
-            f"bytes={args.bytes}",
-            f"ops={args.ops}",
-            f"seed={args.seed}",
-            "debug=true",
-        ]
-        if args.threads > 0:
-            cmd.append(f"threads={args.threads}")
-        if args.sizes:
-            cmd.append(f"sizes={args.sizes}")
+            cmd = [
+                binary,
+                f"exp={args.exp}",
+                f"bytes={args.bytes}",
+                f"ops={args.ops}",
+                f"seed={args.seed}",
+                "debug=true",
+            ]
+            if args.threads > 0:
+                cmd.append(f"threads={args.threads}")
+            if args.sizes:
+                cmd.append(f"sizes={args.sizes}")
 
-        env = dict(os.environ)
-        if backend == "gpu":
-            env.setdefault("TOPK_ENERGY_DEVICE", "1")
-        if backend == "npu":
-            env.setdefault("NPU_OFFLOAD_XCLBIN", os.path.join(ROOT_DIR, "build/NPU/map_reduce.xclbin"))
+            env = dict(os.environ)
+            if backend == "gpu":
+                env.setdefault("TOPK_ENERGY_DEVICE", "1")
+            if backend == "npu":
+                env.setdefault("NPU_OFFLOAD_XCLBIN", os.path.join(ROOT_DIR, "build/NPU/map_reduce.xclbin"))
 
-        print(f"=== roofline: {backend} ===")
-        print("  " + " ".join(cmd))
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=args.timeout_seconds)
-        except subprocess.TimeoutExpired as exc:
-            stdout = exc.stdout or ""
-            stderr = (exc.stderr or "") + f"\ntimed out after {args.timeout_seconds}s"
-            raw_chunks.append(f"===== {backend} =====\n{stdout}{stderr}")
-            print(f"  failed (timeout after {args.timeout_seconds}s)")
-            json_data["failures"].append({"backend": backend, "reason": stderr.strip()})
-            continue
+            print(f"=== roofline: {backend} ===")
+            print("  " + " ".join(cmd))
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=args.timeout_seconds)
+            except subprocess.TimeoutExpired as exc:
+                stdout = exc.stdout or ""
+                stderr = (exc.stderr or "") + f"\ntimed out after {args.timeout_seconds}s"
+                raw_chunks.append(f"===== {backend} =====\n{stdout}{stderr}")
+                print(f"  failed (timeout after {args.timeout_seconds}s)")
+                json_data["failures"].append({"backend": backend, "reason": stderr.strip()})
+                continue
 
-        raw_chunks.append(f"===== {backend} =====\n{result.stdout}{result.stderr}")
+            raw_chunks.append(f"===== {backend} =====\n{result.stdout}{result.stderr}")
 
-        if result.returncode != 0:
-            print(f"  failed (exit {result.returncode}): {result.stderr.strip()}")
-            json_data["failures"].append({"backend": backend, "reason": result.stderr.strip()})
-            continue
+            if result.returncode != 0:
+                print(f"  failed (exit {result.returncode}): {result.stderr.strip()}")
+                json_data["failures"].append({"backend": backend, "reason": result.stderr.strip()})
+                continue
 
-        points = parse_roofline_stdout(result.stdout)
-        if not points:
-            print("  failed: no ROOFLINE rows in output")
-            json_data["failures"].append({"backend": backend, "reason": "no ROOFLINE rows in output"})
-            continue
+            points = parse_roofline_stdout(result.stdout)
+            if not points:
+                print("  failed: no ROOFLINE rows in output")
+                json_data["failures"].append({"backend": backend, "reason": "no ROOFLINE rows in output"})
+                continue
 
-        json_data["points"].extend(points)
-        for point in points:
-            print(
-                f"  {point['kernel']:<18} ops={point['ops_per_elem']:<4} "
-                f"{point['gbytes_per_s']:>8.2f} GB/s  {point['gops_per_s']:>10.2f} Gop/s"
-            )
-
-    os.makedirs(os.path.dirname(args.output_json), exist_ok=True)
-    with open(args.output_json, "w", encoding="utf-8") as f_json:
-        json.dump(json_data, f_json, indent=2)
-    with open(args.output_raw, "w", encoding="utf-8") as f_raw:
-        f_raw.write("\n".join(raw_chunks))
+            json_data["points"].extend(points)
+            for point in points:
+                print(
+                    f"  {point['kernel']:<18} ops={point['ops_per_elem']:<4} "
+                    f"{point['gbytes_per_s']:>8.2f} GB/s  {point['gops_per_s']:>10.2f} Gop/s"
+                )
+    finally:
+        os.makedirs(os.path.dirname(args.output_json), exist_ok=True)
+        with open(args.output_json, "w", encoding="utf-8") as f_json:
+            json.dump(json_data, f_json, indent=2)
+        with open(args.output_raw, "w", encoding="utf-8") as f_raw:
+            f_raw.write("\n".join(raw_chunks))
 
     print()
     print(f"Wrote {len(json_data['points'])} roofline points to: {args.output_json}")

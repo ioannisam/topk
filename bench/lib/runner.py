@@ -215,212 +215,211 @@ def main():
             gpu_board_baseline_w = extract_field_watts(gpu_report, "board_average_watts")
             print(f"Idle GPU baseline: total={gpu_baseline_w} W board={gpu_board_baseline_w} W")
 
-    for backend_idx, backend in enumerate(backends):
-        if backend_idx > 0 and args.cooldown > 0:
-            print(f"\nCooldown {args.cooldown:.0f}s before {backend} (shared thermal budget)...")
-            time.sleep(args.cooldown)
+    try:
+        for backend_idx, backend in enumerate(backends):
+            if backend_idx > 0 and args.cooldown > 0:
+                print(f"\nCooldown {args.cooldown:.0f}s before {backend} (shared thermal budget)...")
+                time.sleep(args.cooldown)
 
-        binary_path = resolve_binary_path(backend)
-        if not os.path.isfile(binary_path) or not os.access(binary_path, os.X_OK):
-            # Not a case failure: keep it out of the pass/fail tally so the rate stays a
-            # correctness measure, and surface it separately.
-            print(f"\nBackend binary not found or not executable: {binary_path}")
-            json_data["summary"]["skipped_backends"].append(backend)
-            continue
+            binary_path = resolve_binary_path(backend)
+            if not os.path.isfile(binary_path) or not os.access(binary_path, os.X_OK):
+                print(f"\nBackend binary not found or not executable: {binary_path}")
+                json_data["summary"]["skipped_backends"].append(backend)
+                continue
 
-        print(f"\nBackend: {backend}")
-        print(f"Binary : {binary_path}")
+            print(f"\nBackend: {backend}")
+            print(f"Binary : {binary_path}")
 
-        with open(args.output_raw, "a", encoding="utf-8") as f_raw:
-            f_raw.write(f"== Backend: {backend} ==\n")
-            f_raw.write(f"Binary: {binary_path}\n\n")
-
-        backend_pass = 0
-        backend_fail = 0
-
-        for dtype in types:
-            print(f"  Type {dtype}: dynamic cases")
             with open(args.output_raw, "a", encoding="utf-8") as f_raw:
-                f_raw.write(f"-- Type: {dtype} --\n")
-                f_raw.write("Cases: dynamic\n\n")
+                f_raw.write(f"== Backend: {backend} ==\n")
+                f_raw.write(f"Binary: {binary_path}\n\n")
 
-            type_pass = 0
-            type_fail = 0
+            backend_pass = 0
+            backend_fail = 0
 
-            algorithms = ["bitonic", "map_reduce", "gt"]
-            if backend == "npu":
-                # gt runs on the host; every other algo needs its own xclbin to run at all.
-                algorithms = [a for a in algorithms if a == "gt" or resolve_npu_xclbin(backend, a)]
+            for dtype in types:
+                print(f"  Type {dtype}: dynamic cases")
+                with open(args.output_raw, "a", encoding="utf-8") as f_raw:
+                    f_raw.write(f"-- Type: {dtype} --\n")
+                    f_raw.write("Cases: dynamic\n\n")
 
-            for algo in algorithms:
-                for q in range(args.q_min, args.q_max + 1):
-                    n = 1 << q
+                type_pass = 0
+                type_fail = 0
 
-                    effective_ks = sorted(list(set(k_val for k_val in args.k if k_val <= n)))
-                    for k_eff in effective_ks:
-                        # Spread q and k apart so distinct cases cannot land on the same seed
-                        # (q + k collided for e.g. (q=10,k=8) and (q=8,k=10)).
-                        base_seed = args.seed_base + q * 1000003 + k_eff
-                        seed_list = [base_seed + s for s in range(max(1, args.seeds))]
-                        base_case_name = f"q{q:02d}_k{k_eff}_{args.mode}"
+                algorithms = ["bitonic", "map_reduce", "gt"]
+                if backend == "npu":
+                    # gt runs on the host; every other algo needs its own xclbin to run at all.
+                    algorithms = [a for a in algorithms if a == "gt" or resolve_npu_xclbin(backend, a)]
 
-                        # Sweep (distribution, seed); each combination is an independent
-                        # sample that feeds the error bands, repeated for energy averaging.
-                        for dist in dists:
-                            for seed in seed_list:
-                                case_args = [
-                                    f"q={q}",
-                                    f"k={k_eff}",
-                                    f"mode={args.mode}",
-                                    f"dtype={dtype}",
-                                    f"algo={algo}",
-                                    f"run={args.run}",
-                                    "debug=false",
-                                    f"threads={args.threads}",
-                                    f"seed={seed}",
-                                    f"verify={args.verify}",
-                                    f"min={args.min}",
-                                    f"max={args.max}",
-                                    f"dist={dist}",
-                                ]
+                for algo in algorithms:
+                    for q in range(args.q_min, args.q_max + 1):
+                        n = 1 << q
 
-                                energy_mode = resolve_energy_mode(backend, args.energy)
-                                baseline_w = (
-                                    rapl_baseline_w
-                                    if energy_mode == "rapl"
-                                    else (gpu_baseline_w if energy_mode == "gpu" else None)
-                                )
+                        effective_ks = sorted(list(set(k_val for k_val in args.k if k_val <= n)))
+                        for k_eff in effective_ks:
+                            # Spread q and k apart so distinct cases cannot land on the same seed
+                            # (q + k collided for e.g. (q=10,k=8) and (q=8,k=10)).
+                            base_seed = args.seed_base + q * 1000003 + k_eff
+                            seed_list = [base_seed + s for s in range(max(1, args.seeds))]
+                            base_case_name = f"q{q:02d}_k{k_eff}_{args.mode}"
 
-                                case_env = os.environ.copy()
-                                if backend == "gpu":
-                                    case_env["TOPK_ENERGY_DEVICE"] = "1"
-                                    case_env["TOPK_GPU_INDEX"] = str(args.gpu_index)
-                                npu_xclbin = resolve_npu_xclbin(backend, algo)
-                                if npu_xclbin:
-                                    case_env["NPU_OFFLOAD_XCLBIN"] = npu_xclbin
-                                else:
-                                    # An inherited value points at the wrong algo's xclbin.
-                                    case_env.pop("NPU_OFFLOAD_XCLBIN", None)
+                            # Sweep (distribution, seed); each combination is an independent
+                            # sample that feeds the error bands, repeated for energy averaging.
+                            for dist in dists:
+                                for seed in seed_list:
+                                    case_args = [
+                                        f"q={q}",
+                                        f"k={k_eff}",
+                                        f"mode={args.mode}",
+                                        f"dtype={dtype}",
+                                        f"algo={algo}",
+                                        f"run={args.run}",
+                                        "debug=false",
+                                        f"threads={args.threads}",
+                                        f"seed={seed}",
+                                        f"verify={args.verify}",
+                                        f"min={args.min}",
+                                        f"max={args.max}",
+                                        f"dist={dist}",
+                                    ]
 
-                                for rep in range(1, args.repeats + 1):
-                                    # Always tag the variant: the profiler joins measurement
-                                    # files to case records on (dist, seed, rep), and it can
-                                    # only recover them from the filename.
-                                    suffix = f"_{dist}_s{seed}_rep{rep}"
-                                    if energy_mode == "none":
-                                        run_cmd = [binary_path] + case_args
-                                        energy_case_file = ""
+                                    energy_mode = resolve_energy_mode(backend, args.energy)
+                                    baseline_w = (
+                                        rapl_baseline_w
+                                        if energy_mode == "rapl"
+                                        else (gpu_baseline_w if energy_mode == "gpu" else None)
+                                    )
+
+                                    case_env = os.environ.copy()
+                                    if backend == "gpu":
+                                        case_env["TOPK_ENERGY_DEVICE"] = "1"
+                                        case_env["TOPK_GPU_INDEX"] = str(args.gpu_index)
+                                    npu_xclbin = resolve_npu_xclbin(backend, algo)
+                                    if npu_xclbin:
+                                        case_env["NPU_OFFLOAD_XCLBIN"] = npu_xclbin
                                     else:
-                                        energy_case_file = os.path.join(
-                                            args.energy_out_dir,
-                                            f"{run_id}_{backend}_{dtype}_{algo}_{base_case_name}{suffix}_{energy_mode}.txt",
-                                        )
-                                        if energy_mode == "rapl":
-                                            run_cmd = [
-                                                os.path.join(ROOT_DIR, "bench/lib/measure_rapl.sh"),
-                                                "--out",
-                                                energy_case_file,
-                                            ]
-                                            if args.rapl_path:
-                                                run_cmd += ["--path", args.rapl_path]
+                                        # An inherited value points at the wrong algo's xclbin.
+                                        case_env.pop("NPU_OFFLOAD_XCLBIN", None)
+
+                                    for rep in range(1, args.repeats + 1):
+                                        # Always tag the variant: the profiler joins measurement
+                                        # files to case records on (dist, seed, rep), and it can
+                                        # only recover them from the filename.
+                                        suffix = f"_{dist}_s{seed}_rep{rep}"
+                                        if energy_mode == "none":
+                                            run_cmd = [binary_path] + case_args
+                                            energy_case_file = ""
                                         else:
-                                            run_cmd = [
-                                                os.path.join(ROOT_DIR, "bench/lib/measure_smi.sh"),
-                                                "--out",
-                                                energy_case_file,
-                                                "--gpu-index",
-                                                str(args.gpu_index),
-                                                "--interval-ms",
-                                                str(args.gpu_interval_ms),
-                                            ]
-                                        if baseline_w is not None:
-                                            run_cmd += ["--baseline-watts", str(baseline_w)]
-                                        if energy_mode == "rapl" and rapl_core_baseline_w is not None:
-                                            run_cmd += ["--core-baseline-watts", str(rapl_core_baseline_w)]
-                                        if energy_mode == "gpu" and gpu_board_baseline_w is not None:
-                                            run_cmd += ["--board-baseline-watts", str(gpu_board_baseline_w)]
-                                        run_cmd += ["--", binary_path] + case_args
-                                    stdout, stderr, returncode, timed_out = run_in_own_group(
-                                        run_cmd, args.case_timeout_seconds, env=case_env
-                                    )
-                                    stdout = stdout or ""
-                                    if timed_out:
-                                        stderr = (stderr or "") + f"\ntimed out after {args.case_timeout_seconds}s"
+                                            energy_case_file = os.path.join(
+                                                args.energy_out_dir,
+                                                f"{run_id}_{backend}_{dtype}_{algo}_{base_case_name}{suffix}_{energy_mode}.txt",
+                                            )
+                                            if energy_mode == "rapl":
+                                                run_cmd = [
+                                                    os.path.join(ROOT_DIR, "bench/lib/measure_rapl.sh"),
+                                                    "--out",
+                                                    energy_case_file,
+                                                ]
+                                                if args.rapl_path:
+                                                    run_cmd += ["--path", args.rapl_path]
+                                            else:
+                                                run_cmd = [
+                                                    os.path.join(ROOT_DIR, "bench/lib/measure_smi.sh"),
+                                                    "--out",
+                                                    energy_case_file,
+                                                    "--gpu-index",
+                                                    str(args.gpu_index),
+                                                    "--interval-ms",
+                                                    str(args.gpu_interval_ms),
+                                                ]
+                                            if baseline_w is not None:
+                                                run_cmd += ["--baseline-watts", str(baseline_w)]
+                                            if energy_mode == "rapl" and rapl_core_baseline_w is not None:
+                                                run_cmd += ["--core-baseline-watts", str(rapl_core_baseline_w)]
+                                            if energy_mode == "gpu" and gpu_board_baseline_w is not None:
+                                                run_cmd += ["--board-baseline-watts", str(gpu_board_baseline_w)]
+                                            run_cmd += ["--", binary_path] + case_args
+                                        stdout, stderr, returncode, timed_out = run_in_own_group(
+                                            run_cmd, args.case_timeout_seconds, env=case_env
+                                        )
+                                        stdout = stdout or ""
+                                        if timed_out:
+                                            stderr = (stderr or "") + f"\ntimed out after {args.case_timeout_seconds}s"
 
-                                    label = f"{base_case_name} {dist} seed={seed}" + (
-                                        f" rep={rep}" if args.repeats > 1 else ""
-                                    )
+                                        label = f"{base_case_name} {dist} seed={seed}" + (
+                                            f" rep={rep}" if args.repeats > 1 else ""
+                                        )
 
-                                    case_status = "FAIL"
-                                    case_reason = "non-zero exit"
+                                        case_status = "FAIL"
+                                        case_reason = "non-zero exit"
 
-                                    if returncode == 0:
-                                        if args.verify == "true" and expected_marker not in stdout:
-                                            case_reason = "PASS marker missing"
+                                        if returncode == 0:
+                                            if args.verify == "true" and expected_marker not in stdout:
+                                                case_reason = "PASS marker missing"
+                                                print(f"    [FAIL] {label} (algo={algo}) ({case_reason})")
+                                                type_fail += 1
+                                            else:
+                                                case_status = "PASS"
+                                                # Do not claim a correctness check that never ran.
+                                                case_reason = "ok" if args.verify == "true" else "unverified"
+                                                print(f"    [PASS] {label} (algo={algo})")
+                                                type_pass += 1
+                                        else:
+                                            reason_detail = stderr.strip().splitlines()
+                                            if reason_detail:
+                                                case_reason = f"non-zero exit: {reason_detail[-1]}"
                                             print(f"    [FAIL] {label} (algo={algo}) ({case_reason})")
                                             type_fail += 1
-                                        else:
-                                            case_status = "PASS"
-                                            # Do not claim a correctness check that never ran.
-                                            case_reason = "ok" if args.verify == "true" else "unverified"
-                                            print(f"    [PASS] {label} (algo={algo})")
-                                            type_pass += 1
-                                    else:
-                                        reason_detail = stderr.strip().splitlines()
-                                        if reason_detail:
-                                            case_reason = f"non-zero exit: {reason_detail[-1]}"
-                                        print(f"    [FAIL] {label} (algo={algo}) ({case_reason})")
-                                        type_fail += 1
 
-                                    # Write Raw File
-                                    with open(args.output_raw, "a", encoding="utf-8") as f_raw:
-                                        f_raw.write(f"### Case: {base_case_name}\n")
-                                        f_raw.write(f"Distribution: {dist}\n")
-                                        f_raw.write(f"Seed: {seed}\n")
-                                        f_raw.write(f"Rep: {rep}\n")
-                                        f_raw.write(f"Status: {case_status}\n")
-                                        f_raw.write(f"Reason: {case_reason}\n")
-                                        f_raw.write(f"Command: {' '.join(run_cmd)}\n")
-                                        if energy_case_file:
-                                            f_raw.write(f"Measurement file: {energy_case_file}\n")
-                                        f_raw.write(f"Output:\n{stdout}\n")
-                                        if stderr.strip():
-                                            f_raw.write(f"Stderr:\n{stderr}\n")
-                                        f_raw.write("\n")
+                                        # Write Raw File
+                                        with open(args.output_raw, "a", encoding="utf-8") as f_raw:
+                                            f_raw.write(f"### Case: {base_case_name}\n")
+                                            f_raw.write(f"Distribution: {dist}\n")
+                                            f_raw.write(f"Seed: {seed}\n")
+                                            f_raw.write(f"Rep: {rep}\n")
+                                            f_raw.write(f"Status: {case_status}\n")
+                                            f_raw.write(f"Reason: {case_reason}\n")
+                                            f_raw.write(f"Command: {' '.join(run_cmd)}\n")
+                                            if energy_case_file:
+                                                f_raw.write(f"Measurement file: {energy_case_file}\n")
+                                            f_raw.write(f"Output:\n{stdout}\n")
+                                            if stderr.strip():
+                                                f_raw.write(f"Stderr:\n{stderr}\n")
+                                            f_raw.write("\n")
 
-                                    # Append to JSON structure
-                                    json_data["results"].append(
-                                        {
-                                            "backend": backend,
-                                            "type": dtype,
-                                            "algorithm": algo,
-                                            "case_name": base_case_name,
-                                            "q": q,
-                                            "k": k_eff,
-                                            "dist": dist,
-                                            "seed": seed,
-                                            "rep": rep,
-                                            "status": case_status,
-                                            "reason": case_reason,
-                                            "command": " ".join(run_cmd),
-                                            "energy_file": energy_case_file,
-                                            "exit_code": returncode,
-                                            "stdout": stdout.strip(),
-                                            "stderr": stderr.strip(),
-                                        }
-                                    )
+                                        # Append to JSON structure
+                                        json_data["results"].append(
+                                            {
+                                                "backend": backend,
+                                                "type": dtype,
+                                                "algorithm": algo,
+                                                "case_name": base_case_name,
+                                                "q": q,
+                                                "k": k_eff,
+                                                "dist": dist,
+                                                "seed": seed,
+                                                "rep": rep,
+                                                "status": case_status,
+                                                "reason": case_reason,
+                                                "command": " ".join(run_cmd),
+                                                "energy_file": energy_case_file,
+                                                "exit_code": returncode,
+                                                "stdout": stdout.strip(),
+                                                "stderr": stderr.strip(),
+                                            }
+                                        )
 
-            print(f"    Type {dtype} summary: pass={type_pass} fail={type_fail}")
-            backend_pass += type_pass
-            backend_fail += type_fail
+                print(f"    Type {dtype} summary: pass={type_pass} fail={type_fail}")
+                backend_pass += type_pass
+                backend_fail += type_fail
 
-        print(f"  Backend {backend} summary: pass={backend_pass} fail={backend_fail}")
-        json_data["summary"]["total_pass"] += backend_pass
-        json_data["summary"]["total_fail"] += backend_fail
-
-    # Dump JSON File
-    with open(args.output_json, "w", encoding="utf-8") as f_json:
-        json.dump(json_data, f_json, indent=2)
+            print(f"  Backend {backend} summary: pass={backend_pass} fail={backend_fail}")
+            json_data["summary"]["total_pass"] += backend_pass
+            json_data["summary"]["total_fail"] += backend_fail
+    finally:
+        # Dump JSON File
+        with open(args.output_json, "w", encoding="utf-8") as f_json:
+            json.dump(json_data, f_json, indent=2)
 
     print("\nTotal Summary")
     print(f"  Passed: {json_data['summary']['total_pass']}")

@@ -96,10 +96,14 @@ run_suite() {
             if [[ ${exit_code} -ne 0 ]]; then
                 found_e2e=0; found_algo=0; min_e2e=""; min_algo=""
                 if [[ ${exit_code} -eq 124 ]]; then
-                    echo "   [!] ${algo} (${dtype}) timed out after ${TIMEOUT_SECONDS}s for q=${q}. See log: ${ERR_LOG}"
+                    echo "   [!] ${algo} (${dtype}) timed out after ${TIMEOUT_SECONDS}s for q=${q}."
                 else
-                    echo "   [!] ${algo} (${dtype}) failed for q=${q}. See log: ${ERR_LOG}"
+                    echo "   [!] ${algo} (${dtype}) failed for q=${q}."
                 fi
+                if [[ -s "${ERR_LOG}" ]]; then
+                    sed 's/^/       /' "${ERR_LOG}"
+                fi
+                rm -f "${ERR_LOG}"
                 break
             fi
 
