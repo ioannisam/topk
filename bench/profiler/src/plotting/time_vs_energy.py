@@ -22,22 +22,22 @@ def plot(
     compare_n: Optional[int],
     metric: str = "total",
 ) -> Optional[str]:
-    time_map: dict[tuple[str, str, str, Optional[int], Optional[int], str], list[float]] = defaultdict(list)
+    time_map: dict[tuple[str, str, str, str, Optional[int], Optional[int], str], list[float]] = defaultdict(list)
     for rec in case_records:
         if rec.n is None or (compare_n is not None and rec.n != compare_n):
             continue
-        key = (rec.backend, rec.dtype, rec.mode, rec.k, rec.n, rec.algorithm)
+        key = (rec.backend, rec.dtype, rec.mode, rec.dist, rec.k, rec.n, rec.algorithm)
         t = select_time_ms(rec, "e2e")
         if t is not None:
             time_map[key].append(t)
 
-    energy_map: dict[tuple[str, str, str, Optional[int], Optional[int], str], list[float]] = defaultdict(list)
+    energy_map: dict[tuple[str, str, str, str, Optional[int], Optional[int], str], list[float]] = defaultdict(list)
     for rec in measurement_records:
         energy = select_energy_joules(rec, metric)
         if energy is None or energy <= 0 or rec.n is None or (compare_n is not None and rec.n != compare_n):
             continue
         backend = rec.backend if rec.backend else rec.source
-        key = (backend, rec.dtype, rec.mode, rec.k, rec.n, rec.algorithm)
+        key = (backend, rec.dtype, rec.mode, rec.dist, rec.k, rec.n, rec.algorithm)
         energy_map[key].append(energy)
 
     points: dict[str, list[tuple[float, float]]] = defaultdict(list)
@@ -52,7 +52,7 @@ def plot(
             continue
         t_ms, e_j = aggregate_value(t_list, agg), aggregate_value(e_list, agg)
         if t_ms > 0 and e_j > 0:
-            label = label_with_algorithm(key[0], key[5], include_algorithm)
+            label = label_with_algorithm(key[0], key[6], include_algorithm)
             points[label].append((t_ms, e_j))
 
     if not points:
