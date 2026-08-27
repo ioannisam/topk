@@ -119,7 +119,7 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 			stats->tiles_used = best.sample.stats.tiles_used;
 			stats->aggregated_candidates = best.sample.stats.aggregated_candidates;
 			stats->traffic.bytes_moved = best.sample.stats.bytes_moved;
-			stats->traffic.bytes_exact = true;
+			stats->traffic.bytes_exact = false;
 		}
 
 		return std::move(best.sample.value);

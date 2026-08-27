@@ -308,9 +308,10 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 		stats->block_size = block_size;
 		const std::size_t threads = static_cast<std::size_t>(total_threads);
 		const std::size_t heap_fill = std::min(k, (n + threads - 1) / threads);
+		const std::size_t total_block_results = static_cast<std::size_t>(grid_size) * k;
 		stats->bytes_moved =
 			(static_cast<double>(n) + 2.0 * static_cast<double>(threads) * static_cast<double>(heap_fill) +
-			 static_cast<double>(grid_size) * static_cast<double>(k)) *
+			 2.0 * static_cast<double>(total_block_results) + 2.0 * static_cast<double>(k)) *
 			sizeof(D);
 	}
 
