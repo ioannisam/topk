@@ -79,3 +79,4 @@ if command -v nvidia-smi >/dev/null 2>&1; then
 fi
 echo
 report
+exit 0
