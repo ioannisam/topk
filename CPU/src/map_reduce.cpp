@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <type_traits>
 #include <vector>
 
@@ -165,7 +166,10 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 	const bool use_avx2 = cpu::simd::cpu_supports_avx2();
 
 	std::vector<std::vector<T>> local_topk(workers);
-	static cpu::utils::WorkerPool pool(workers - 1);
+	static std::unique_ptr<cpu::utils::WorkerPool> pool;
+	if (!pool || pool->size() != workers - 1) {
+		pool = std::make_unique<cpu::utils::WorkerPool>(workers - 1);
+	}
 
 	auto worker_fn = [&](std::size_t tid) {
 		const std::size_t begin = (n * tid) / workers;
@@ -173,13 +177,13 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 		local_topk[tid] = map<WantMax>(data, begin, end, k, use_avx512f, use_avx2);
 	};
 
-	pool.dispatch([&](std::size_t tid) {
+	pool->dispatch([&](std::size_t tid) {
 		if (tid < workers - 1) {
 			worker_fn(tid);
 		}
 	});
 	worker_fn(workers - 1);
-	pool.join();
+	pool->join();
 
 	using HeapCompare = std::conditional_t<WantMax, std::greater<T>, std::less<T>>;
 	std::vector<T>& final_heap = local_topk[0];
@@ -201,7 +205,7 @@ std::vector<T> topk(const std::vector<T>& data, std::size_t k, std::size_t worke
 	if (stats != nullptr) {
 		stats->tiles_used = workers;
 		stats->aggregated_candidates = final_heap.size();
-		stats->bytes_moved = static_cast<double>(n + 2 * workers * k) * static_cast<double>(sizeof(T));
+		stats->bytes_moved = static_cast<double>(n + 2 * workers * k + 2 * k) * static_cast<double>(sizeof(T));
 	}
 
 	return reduce<WantMax>(std::move(final_heap), k);

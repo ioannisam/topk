@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <immintrin.h>
 #include <limits>
+#include <memory>
 #include <thread>
 #include <type_traits>
 #include <vector>
@@ -713,7 +714,10 @@ void run_topk(
 	T* dst = needs_alt ? alt_storage.data() : nullptr;
 
 	SpinBarrier barrier(workers);
-	static cpu::utils::WorkerPool pool(workers - 1);
+	static std::unique_ptr<cpu::utils::WorkerPool> pool;
+	if (!pool || pool->size() != workers - 1) {
+		pool = std::make_unique<cpu::utils::WorkerPool>(workers - 1);
+	}
 
 	auto worker_fn = [&](std::size_t tid) {
 		for (const auto& group : groups) {
@@ -834,13 +838,13 @@ void run_topk(
 		}
 	};
 
-	pool.dispatch([&](std::size_t tid) {
+	pool->dispatch([&](std::size_t tid) {
 		if (tid < workers - 1) {
 			worker_fn(tid);
 		}
 	});
 	worker_fn(workers - 1);
-	pool.join();
+	pool->join();
 
 	const std::size_t result_n = layers.empty() ? n : layers.back().active_n;
 	if (src != data.data()) {
