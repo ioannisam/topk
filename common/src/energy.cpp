@@ -157,7 +157,7 @@ class SystemCounter final : public Counter {
 	void discover_rapl() {
 		namespace fs = std::filesystem;
 		std::error_code ec;
-		const char* root_env = std::getenv("TOPK_RAPL_ROOT");
+		const char* root_env = std::getenv("MEASURE_RAPL_ROOT");
 		const fs::path root(root_env != nullptr ? root_env : "/sys/class/powercap");
 		if (!fs::exists(root, ec)) {
 			return;
