@@ -72,7 +72,9 @@ struct RunStats {
 };
 
 template <typename T>
-std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max, npu::map_reduce::RunStats* stats);
+std::vector<T> run_topk(
+	const std::vector<T>& data, std::size_t k, bool want_max, npu::map_reduce::RunStats* stats = nullptr
+);
 
 } // namespace npu::map_reduce
 
