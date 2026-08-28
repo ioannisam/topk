@@ -8,19 +8,23 @@
 
 namespace gpu::traits {
 
-template <typename T> struct DeviceType {
+template <typename T>
+struct DeviceType {
 	using type = T;
 };
 
 #if defined(__FLT16_MANT_DIG__)
-template <> struct DeviceType<_Float16> {
+template <>
+struct DeviceType<_Float16> {
 	using type = __half;
 };
 #endif
 
-template <typename T> struct DeviceTraits;
+template <typename T>
+struct DeviceTraits;
 
-template <> struct DeviceTraits<float> {
+template <>
+struct DeviceTraits<float> {
 	using Vec2 = float2;
 	static __device__ __forceinline__ bool gt(float a, float b) {
 		return a > b;
@@ -39,7 +43,8 @@ template <> struct DeviceTraits<float> {
 	}
 };
 
-template <> struct DeviceTraits<double> {
+template <>
+struct DeviceTraits<double> {
 	using Vec2 = double2;
 	static __device__ __forceinline__ bool gt(double a, double b) {
 		return a > b;
@@ -58,7 +63,8 @@ template <> struct DeviceTraits<double> {
 	}
 };
 
-template <> struct DeviceTraits<__half> {
+template <>
+struct DeviceTraits<__half> {
 	using Vec2 = __half2;
 	static __device__ __forceinline__ bool gt(__half a, __half b) {
 		return __hgt(a, b);
@@ -77,7 +83,8 @@ template <> struct DeviceTraits<__half> {
 	}
 };
 
-template <> struct DeviceTraits<int32_t> {
+template <>
+struct DeviceTraits<int32_t> {
 	using Vec2 = int2;
 	static __device__ __forceinline__ bool gt(int32_t a, int32_t b) {
 		return a > b;
@@ -96,7 +103,8 @@ template <> struct DeviceTraits<int32_t> {
 	}
 };
 
-template <> struct DeviceTraits<uint32_t> {
+template <>
+struct DeviceTraits<uint32_t> {
 	using Vec2 = uint2;
 	static __device__ __forceinline__ bool gt(uint32_t a, uint32_t b) {
 		return a > b;

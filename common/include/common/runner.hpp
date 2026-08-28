@@ -22,7 +22,8 @@
 
 namespace common::topk {
 
-template <typename Fn> int dispatch_by_dtype(common::config::DataType dtype, Fn&& fn) {
+template <typename Fn>
+int dispatch_by_dtype(common::config::DataType dtype, Fn&& fn) {
 	switch (dtype) {
 	case common::config::DataType::Int:
 		return fn(std::int32_t{});
@@ -42,7 +43,8 @@ template <typename Fn> int dispatch_by_dtype(common::config::DataType dtype, Fn&
 	throw std::invalid_argument("Unsupported dtype");
 }
 
-template <typename T> class BitonicRunnerHooks {
+template <typename T>
+class BitonicRunnerHooks {
   public:
 	virtual ~BitonicRunnerHooks() = default;
 
@@ -54,7 +56,8 @@ template <typename T> class BitonicRunnerHooks {
 	virtual void print_debug_metrics(const common::config::Config& cfg, const BitonicRunStats& stats) = 0;
 };
 
-template <typename T> class MapReduceRunnerHooks {
+template <typename T>
+class MapReduceRunnerHooks {
   public:
 	virtual ~MapReduceRunnerHooks() = default;
 
@@ -65,7 +68,8 @@ template <typename T> class MapReduceRunnerHooks {
 	virtual void print_debug_metrics(const common::config::Config& cfg, const MapReduceRunStats& stats) = 0;
 };
 
-template <typename T> class GroundTruthRunnerHooks {
+template <typename T>
+class GroundTruthRunnerHooks {
   public:
 	virtual ~GroundTruthRunnerHooks() = default;
 
@@ -76,7 +80,8 @@ template <typename T> class GroundTruthRunnerHooks {
 	virtual void print_debug_metrics(const common::config::Config& cfg, const GroundTruthRunStats& stats) = 0;
 };
 
-template <typename T> T transform_for_max(T value) {
+template <typename T>
+T transform_for_max(T value) {
 	if constexpr (std::is_unsigned_v<T>) {
 		return static_cast<T>(std::numeric_limits<T>::max() - value);
 	} else if constexpr (std::is_integral_v<T>) {
@@ -89,11 +94,13 @@ template <typename T> T transform_for_max(T value) {
 	}
 }
 
-template <typename T> T restore_from_max(T value) {
+template <typename T>
+T restore_from_max(T value) {
 	return transform_for_max(value);
 }
 
-template <typename T> void apply_mode_transform(std::vector<T>& data, bool want_max) {
+template <typename T>
+void apply_mode_transform(std::vector<T>& data, bool want_max) {
 	if (!want_max) {
 		return;
 	}
@@ -102,7 +109,8 @@ template <typename T> void apply_mode_transform(std::vector<T>& data, bool want_
 	}
 }
 
-template <typename T> bool compare_topk_prefix(const std::vector<T>& lhs, const std::vector<T>& rhs, std::size_t k) {
+template <typename T>
+bool compare_topk_prefix(const std::vector<T>& lhs, const std::vector<T>& rhs, std::size_t k) {
 	for (std::size_t i = 0; i < k; i++) {
 		if (!common::utils::value_equal(lhs[i], rhs[i])) {
 			return false;
@@ -111,7 +119,8 @@ template <typename T> bool compare_topk_prefix(const std::vector<T>& lhs, const 
 	return true;
 }
 
-template <typename T> std::vector<T> build_reference_topk(const std::vector<T>& input, std::size_t k, bool want_max) {
+template <typename T>
+std::vector<T> build_reference_topk(const std::vector<T>& input, std::size_t k, bool want_max) {
 	std::vector<T> ref = input;
 	k = std::min(k, ref.size());
 	if (k == 0) {
@@ -128,7 +137,8 @@ template <typename T> std::vector<T> build_reference_topk(const std::vector<T>& 
 	return ref;
 }
 
-template <typename T> bool equal_output(const std::vector<T>& lhs, const std::vector<T>& rhs) {
+template <typename T>
+bool equal_output(const std::vector<T>& lhs, const std::vector<T>& rhs) {
 	if (lhs.size() != rhs.size()) {
 		return false;
 	}
@@ -190,7 +200,8 @@ std::vector<T> run_ground_truth_benchmark(
 	return std::move(best.sample.value);
 }
 
-template <typename T> int execute_bitonic(const common::config::Config& cfg, BitonicRunnerHooks<T>& hooks) {
+template <typename T>
+int execute_bitonic(const common::config::Config& cfg, BitonicRunnerHooks<T>& hooks) {
 	const std::size_t n = std::size_t{1} << cfg.q;
 	hooks.print_configuration(cfg, n);
 
@@ -310,7 +321,8 @@ template <typename T> int execute_bitonic(const common::config::Config& cfg, Bit
 	return 0;
 }
 
-template <typename T> int execute_map_reduce(const common::config::Config& cfg, MapReduceRunnerHooks<T>& hooks) {
+template <typename T>
+int execute_map_reduce(const common::config::Config& cfg, MapReduceRunnerHooks<T>& hooks) {
 	const std::size_t n = std::size_t{1} << cfg.q;
 	hooks.print_configuration(cfg, n);
 
@@ -354,7 +366,8 @@ template <typename T> int execute_map_reduce(const common::config::Config& cfg, 
 	return 0;
 }
 
-template <typename T> int execute_ground_truth(const common::config::Config& cfg, GroundTruthRunnerHooks<T>& hooks) {
+template <typename T>
+int execute_ground_truth(const common::config::Config& cfg, GroundTruthRunnerHooks<T>& hooks) {
 	const std::size_t n = std::size_t{1} << cfg.q;
 	hooks.print_configuration(cfg, n);
 

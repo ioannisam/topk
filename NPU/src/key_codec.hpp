@@ -11,7 +11,8 @@
 
 namespace npu::utils {
 
-template <typename T> inline std::int32_t to_key(T v) {
+template <typename T>
+inline std::int32_t to_key(T v) {
 	if constexpr (std::is_same_v<T, std::int32_t>) {
 		return v;
 	} else if constexpr (std::is_same_v<T, std::uint32_t>) {
@@ -37,7 +38,8 @@ template <typename T> inline std::int32_t to_key(T v) {
 	}
 }
 
-template <typename T> inline void encode_keys(std::int32_t* dst, const T* src, std::size_t n) {
+template <typename T>
+inline void encode_keys(std::int32_t* dst, const T* src, std::size_t n) {
 	std::size_t i = 0;
 #if defined(__FLT16_MANT_DIG__) && defined(__F16C__)
 	if constexpr (std::is_same_v<T, _Float16>) {
@@ -55,7 +57,8 @@ template <typename T> inline void encode_keys(std::int32_t* dst, const T* src, s
 	}
 }
 
-template <typename T> inline T from_key(std::int32_t key) {
+template <typename T>
+inline T from_key(std::int32_t key) {
 	if constexpr (std::is_same_v<T, std::int32_t>) {
 		return key;
 	} else if constexpr (std::is_same_v<T, std::uint32_t>) {

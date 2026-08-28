@@ -36,7 +36,8 @@ Context build_context(const Config& cfg) {
 }
 
 // Bitonic Hooks
-template <typename T> class CpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
+template <typename T>
+class CpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
   public:
 	explicit CpuBitonicRunnerHooks(const Context& ctx) : context(ctx) {
 	}
@@ -83,7 +84,8 @@ template <typename T> class CpuBitonicRunnerHooks final : public common::topk::B
 };
 
 // MapReduce Hooks
-template <typename T> class CpuMapReduceHooks final : public common::topk::MapReduceRunnerHooks<T> {
+template <typename T>
+class CpuMapReduceHooks final : public common::topk::MapReduceRunnerHooks<T> {
   public:
 	explicit CpuMapReduceHooks(const Context& ctx) : context(ctx) {
 	}
@@ -134,7 +136,8 @@ template <typename T> class CpuMapReduceHooks final : public common::topk::MapRe
 };
 
 // Ground Truth Hooks
-template <typename T> class CpuGroundTruthHooks final : public common::topk::GroundTruthRunnerHooks<T> {
+template <typename T>
+class CpuGroundTruthHooks final : public common::topk::GroundTruthRunnerHooks<T> {
   public:
 	explicit CpuGroundTruthHooks(const Context& ctx) : context(ctx) {
 	}
@@ -162,7 +165,8 @@ template <typename T> class CpuGroundTruthHooks final : public common::topk::Gro
 };
 
 // Dispatch
-template <typename T> int topk_typed(const Config& cfg) {
+template <typename T>
+int topk_typed(const Config& cfg) {
 	const Context ctx = build_context(cfg);
 
 	switch (cfg.algorithm) {

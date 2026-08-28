@@ -23,7 +23,8 @@ namespace gpu::ground_truth {
 using gpu::utils::DeviceBuffer;
 using gpu::utils::EventGuard;
 
-template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, bool want_max) {
+template <typename T>
+double run_topk(T* data, std::size_t n, std::size_t k, bool want_max) {
 	using D = typename gpu::traits::DeviceType<T>::type;
 
 	if (k == 0 || n == 0) {

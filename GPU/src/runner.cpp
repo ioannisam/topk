@@ -22,7 +22,8 @@ using common::config::Config;
 using common::config::DataType;
 
 // Bitonic Hooks
-template <typename T> class GpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
+template <typename T>
+class GpuBitonicRunnerHooks final : public common::topk::BitonicRunnerHooks<T> {
   public:
 	explicit GpuBitonicRunnerHooks() : device_name(gpu::bitonic::query_device_name()) {
 	}
@@ -88,7 +89,8 @@ template <typename T> class GpuBitonicRunnerHooks final : public common::topk::B
 };
 
 // MapReduce Hooks
-template <typename T> class GpuMapReduceHooks final : public common::topk::MapReduceRunnerHooks<T> {
+template <typename T>
+class GpuMapReduceHooks final : public common::topk::MapReduceRunnerHooks<T> {
   public:
 	explicit GpuMapReduceHooks() : device_name(gpu::bitonic::query_device_name()) {
 	}
@@ -144,7 +146,8 @@ template <typename T> class GpuMapReduceHooks final : public common::topk::MapRe
 };
 
 // Ground Truth Hooks
-template <typename T> class GpuGroundTruthHooks final : public common::topk::GroundTruthRunnerHooks<T> {
+template <typename T>
+class GpuGroundTruthHooks final : public common::topk::GroundTruthRunnerHooks<T> {
   public:
 	explicit GpuGroundTruthHooks() : device_name(gpu::bitonic::query_device_name()) {
 	}
@@ -198,7 +201,8 @@ template <typename T> class GpuGroundTruthHooks final : public common::topk::Gro
 };
 
 // Dispatch
-template <typename T> int topk_typed(const Config& cfg) {
+template <typename T>
+int topk_typed(const Config& cfg) {
 	switch (cfg.algorithm) {
 	case Algorithm::MapReduce: {
 		GpuMapReduceHooks<T> hooks;

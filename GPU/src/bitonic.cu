@@ -40,7 +40,8 @@ std::size_t l2_cache_bytes() {
 	return bytes;
 }
 
-template <typename T> std::size_t tile_target_elems(std::size_t n) {
+template <typename T>
+std::size_t tile_target_elems(std::size_t n) {
 	const std::size_t target = (n * sizeof(T) > l2_cache_bytes()) ? BITONIC_TILE_LARGE : BITONIC_TILE_SMALL;
 	const std::size_t cap = BITONIC_MAX_TILE_BYTES / sizeof(T);
 	const std::size_t limit = cap < target ? cap : target;

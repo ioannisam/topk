@@ -40,12 +40,14 @@ inline int map_blocks_per_sm(int occupancy_blocks, int sm_count, std::size_t n, 
 	return occupancy_blocks < budget ? occupancy_blocks : budget;
 }
 
-template <typename T> __device__ __forceinline__ bool beats_threshold(T candidate, T threshold, bool want_max) {
+template <typename T>
+__device__ __forceinline__ bool beats_threshold(T candidate, T threshold, bool want_max) {
 	return want_max ? gpu::traits::DeviceTraits<T>::gt(candidate, threshold)
 					: gpu::traits::DeviceTraits<T>::lt(candidate, threshold);
 }
 
-template <typename T> __device__ void sift_down(T* heap, int size, int root, bool want_max) {
+template <typename T>
+__device__ void sift_down(T* heap, int size, int root, bool want_max) {
 	int current = root;
 	while (true) {
 		int left_child = 2 * current + 1;

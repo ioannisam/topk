@@ -16,7 +16,8 @@ namespace gpu::utils {
 		}                                                                                                              \
 	} while (false)
 
-template <typename T> struct DeviceBuffer {
+template <typename T>
+struct DeviceBuffer {
 	T* ptr = nullptr;
 	std::size_t size = 0;
 
@@ -66,7 +67,8 @@ template <typename T> struct DeviceBuffer {
 	}
 };
 
-template <typename T> struct PinnedBuffer {
+template <typename T>
+struct PinnedBuffer {
 	T* ptr = nullptr;
 	std::size_t size = 0;
 

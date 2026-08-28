@@ -20,7 +20,8 @@ namespace {
 using npu::utils::from_key;
 using npu::utils::to_key;
 
-template <bool WantMax> static void sift_down(std::vector<std::int32_t>& heap, std::size_t i) {
+template <bool WantMax>
+static void sift_down(std::vector<std::int32_t>& heap, std::size_t i) {
 	using Cmp = std::conditional_t<WantMax, std::greater<std::int32_t>, std::less<std::int32_t>>;
 	const std::size_t n = heap.size();
 	while (true) {

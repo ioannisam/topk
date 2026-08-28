@@ -12,7 +12,8 @@
 
 namespace common::utils {
 
-template <typename T> std::string format_value(T value) {
+template <typename T>
+std::string format_value(T value) {
 	if constexpr (std::is_integral_v<T>) {
 		if constexpr (std::is_unsigned_v<T>) {
 			return std::to_string(static_cast<unsigned long long>(value));
@@ -25,7 +26,8 @@ template <typename T> std::string format_value(T value) {
 	return out.str();
 }
 
-template <typename T> std::vector<std::string> format_output(const std::vector<T>& values) {
+template <typename T>
+std::vector<std::string> format_output(const std::vector<T>& values) {
 	std::vector<std::string> out;
 	out.reserve(values.size());
 	for (const T value : values) {
@@ -34,7 +36,8 @@ template <typename T> std::vector<std::string> format_output(const std::vector<T
 	return out;
 }
 
-template <typename T> bool value_equal(T lhs, T rhs) {
+template <typename T>
+bool value_equal(T lhs, T rhs) {
 	if constexpr (
 		std::is_floating_point_v<T>
 #if defined(__FLT16_MANT_DIG__)

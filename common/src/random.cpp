@@ -64,7 +64,8 @@ T sample_value(std::mt19937& rng, int min_value, int max_value, common::config::
 	return static_cast<T>(uniform(rng));
 }
 
-template <typename T> void apply_ascending_spikes(std::vector<T>& input, int low, int high) {
+template <typename T>
+void apply_ascending_spikes(std::vector<T>& input, int low, int high) {
 	const std::size_t n = input.size();
 	double lo = static_cast<double>(low);
 	double hi = static_cast<double>(high);

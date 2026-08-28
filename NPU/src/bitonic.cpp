@@ -57,7 +57,8 @@ std::size_t derive_kept_prefix(const std::vector<common::bitonic::Layer>& layers
 
 constexpr std::int32_t kPadKey = std::numeric_limits<std::int32_t>::max();
 
-template <typename T> std::size_t prepare_batch(xrt::bo& src_bo, const T* data_ptr, std::size_t batch_elems) {
+template <typename T>
+std::size_t prepare_batch(xrt::bo& src_bo, const T* data_ptr, std::size_t batch_elems) {
 	std::int32_t* src_map = src_bo.map<std::int32_t*>();
 	npu::utils::encode_keys<T>(src_map, data_ptr, batch_elems);
 
@@ -282,7 +283,8 @@ bool is_offload_configured() {
 	return npu::utils::load_offload_config().enabled;
 }
 
-template <typename T> RunStats run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) {
+template <typename T>
+RunStats run_topk(std::vector<T>& data, const std::vector<common::bitonic::Layer>& layers) {
 	if (data.empty()) {
 		return RunStats{0.0, 0, 0, 1, true};
 	}

@@ -6,7 +6,8 @@
 
 namespace npu::ground_truth {
 
-template <typename T> void run_topk(std::vector<T>& data, std::size_t k, bool want_max) {
+template <typename T>
+void run_topk(std::vector<T>& data, std::size_t k, bool want_max) {
 	if (k >= data.size()) {
 		if (want_max) {
 			std::sort(data.begin(), data.end(), std::greater<T>());

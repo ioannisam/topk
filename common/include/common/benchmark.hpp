@@ -15,13 +15,15 @@ namespace common::benchmark {
 constexpr int kWarmupIters = 5;
 constexpr int kMeasureIters = 50;
 
-template <typename ValueT> struct TimedValue {
+template <typename ValueT>
+struct TimedValue {
 	double e2e_ms;
 	double algo_ms;
 	ValueT value;
 };
 
-template <typename ValueT, typename StatsT> struct TimedValueWithStats {
+template <typename ValueT, typename StatsT>
+struct TimedValueWithStats {
 	double e2e_ms;
 	double algo_ms;
 	ValueT value;
@@ -61,20 +63,23 @@ inline ChannelSummary summarize(std::vector<double> samples) {
 	return summary;
 }
 
-template <typename SampleT> struct BenchmarkResult {
+template <typename SampleT>
+struct BenchmarkResult {
 	ChannelSummary e2e;
 	ChannelSummary algo;
 	common::energy::Summary energy;
 	SampleT sample;
 };
 
-template <typename Fn> void warmup(int iterations, Fn&& fn) {
+template <typename Fn>
+void warmup(int iterations, Fn&& fn) {
 	for (int i = 0; i < iterations; i++) {
 		fn();
 	}
 }
 
-template <typename Fn> auto run_benchmark(Fn&& timed_run_once) {
+template <typename Fn>
+auto run_benchmark(Fn&& timed_run_once) {
 	using SampleT = std::decay_t<decltype(timed_run_once())>;
 
 	warmup(kWarmupIters, [&]() { timed_run_once(); });

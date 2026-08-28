@@ -20,6 +20,8 @@ PenaltyReturnTypeOnItsOwnLine: 1000
 
 ColumnLimit: 120
 
+AlwaysBreakTemplateDeclarations: Yes
+
 AllowShortFunctionsOnASingleLine: None
 AllowShortBlocksOnASingleLine: false
 AllowShortIfStatementsOnASingleLine: Never

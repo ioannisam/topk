@@ -40,6 +40,7 @@ std::size_t run_topk(const T* data, std::size_t n, std::size_t k, bool want_max,
 
 namespace gpu::ground_truth {
 
-template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, bool want_max);
+template <typename T>
+double run_topk(T* data, std::size_t n, std::size_t k, bool want_max);
 
 } // namespace gpu::ground_truth

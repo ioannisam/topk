@@ -56,7 +56,8 @@ struct GroundTruthRunStats {
 	TrafficStats traffic;
 };
 
-template <typename StatsT, typename ResultT> void fill_timing_stats(StatsT& stats, const ResultT& best) {
+template <typename StatsT, typename ResultT>
+void fill_timing_stats(StatsT& stats, const ResultT& best) {
 	stats.end_to_end_ms = best.e2e.mean;
 	stats.algorithm_ms = best.algo.mean;
 	stats.end_to_end_stdev_ms = best.e2e.stdev;

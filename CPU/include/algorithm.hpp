@@ -42,6 +42,7 @@ std::vector<T> run_topk(
 
 namespace cpu::ground_truth {
 
-template <typename T> void run_topk(std::vector<T>& data, std::size_t k, bool want_max);
+template <typename T>
+void run_topk(std::vector<T>& data, std::size_t k, bool want_max);
 
 } // namespace cpu::ground_truth

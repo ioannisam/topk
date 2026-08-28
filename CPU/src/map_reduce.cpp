@@ -15,14 +15,16 @@ namespace cpu::map_reduce {
 
 namespace {
 
-template <bool WantMax, typename T> bool scalar_is_candidate(T value, T threshold) {
+template <bool WantMax, typename T>
+bool scalar_is_candidate(T value, T threshold) {
 	if constexpr (WantMax) {
 		return value > threshold;
 	}
 	return value < threshold;
 }
 
-template <typename T, typename Compare> void sift_down(std::vector<T>& heap, std::size_t i, Compare comp) {
+template <typename T, typename Compare>
+void sift_down(std::vector<T>& heap, std::size_t i, Compare comp) {
 	const std::size_t n = heap.size();
 	while (true) {
 		std::size_t best = i;
@@ -137,7 +139,8 @@ std::vector<T> map(
 	return heap;
 }
 
-template <bool WantMax, typename T> std::vector<T> reduce(std::vector<T> aggregated, std::size_t k) {
+template <bool WantMax, typename T>
+std::vector<T> reduce(std::vector<T> aggregated, std::size_t k) {
 	if (k == 0 || aggregated.empty()) {
 		return {};
 	}

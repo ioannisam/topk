@@ -28,7 +28,8 @@ inline std::size_t trunc_source_index(std::size_t o, std::size_t stride) {
 	return 2 * (o & ~(stride - 1)) + (o & (stride - 1));
 }
 
-template <typename Tr, int J> inline void cx_step(typename Tr::Vec& v, std::size_t idx, std::size_t stage) {
+template <typename Tr, int J>
+inline void cx_step(typename Tr::Vec& v, std::size_t idx, std::size_t stage) {
 	auto s = Tr::template permutex<J>(v);
 	v = Tr::blend(Tr::template get_blend_mask<J>(idx, stage), Tr::min(v, s), Tr::max(v, s));
 }
@@ -316,7 +317,8 @@ void run_normal_scalar(
 constexpr std::size_t kTileCapBytes = 524288;
 constexpr std::size_t kTileMinBytes = 16384;
 
-template <typename T> std::size_t pow2_floor_elems(std::size_t bytes) {
+template <typename T>
+std::size_t pow2_floor_elems(std::size_t bytes) {
 	std::size_t w = bytes / sizeof(T);
 	std::size_t p = 1;
 	while (p * 2 <= w)
@@ -324,11 +326,13 @@ template <typename T> std::size_t pow2_floor_elems(std::size_t bytes) {
 	return p < 16 ? 16 : p;
 }
 
-template <typename T> std::size_t tile_cap_elems() {
+template <typename T>
+std::size_t tile_cap_elems() {
 	return pow2_floor_elems<T>(kTileCapBytes);
 }
 
-template <typename T> std::size_t run_tile_elems(std::size_t max_stride) {
+template <typename T>
+std::size_t run_tile_elems(std::size_t max_stride) {
 	std::size_t want = 16;
 	while (want < (max_stride << 1))
 		want <<= 1;
@@ -643,7 +647,8 @@ std::vector<Group> build_groups(
 	return groups;
 }
 
-template <typename T> double group_traffic_bytes(const std::vector<Group>& groups) {
+template <typename T>
+double group_traffic_bytes(const std::vector<Group>& groups) {
 	double elems = 0.0;
 	for (const auto& g : groups) {
 		const double active = static_cast<double>(g.active_n);
