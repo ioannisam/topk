@@ -223,6 +223,7 @@ std::vector<T> run_topk(
 	return topk<false>(data, k, workers, stats);
 }
 
+// clang-format off
 template std::vector<std::int32_t> run_topk<std::int32_t>(
 	const std::vector<std::int32_t>& data, std::size_t k, bool want_max, std::size_t workers, RunStats* stats
 );
@@ -240,5 +241,6 @@ template std::vector<_Float16> run_topk<_Float16>(
 	const std::vector<_Float16>& data, std::size_t k, bool want_max, std::size_t workers, RunStats* stats
 );
 #endif
+// clang-format on
 
 } // namespace cpu::map_reduce

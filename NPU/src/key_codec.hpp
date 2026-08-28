@@ -22,7 +22,7 @@ template <typename T> inline std::int32_t to_key(T v) {
 		const std::uint32_t key = (u & 0x80000000u) ? (u ^ 0x7FFFFFFFu) : u;
 		return static_cast<std::int32_t>(key);
 	} else if constexpr (sizeof(T) == 2) {
-		// half (_Float16): widening to float is exact, so reuse the float key.
+		// half: widening to float is exact, so reuse the float key.
 		return to_key<float>(static_cast<float>(v));
 	} else if constexpr (sizeof(T) == 8) {
 		// double: full 64-bit radix key, then keep the high 32 bits.

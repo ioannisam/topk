@@ -853,6 +853,7 @@ void run_topk(
 	data.resize(result_n);
 }
 
+// clang-format off
 template void run_topk<std::int32_t>(
 	std::vector<std::int32_t>& data,
 	const std::vector<common::bitonic::Layer>& layers,
@@ -890,5 +891,6 @@ template void run_topk<_Float16>(
 	std::size_t* out_workers
 );
 #endif
+// clang-format on
 
 } // namespace cpu::bitonic

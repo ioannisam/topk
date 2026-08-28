@@ -22,6 +22,7 @@ template <typename T> void run_topk(std::vector<T>& data, std::size_t k, bool wa
 	}
 }
 
+// clang-format off
 template void run_topk<std::int32_t>(std::vector<std::int32_t>& data, std::size_t k, bool want_max);
 template void run_topk<std::uint32_t>(std::vector<std::uint32_t>& data, std::size_t k, bool want_max);
 template void run_topk<float>(std::vector<float>& data, std::size_t k, bool want_max);
@@ -29,5 +30,6 @@ template void run_topk<double>(std::vector<double>& data, std::size_t k, bool wa
 #if defined(__FLT16_MANT_DIG__)
 template void run_topk<_Float16>(std::vector<_Float16>& data, std::size_t k, bool want_max);
 #endif
+// clang-format on
 
 } // namespace npu::ground_truth

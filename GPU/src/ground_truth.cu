@@ -47,7 +47,7 @@ template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, boo
 	} else {
 		CUDA_CHECK(cub::DeviceTopK::MinKeys(nullptr, temp_bytes, d_in.get(), d_out.get(), n, kk, env));
 	}
-	// A null d_temp_storage re-runs the query instead of the selection, so never allocate zero.
+
 	DeviceBuffer<std::uint8_t> d_temp(std::max<std::size_t>(temp_bytes, 1));
 
 	EventGuard start_guard;
@@ -93,7 +93,6 @@ template <typename T> double run_topk(T* data, std::size_t n, std::size_t k, boo
 	return static_cast<double>(algo_ms);
 }
 
-// Explicit instantiations
 template double run_topk<std::int32_t>(std::int32_t* data, std::size_t n, std::size_t k, bool want_max);
 template double run_topk<std::uint32_t>(std::uint32_t* data, std::size_t n, std::size_t k, bool want_max);
 template double run_topk<float>(float* data, std::size_t n, std::size_t k, bool want_max);

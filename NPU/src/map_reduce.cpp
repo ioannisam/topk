@@ -143,8 +143,10 @@ std::vector<T> run_map_reduce_offload_xrt(
 	common::energy::Scope energy_scope(common::energy::Channel::Algo);
 
 	npu::PhaseTimers phases;
+
 	auto sample_timer = std::make_unique<npu::PhaseTimer>(phases.sample_ms);
 
+	// sample to jumpstart the threshold for the heap
 	constexpr double SAMPLE_FRACTION = 0.02;
 	std::size_t sample_size = std::max(k, static_cast<std::size_t>(n * SAMPLE_FRACTION));
 	sample_size = std::min(sample_size, n);
@@ -341,6 +343,7 @@ std::vector<T> run_topk(const std::vector<T>& data, std::size_t k, bool want_max
 	return run_map_reduce_offload_xrt<false>(data, k, offload_cfg, stats);
 }
 
+// clang-format off
 template std::vector<std::int32_t> run_topk<std::int32_t>(
 	const std::vector<std::int32_t>& data, std::size_t k, bool want_max, npu::map_reduce::RunStats* stats
 );
@@ -353,11 +356,11 @@ template std::vector<float> run_topk<float>(
 template std::vector<double> run_topk<double>(
 	const std::vector<double>& data, std::size_t k, bool want_max, npu::map_reduce::RunStats* stats
 );
-
 #if defined(__FLT16_MANT_DIG__)
 template std::vector<_Float16> run_topk<_Float16>(
 	const std::vector<_Float16>& data, std::size_t k, bool want_max, npu::map_reduce::RunStats* stats
 );
 #endif
+// clang-format on
 
 } // namespace npu::map_reduce
