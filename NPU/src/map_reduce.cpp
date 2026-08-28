@@ -55,7 +55,7 @@ std::size_t prepare_npu_batch(
 ) {
 
 	std::int32_t* src_map = src_bo.map<std::int32_t*>();
-	int32_t* cfg_map = cfg_bo.map<int32_t*>();
+	std::int32_t* cfg_map = cfg_bo.map<std::int32_t*>();
 
 	if constexpr (std::is_same_v<T, std::int32_t>) {
 		if (current_batch > 0) {
@@ -85,7 +85,8 @@ std::size_t prepare_npu_batch(
 
 	if (full_chunks < batch_chunks) {
 		CfgWord dummy_cfg = current_cfg;
-		dummy_cfg.threshold = WantMax ? std::numeric_limits<int32_t>::max() : std::numeric_limits<int32_t>::lowest();
+		dummy_cfg.threshold =
+			WantMax ? std::numeric_limits<std::int32_t>::max() : std::numeric_limits<std::int32_t>::lowest();
 		std::fill(cfg_words + full_chunks, cfg_words + batch_chunks, dummy_cfg);
 	}
 
@@ -177,7 +178,7 @@ std::vector<T> run_map_reduce_offload_xrt(
 		run[i] = xrt::run(state.kernel);
 		run[i].set_arg(0, 3);
 		run[i].set_arg(1, state.instr_bo);
-		run[i].set_arg(2, static_cast<uint32_t>(state.instr_v.size()));
+		run[i].set_arg(2, static_cast<std::uint32_t>(state.instr_v.size()));
 		run[i].set_arg(3, state.mr_cfg_bo[i]);
 		run[i].set_arg(4, state.mr_dst_bo[i]);
 		run[i].set_arg(5, state.mr_src_bo[i]);

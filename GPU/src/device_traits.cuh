@@ -84,41 +84,41 @@ struct DeviceTraits<__half> {
 };
 
 template <>
-struct DeviceTraits<int32_t> {
+struct DeviceTraits<std::int32_t> {
 	using Vec2 = int2;
-	static __device__ __forceinline__ bool gt(int32_t a, int32_t b) {
+	static __device__ __forceinline__ bool gt(std::int32_t a, std::int32_t b) {
 		return a > b;
 	}
-	static __device__ __forceinline__ bool lt(int32_t a, int32_t b) {
+	static __device__ __forceinline__ bool lt(std::int32_t a, std::int32_t b) {
 		return a < b;
 	}
-	static __device__ __forceinline__ int32_t min(int32_t a, int32_t b) {
+	static __device__ __forceinline__ std::int32_t min(std::int32_t a, std::int32_t b) {
 		return a < b ? a : b;
 	}
-	static __device__ __forceinline__ int32_t max(int32_t a, int32_t b) {
+	static __device__ __forceinline__ std::int32_t max(std::int32_t a, std::int32_t b) {
 		return a > b ? a : b;
 	}
-	static __device__ __forceinline__ int32_t sentinel(bool want_max) {
+	static __device__ __forceinline__ std::int32_t sentinel(bool want_max) {
 		return want_max ? INT32_MIN : INT32_MAX;
 	}
 };
 
 template <>
-struct DeviceTraits<uint32_t> {
+struct DeviceTraits<std::uint32_t> {
 	using Vec2 = uint2;
-	static __device__ __forceinline__ bool gt(uint32_t a, uint32_t b) {
+	static __device__ __forceinline__ bool gt(std::uint32_t a, std::uint32_t b) {
 		return a > b;
 	}
-	static __device__ __forceinline__ bool lt(uint32_t a, uint32_t b) {
+	static __device__ __forceinline__ bool lt(std::uint32_t a, std::uint32_t b) {
 		return a < b;
 	}
-	static __device__ __forceinline__ uint32_t min(uint32_t a, uint32_t b) {
+	static __device__ __forceinline__ std::uint32_t min(std::uint32_t a, std::uint32_t b) {
 		return a < b ? a : b;
 	}
-	static __device__ __forceinline__ uint32_t max(uint32_t a, uint32_t b) {
+	static __device__ __forceinline__ std::uint32_t max(std::uint32_t a, std::uint32_t b) {
 		return a > b ? a : b;
 	}
-	static __device__ __forceinline__ uint32_t sentinel(bool want_max) {
+	static __device__ __forceinline__ std::uint32_t sentinel(bool want_max) {
 		return want_max ? 0 : UINT32_MAX;
 	}
 };

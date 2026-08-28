@@ -151,7 +151,7 @@ RunStats run_network_offload_xrt(
 		run[i] = xrt::run(state.kernel);
 		run[i].set_arg(0, 3);
 		run[i].set_arg(1, state.instr_bo);
-		run[i].set_arg(2, static_cast<uint32_t>(state.instr_v.size()));
+		run[i].set_arg(2, static_cast<std::uint32_t>(state.instr_v.size()));
 		run[i].set_arg(3, state.bit_dst_bo[i]);
 		run[i].set_arg(4, state.bit_src_bo[i]);
 		rl[i].add(run[i]);

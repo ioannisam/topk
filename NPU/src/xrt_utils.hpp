@@ -95,7 +95,7 @@ inline void wait_for_runlist_or_throw(const xrt::runlist& rl, unsigned int timeo
 	}
 }
 
-inline std::vector<uint32_t> load_instruction_sequence(const std::string& xclbin_path) {
+inline std::vector<std::uint32_t> load_instruction_sequence(const std::string& xclbin_path) {
 	const std::filesystem::path xclbin_fs(xclbin_path);
 	const std::filesystem::path dir = xclbin_fs.has_parent_path() ? xclbin_fs.parent_path() : ".";
 	const std::string path = (dir / (xclbin_stem(xclbin_path) + ".bin")).string();
@@ -109,12 +109,12 @@ inline std::vector<uint32_t> load_instruction_sequence(const std::string& xclbin
 	if (size <= 0) {
 		throw std::runtime_error("Instruction file is empty (0 bytes): " + path);
 	}
-	if (static_cast<std::size_t>(size) % sizeof(uint32_t) != 0) {
+	if (static_cast<std::size_t>(size) % sizeof(std::uint32_t) != 0) {
 		throw std::runtime_error("Instruction file is not a whole number of 32-bit words: " + path);
 	}
 	file.seekg(0, std::ios::beg);
 
-	std::vector<uint32_t> insts(size / sizeof(uint32_t));
+	std::vector<std::uint32_t> insts(size / sizeof(std::uint32_t));
 	file.read(reinterpret_cast<char*>(insts.data()), size);
 
 	return insts;
@@ -123,10 +123,10 @@ inline std::vector<uint32_t> load_instruction_sequence(const std::string& xclbin
 constexpr std::size_t kMrBatchChunks = 1024;
 
 struct alignas(16) MrCfgWord {
-	int32_t threshold;
-	int32_t want_max;
-	int32_t sentinel;
-	int32_t padding;
+	std::int32_t threshold;
+	std::int32_t want_max;
+	std::int32_t sentinel;
+	std::int32_t padding;
 };
 
 struct SharedXrtState {
@@ -135,7 +135,7 @@ struct SharedXrtState {
 	xrt::uuid uuid;
 	xrt::hw_context hwctx;
 	xrt::kernel kernel;
-	std::vector<uint32_t> instr_v;
+	std::vector<std::uint32_t> instr_v;
 	xrt::bo instr_bo;
 
 	std::vector<xrt::bo> mr_cfg_bo;
@@ -156,8 +156,8 @@ struct SharedXrtState {
 
 		const std::size_t instr_group = safe_group_id(kernel, 1);
 		instr_v = load_instruction_sequence(cfg.xclbin_path);
-		instr_bo = xrt::bo(dev, instr_v.size() * sizeof(uint32_t), xrt::bo::flags::cacheable, instr_group);
-		std::memcpy(instr_bo.map<void*>(), instr_v.data(), instr_v.size() * sizeof(uint32_t));
+		instr_bo = xrt::bo(dev, instr_v.size() * sizeof(std::uint32_t), xrt::bo::flags::cacheable, instr_group);
+		std::memcpy(instr_bo.map<void*>(), instr_v.data(), instr_v.size() * sizeof(std::uint32_t));
 		instr_bo.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 	}
 

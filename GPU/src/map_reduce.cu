@@ -226,7 +226,7 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 	}
 
 	const int block_size = MAP_BLOCK_SIZE;
-	const size_t shared_mem_size = 0;
+	const std::size_t shared_mem_size = 0;
 
 	struct DeviceInfo {
 		int multiprocessor_count;
@@ -245,8 +245,8 @@ std::size_t run_topk(const T* input, std::size_t n, std::size_t k, bool want_max
 	int num_blocks = map_blocks_per_sm(device_info.max_active_blocks, device_info.multiprocessor_count, n, k);
 	int grid_size = device_info.multiprocessor_count * num_blocks;
 
-	const size_t max_workspace_bytes = 1024ULL * 1024ULL * 512ULL;
-	const size_t bytes_per_thread = k * sizeof(D);
+	const std::size_t max_workspace_bytes = 1024ULL * 1024ULL * 512ULL;
+	const std::size_t bytes_per_thread = k * sizeof(D);
 
 	if (bytes_per_thread > max_workspace_bytes / block_size) {
 		throw std::invalid_argument(
