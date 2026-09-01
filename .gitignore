@@ -4,7 +4,6 @@ npu_venv
 .venv
 mlir-aie
 tmp*
-*.pdf
 .python-version
 __pycache__
 .ruff_cache
