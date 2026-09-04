@@ -21,6 +21,7 @@ from .plotting import power_by_backend
 from .plotting import power_by_source
 from .plotting import power_vs_n
 from .plotting import speedup_vs_gt
+from .plotting import speedup_vs_gt_cross_backend
 from .plotting import time_per_element_vs_n
 from .plotting import time_vs_n_algo_compare
 from .plotting import time_vs_energy
@@ -39,6 +40,7 @@ PLOT_CHOICES = [
     "time-vs-n-backend-compare",
     "time-vs-n-metric-compare",
     "speedup-vs-gt",
+    "speedup-vs-gt-cross-backend",
     "pass-rate",
     "energy-by-source",
     "power-by-source",
@@ -472,6 +474,15 @@ def main() -> int:
                 collect_output(out)
             else:
                 print(f"Skipped speedup-vs-gt ({dtype_dir}): no gt/backend matches found.")
+
+        if "speedup-vs-gt-cross-backend" in requested:
+            out = speedup_vs_gt_cross_backend.plot(
+                records_fan, os.path.join(out_time, "speedup_vs_gt_cross_backend.png"), args.agg
+            )
+            if out:
+                collect_output(out)
+            else:
+                print(f"Skipped speedup-vs-gt-cross-backend ({dtype_dir}): no gt/backend matches found.")
 
         if "time-per-element-vs-n" in requested:
             out = time_per_element_vs_n.plot(
