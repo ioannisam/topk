@@ -207,8 +207,23 @@ def select_elapsed_seconds(rec) -> float | None:
     return elapsed / ops
 
 
-def select_power_watts(rec, metric: str) -> float | None:
-    if metric == "net":
+def select_power_watts(rec, metric: str, scope: str = "e2e") -> float | None:
+    net = metric == "net"
+
+    if getattr(rec, "inproc_available", False):
+        if scope == "algorithmic":
+            energy = rec.inproc_net_algo_joules if net else rec.inproc_algo_joules
+            seconds = rec.inproc_algo_seconds
+        else:
+            energy = rec.inproc_net_e2e_joules if net else rec.inproc_e2e_joules
+            seconds = rec.inproc_e2e_seconds
+        if energy is not None and seconds:
+            return energy / seconds
+
+    if scope == "algorithmic":
+        return None
+
+    if net:
         return rec.net_average_watts
     return rec.average_watts
 

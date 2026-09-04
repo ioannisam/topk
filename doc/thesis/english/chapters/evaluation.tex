@@ -465,14 +465,14 @@ board power, is not more economical.
 Juxtaposing figures~\ref{fig:eval-energy} and~\ref{fig:eval-power} highlights
 a distinction that is easy to conflate, and one that particularly concerns
 the NPU. This device has the \emph{lowest} power draw of all
-implementations, with map-reduce measuring \qty{6.7}{\watt} against
-\qty{7.8}{\watt} for the corresponding CPU implementation and
-\qty{15.2}{\watt} for the GPU.
+implementations, with map-reduce measuring \qty{7.9}{\watt} against
+\qty{15.6}{\watt} for the corresponding CPU implementation and
+\qty{18.6}{\watt} for the GPU.
 
 Nonetheless it consumes over four times the energy of CPU map-reduce,
 \qty{0.080}{\joule} against \qty{0.019}{\joule}. The reason is that energy is
 the product of power and time, and the NPU needs roughly eight times the time
-for the same task. The thirteen-percent advantage in power is wiped out by the
+for the same task. The forty-nine-percent advantage in power is wiped out by the
 eightfold disadvantage in duration.
 
 This observation generalises: low power does not imply low energy. The
