@@ -219,6 +219,7 @@ T* execute_network_kernels(
 	const std::size_t tile_cap = tile_target_elems<T>(n);
 	auto tile_for = [&](std::size_t active_n) { return active_n < tile_cap ? active_n : tile_cap; };
 	auto fuses = [&](std::size_t active_n, std::size_t step) { return 2 * step <= tile_for(active_n); };
+	// fits in shared memory (kernel fusion)
 	auto flush = [&](std::size_t active_n) {
 		if (buffer.count == 0) {
 			return;
@@ -238,6 +239,7 @@ T* execute_network_kernels(
 	std::vector<std::size_t> large_steps;
 	std::size_t large_stage = 0;
 	std::size_t large_active = 0;
+	// does not fit in shared memory (register fusion)
 	auto flush_large = [&]() {
 		if (large_steps.empty()) {
 			return;
