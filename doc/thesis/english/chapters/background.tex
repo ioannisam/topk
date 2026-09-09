@@ -2,10 +2,9 @@
 \label{ch:background}
 
 This chapter defines the problem, presents the algorithm families that solve
-it, and describes the execution models of the three architectures. The goal
-is not exhaustive coverage, but laying the groundwork needed to read
-chapters~\ref{ch:cpu} through~\ref{ch:npu}. The specific implementations of
-this work are presented there, not here.
+it, and describes the execution models of the three architectures, laying
+only the groundwork needed to read chapters~\ref{ch:cpu}
+through~\ref{ch:npu}, where this work's own implementations are presented.
 
 \section{The top-k selection problem}
 \label{sec:bg-problem}
@@ -15,29 +14,30 @@ $k \le n$, the top-k selection problem asks for the subset of the $k$
 largest elements of $A$. This work considers the form that asks only for
 this set, not the order of the elements within it, since this is the form
 required by applications and the only one against which algorithms with
-different internal organisation can be fairly compared.
+different internal organisation can be fairly compared. Every implementation
+in this work additionally sorts its k results before returning them: this
+costs $O(k \log k)$, negligible next to the $O(n)$ of selection itself, and
+yields a single, checkable answer rather than an arbitrary arrangement of
+the set.
 
-The critical observation is that the problem asks for strictly less
-information than sorting. Full sorting determines the relative order of all
-$n$ elements, whereas selection is satisfied with separating them into two
-groups. This difference is captured by the lower bounds: every
-comparison-based algorithm requires $\Omega(n \log n)$ comparisons to sort,
-but only $\Theta(n)$ to select with fixed $k$~\cite{knuth1998}. Selection is
-therefore substantially cheaper, and any implementation that sorts the
-entire input in order to keep k elements performs more work than the
-problem requires.
-
-Figure~\ref{fig:bg-selection} illustrates this difference.
+The problem asks for strictly less information than sorting: full sorting
+determines the relative order of all $n$ elements, whereas selection is
+satisfied with separating them into two groups. This difference is captured
+by the lower bounds: every comparison-based algorithm requires
+$\Omega(n \log n)$ comparisons to sort, but only $\Theta(n)$ to select with
+fixed $k$~\cite{knuth1998}. Selection is therefore substantially cheaper,
+and any implementation that sorts the entire input to keep k elements does
+more work than the problem requires. Figure~\ref{fig:bg-selection}
+illustrates this difference.
 
 \input{figures/bg-selection}
 
-This gap between sorting and selection is not constant; it depends on the
-ratio $k/n$. At one extreme, when k is much smaller than $n$, selection is
-nearly linear and sorting wastes almost all of its work. At the other, when
-k approaches $n$, the two problems nearly coincide and the margin
-disappears. The entire work moves between these two extremes.
-Chapter~\ref{ch:evaluation} shows that the ranking of the algorithms
-inverts as this gap is traversed.
+This gap depends on the ratio $k/n$: when k is much smaller than $n$,
+selection is nearly linear and sorting wastes almost all of its work, while
+as k approaches $n$ the two problems nearly coincide and the margin
+disappears. The entire work moves between these two extremes, and
+chapter~\ref{ch:evaluation} shows that the ranking of the algorithms is
+overturned as this gap is traversed.
 
 The problem appears across a multitude of applications. K-nearest-neighbour
 search requires selecting the smallest distances from a distance
@@ -51,18 +51,18 @@ it is added at every iteration.
 \section{Selection algorithms}
 \label{sec:bg-algorithms}
 
-Selection algorithms fall into families based on a criterion that proves
-decisive for acceleration: whether the sequence of operations depends on
-the data values or not. An algorithm whose schedule is fixed executes the
-same operations in the same order regardless of the input. A data-dependent
-algorithm adapts its course, performing less work on favourable inputs and
-more on adverse ones.
+Selection algorithms fall into families based on a criterion decisive for
+acceleration: whether the sequence of operations depends on the data values
+or not. An algorithm whose schedule is fixed executes the same operations
+in the same order regardless of the input. A data-dependent algorithm
+adapts its course, performing less work on favourable inputs and more on
+adverse ones.
 
-This distinction, which corresponds to the established classification of
+This distinction, corresponding to the established classification of
 parallel selection algorithms into sorting, partial sorting, and
 partitioning methods~\cite{zhang2023gputopk}, is not only a matter of
 theoretical complexity. It determines which hardware can execute the
-algorithm efficiently, because parallel architectures presuppose that many
+algorithm efficiently, since parallel architectures presuppose that many
 processing elements execute the same instruction. It also determines
 whether execution time is predictable, a question examined experimentally
 in section~\ref{sec:eval-distributions}.
@@ -73,38 +73,35 @@ in section~\ref{sec:eval-distributions}.
 A sorting network is a fixed sequence of comparators. Each comparator takes
 two array positions, compares their contents, and swaps them if they are in
 the wrong order. The positions it compares are fixed in advance and do not
-depend on the values. The network is therefore the standard example of a
-data-oblivious algorithm: the same sequence of comparisons is always
-executed, and the only thing that changes is the outcome of each
-comparison.
+depend on the values, making the network the standard example of a
+data-oblivious algorithm. The same sequence of comparisons is always
+executed, and only the outcome of each comparison changes.
 
 The comparators are organised into \emph{stages}. Within a stage, no
 position appears in two comparators, so all comparators of a stage can
-execute simultaneously. The stages, however, must execute sequentially. The
-number of stages thus constitutes the depth of the network and defines the
+execute simultaneously. The stages, however, must execute sequentially, so
+the number of stages constitutes the depth of the network and defines the
 lower bound on time on unboundedly parallel hardware.
 
 Batcher's construction rests on the notion of a bitonic sequence
-~\cite{batcher1968}. A sequence is called bitonic if it first increases and
-then decreases, or if it results from such a sequence by a cyclic shift.
-The fundamental property is that a bitonic sequence of length $2m$ can be
-sorted in $\log_2(2m)$ stages: comparing each element with the one $m$
-positions away yields two bitonic sequences of length $m$, such that every
-element of the first is less than or equal to every element of the second.
-The two halves are then sorted independently by the same procedure.
+~\cite{batcher1968}: one that first increases and then decreases, or
+results from such a sequence by a cyclic shift. Its fundamental property is
+that a bitonic sequence of length $2m$ can be sorted in $\log_2(2m)$
+stages: comparing each element with the one $m$ positions away yields two
+bitonic sequences of length $m$, such that every element of the first is
+less than or equal to every element of the second. The two halves are then
+sorted independently by the same procedure.
 
 Full sorting of $n$ elements results from repeated application: pairs of
 sorted blocks of opposite direction form a bitonic sequence of double the
 length, which is sorted to yield a block of double the size. The network
 has $\log_2 n \, (\log_2 n + 1)/2$ stages and $n/2$ comparators per stage,
-i.e., $O(n \log^2 n)$ comparators in total.
-
-This count is larger by a factor of $\log n$ than the $O(n \log n)$ bound
-achieved by sequential sorting algorithms. Bitonic sort thus performs more
-comparisons than necessary. The trade-off is that these comparisons are
-entirely predetermined and uniform, a property that makes them executable
-on vector units, on SIMT models, and on dataflow arrays without any
-control-flow divergence. This trade-off, more operations in exchange for
+i.e., $O(n \log^2 n)$ comparators in total. This is a factor of $\log n$
+more than the $O(n \log n)$ bound achieved by sequential sorting
+algorithms, so bitonic sort performs more comparisons than necessary. The
+trade-off is that these comparisons are entirely predetermined and
+uniform, executable on vector units, SIMT models, and dataflow arrays
+without any control-flow divergence. This trade-off, more operations for
 perfect regularity, is why sorting networks remain competitive on parallel
 hardware despite their asymptotic disadvantage.
 
@@ -112,45 +109,45 @@ hardware despite their asymptotic disadvantage.
 \label{sec:bg-truncated-bitonic}
 
 Full sorting produces far more information than selection requires.
-Truncated bitonic sort exploits this fact by discarding elements as soon as
-it is proven that they cannot belong to the result~\cite{sismanis2012}. The
+Truncated bitonic sort exploits this by discarding elements as soon as it
+is proven that they cannot belong to the result~\cite{sismanis2012}. The
 same idea, halving the active array at every step, also underlies
 partial-sorting implementations for GPUs~\cite{shanbhag2018}.
 
 Figure~\ref{fig:bg-bitonic} contrasts the two structures. Let $k'$ be the
-smallest power of two not less than k. The procedure has two phases. In the
-first, ordinary bitonic sort is executed, but it stops as soon as sorted
-blocks of size $k'$ are formed, instead of continuing to the single block
-of size $n$. In the second, blocks are merged in pairs; of the $2k'$
-elements in each pair, only the $k'$ largest are kept and the rest are
-discarded permanently. This step halves the size of the active array and
-repeats until a single block remains, which contains the desired result.
+smallest power of two not less than k. The procedure has two phases: in the
+first, ordinary bitonic sort is executed but stops as soon as sorted blocks
+of size $k'$ are formed, instead of continuing to the single block of size
+$n$; in the second, blocks are merged in pairs, and of the $2k'$ elements
+in each pair, only the $k'$ largest are kept and the rest discarded
+permanently. This step halves the size of the active array and repeats
+until a single block remains, containing the desired result.
 
-The correctness of this discarding is immediate. If an element is not
-among the $k'$ largest of two sorted blocks, then there are already $k'$
-elements larger than it in the array, so it cannot be among the k largest
-of the whole set.
+The correctness of this discarding is immediate: if an element is not among
+the $k'$ largest of two sorted blocks, then $k'$ elements larger than it
+already exist in the array, so it cannot be among the k largest of the
+whole set.
 
-The gain is twofold. On the one hand, the first phase requires
+The gain is twofold. The first phase requires
 $\log_2 k' \, (\log_2 k' + 1)/2$ stages instead of
-$\log_2 n \, (\log_2 n + 1)/2$, a count that depends on k rather than on
-$n$. On the other hand, the stages of the second phase act on an array that
-shrinks geometrically, so their cost sums to a term linear in $n$. The
-overall complexity falls from $O(n \log^2 n)$ to $O(n \log^2 k)$.
+$\log_2 n \, (\log_2 n + 1)/2$, a count depending on k rather than $n$.
+The stages of the second phase, meanwhile, act on an array that shrinks
+geometrically, so their cost sums to a term linear in $n$. The overall
+complexity falls from $O(n \log^2 n)$ to $O(n \log^2 k)$.
 
 For $n = 2^{24}$ and k equal to 8, the full network has 300 stages and
 2\,516\,582\,400 comparators, whereas the truncated network has 90 stages
 and 92\,274\,668 comparators, i.e., twenty-seven times fewer. For k equal to
 131072, however, the figures are 279 stages and 1\,441\,595\,392
-comparators, only 1.7 times fewer than the full network. The benefit of
-truncation evaporates as k grows, a fact that partly explains the
-behaviour recorded in section~\ref{sec:eval-time-k}.
+comparators, only 1.7 times fewer than the full network: the benefit of
+truncation evaporates as k grows, partly explaining the behaviour recorded
+in section~\ref{sec:eval-time-k}.
 
-Crucially, truncation does not sacrifice data-obliviousness. Which elements
+Crucially, truncation does not sacrifice data-obliviousness: which elements
 are discarded depends on the values, but \emph{how many} and at which steps
-does not: the schedule of stages is computed in advance from $n$ and k
-alone. This property preserves suitability for parallel hardware and is
-confirmed experimentally in section~\ref{sec:eval-distributions}, where the
+does not, since the schedule of stages is computed in advance from $n$ and
+k alone. This preserves suitability for parallel hardware and is confirmed
+experimentally in section~\ref{sec:eval-distributions}, where the
 implementation exhibits a variation of under twelve percent across five
 very different input distributions.
 
@@ -159,37 +156,36 @@ very different input distributions.
 \subsection{Selection with heaps and map-reduce}
 \label{sec:bg-mapreduce}
 
-The second family follows the opposite logic. Instead of imposing a fixed
+The second family follows the opposite logic: instead of imposing a fixed
 schedule, it maintains a structure holding the k best elements examined so
-far, and updates the structure only when necessary.
+far and updates it only when necessary.
 
 The structure is a min-heap of capacity k. Its root holds the smallest of
-the k current best elements and acts as an admission threshold. For each
-new element, a single comparison against the root is performed. If the
+the k current best elements and acts as an admission threshold: for each
+new element, a single comparison against the root is performed, and if the
 element does not exceed it, it is discarded with no further work.
-Otherwise it replaces the root, and the heap is restored in $O(\log k)$
+Otherwise it replaces the root and the heap is restored in $O(\log k)$
 steps.
 
-The asymmetry between the two cases determines the algorithm's behaviour.
-On random input, the threshold rises quickly and the overwhelming majority
-of elements are discarded with a single comparison, so the total time
-approaches linear. On ascending input, however, every new element exceeds
-the root and forces a restoration, giving $O(n \log k)$ in the worst case.
-The same code thus performs a fundamentally different volume of work
-depending on the order in which values appear, and
-section~\ref{sec:eval-distributions} measures this difference at a factor
-of seventy-two.
+This asymmetry determines the algorithm's behaviour. On random input, the
+threshold rises quickly and the overwhelming majority of elements are
+discarded with a single comparison, so the total time approaches linear.
+On ascending input, however, every new element exceeds the root and forces
+a restoration, giving $O(n \log k)$ in the worst case. The same code thus
+performs a fundamentally different volume of work depending on the order
+in which values appear, and section~\ref{sec:eval-distributions} measures
+this difference at a factor of seventy-two.
 
-Parallelisation follows the map-reduce scheme, as shown in
-figure~\ref{fig:bg-heap}. In the map phase, the input is partitioned and
-each worker maintains its own local heap, without synchronising with the
-others. In the reduce phase, the partial results are merged into one. This
-scheme is attractive because the map phase requires no communication, but
-it imposes a limit that proves critical: each local heap must first fill
-with k elements before it can start filtering, so the number of workers
-that actually contribute cannot exceed the ratio $n/k$. This limit is
-negligible on a processor with eight threads, but disastrous on a GPU with
-thousands, as analysed in section~\ref{sec:gpu-mapreduce-limit}.
+Parallelisation follows the map-reduce scheme, shown in
+figure~\ref{fig:bg-heap}: in the map phase the input is partitioned and
+each worker maintains its own local heap without synchronising with the
+others, and in the reduce phase the partial results are merged into one.
+The scheme is attractive because the map phase requires no communication,
+but it imposes a limit that proves critical: each local heap must first
+fill with k elements before it can start filtering, so the number of
+workers that actually contribute cannot exceed the ratio $n/k$. This limit
+is negligible on a processor with eight threads, but disastrous on a GPU
+with thousands, as analysed in section~\ref{sec:gpu-mapreduce-limit}.
 
 \input{figures/bg-heap}
 
@@ -199,20 +195,20 @@ thousands, as analysed in section~\ref{sec:gpu-mapreduce-limit}.
 The third family does not compare elements against each other but examines
 their binary representation. Values are distributed into buckets according
 to a group of bits, the bucket counts are summed, and from these it follows
-which bucket contains the k-th largest element. Buckets above it belong
+which bucket contains the k-th largest element: buckets above it belong
 entirely to the result, buckets below it are discarded entirely, and the
 search continues only within the critical bucket, using the next group of
 bits.
 
 The procedure is shown in figure~\ref{fig:bg-radix}. Two properties stand
-out. First, the number of passes is determined by the width of the data
-type and not by k, so the method exhibits no collapse point as k grows.
-Second, each pass is a sequential read with frequency counting, a pattern
-particularly favourable for high-bandwidth architectures.
+out: the number of passes is determined by the width of the data type and
+not by k, so the method exhibits no collapse point as k grows, and each
+pass is a sequential read with frequency counting, a pattern particularly
+favourable for high-bandwidth architectures.
 
-This method is also data-dependent, but in a way different from heaps:
-what matters is not the order in which values appear but the distribution
-of their bits. When many elements share the same significant bits, the
+This method is also data-dependent, but differently from heaps: what
+matters is not the order in which values appear but the distribution of
+their bits. When many elements share the same significant bits, the
 critical bucket narrows slowly and more passes are required; this case is
 known in the literature as a radix-adversarial distribution and is
 addressed with adaptive candidate-storage strategies~\cite{zhang2023gputopk}.
@@ -233,17 +229,17 @@ chapters~\ref{ch:cpu} through~\ref{ch:npu}.
 \subsection{CPU vector extensions}
 \label{sec:bg-arch-cpu}
 
-The modern general-purpose processor combines two forms of parallelism. The
-first is multiple threads, each executing an independent instruction
-stream. The second is vector extensions, which apply the same operation to
-multiple data items simultaneously within a single thread.
+The modern general-purpose processor combines two forms of parallelism:
+multiple threads, each executing an independent instruction stream, and
+vector extensions, which apply the same operation to multiple data items
+simultaneously within a single thread.
 
 An AVX-512 register is 512 bits wide and holds sixteen 32-bit integers.
 Beyond arithmetic operations, its repertoire includes shuffle instructions
 that permute elements within the register and min/max instructions that
-select element-wise without branching. The combination of shuffle, min, and
-max implements exactly one sorting-network comparator, a fact that makes
-bitonic sort a natural candidate for vectorisation.
+select element-wise without branching. The combination of shuffle, min,
+and max implements exactly one sorting-network comparator, making bitonic
+sort a natural candidate for vectorisation.
 
 The limiting factor is usually not the rate of operations but their supply
 of data. The cache hierarchy partly compensates for the speed gap with
@@ -259,55 +255,49 @@ theme of section~\ref{sec:cpu-bitonic}.
 The GPU is organised around the SIMT model. Threads are grouped into warps
 that execute the same instruction on different data. When the threads of a
 warp follow different branches, the branches execute serially with the
-inactive threads disabled. Control-flow divergence therefore has a direct
-cost, and branch-free algorithms have an advantage.
+inactive threads disabled, so control-flow divergence has a direct cost
+and branch-free algorithms have an advantage.
 
 Warps are grouped into thread blocks, and blocks into a grid. Each block
 has shared memory, a small region managed explicitly by software, with
-latency far lower than global memory. Shared memory is the tool by which a
+latency far lower than global memory. This is the tool by which a
 multi-pass algorithm is converted into a single-pass one: if the chunk of
 data processed by a block fits there, all intermediate steps execute
 without returning to global memory.
 
 Access to global memory is efficient only when the threads of a warp
-request consecutive addresses, so that the individual requests are
-coalesced into few transactions. Finally, the GPU is a discrete device:
-data must be transferred to and from its memory over a bus whose bandwidth
-is an order of magnitude lower than that of local memory. This transfer is
-the reason this work explicitly distinguishes two measurement scopes, as
-defined in section~\ref{sec:meth-energy-scope}.
+request consecutive addresses, so the individual requests are coalesced
+into few transactions. Finally, the GPU is a discrete device: data must be
+transferred to and from its memory over a bus whose bandwidth is an order
+of magnitude lower than that of local memory, which is why this work
+explicitly distinguishes two measurement scopes, as defined in
+section~\ref{sec:meth-energy-scope}.
 
 \subsection{The AIE dataflow architecture}
 \label{sec:bg-arch-npu}
 
-The term neural processing unit first appeared with a meaning different
-from today's. Its first registered use referred to an array of
-micro-machines dynamically configured as neurons based on stored connection
-information~\cite{palmer2014npu}, while its first use in the literature
-described a specialised unit that replaces portions of general-purpose code
-with approximate neural computation, aimed at saving energy rather than
-accelerating machine learning~\cite{esmaeilzadeh2012}. The modern meaning
-was shaped by the first accelerators dedicated to neural
-networks~\cite{chen2014diannao} and was established with the analysis of
-the first production unit deployed in a data-centre setting, which
-documented that specialised architectures outperform processors and GPUs
-in performance per watt~\cite{jouppi2017tpu}.
+The term neural processing unit has meant different things over time, from
+early proposals for approximate, energy-saving
+computation~\cite{palmer2014npu,esmaeilzadeh2012} to the dedicated
+neural-network accelerators~\cite{chen2014diannao} whose performance-per-watt
+advantage over processors and GPUs was established once deployed at
+data-centre scale~\cite{jouppi2017tpu}.
 
 Central to understanding these units is the design principle stated
-explicitly in the Eyeriss architecture: in these workloads, moving a piece
-of data costs orders of magnitude more energy than the operation to be
-performed on it, so the design must be organised around maximising local
-data reuse~\cite{chen2016eyeriss}. This principle is fully vindicated in
-convolution and matrix multiplication, where every element loaded
-participates in many operations. The top-k selection problem, however,
-lies at the exact opposite extreme: each element is examined a minimal
-number of times and there is essentially no reuse to exploit. This
-observation foreshadows the central finding of chapter~\ref{ch:evaluation}
-and recurs in section~\ref{sec:eval-energy}.
+explicitly in the Eyeriss architecture: moving a piece of data costs
+orders of magnitude more energy than the operation performed on it, so the
+design must be organised around maximising local data
+reuse~\cite{chen2016eyeriss}. This is fully vindicated in convolution and
+matrix multiplication, where every element loaded participates in many
+operations. Top-k selection, however, lies at the exact opposite extreme:
+each element is examined a minimal number of times and there is
+essentially no reuse to exploit. This observation foreshadows the central
+finding of chapter~\ref{ch:evaluation} and recurs in
+section~\ref{sec:eval-energy}.
 
 The architecture examined in this work belongs to AMD's AI Engine family,
-which was introduced with the Versal adaptive systems~\cite{amd2021versal}
-and subsequently integrated, as XDNA, into general-purpose
+introduced with the Versal adaptive systems~\cite{amd2021versal} and
+subsequently integrated, as XDNA, into general-purpose
 processors~\cite{amd2024xdna}. This integration is what makes the question
 posed by this work practical: the unit is no longer a data-centre
 component but resides on the same die as a laptop's processor, shares the
@@ -317,25 +307,24 @@ of it.
 The execution model is spatial, fundamentally different from the previous
 two. The unit consists of an array of tiles, each with its own vector
 processor and its own local memory. There is neither shared memory nor
-cache memory: communication happens exclusively through explicit data
+cache memory, so communication happens exclusively through explicit data
 transfer over an interconnect network.
 
 The consequence is that the program is not expressed as a sequence of
 operations on a shared address space, but as a graph of compute kernels
-connected by streaming channels. The programmer specifies which tiles
+connected by streaming channels: the programmer specifies which tiles
 execute which kernel and how data flows between them. The abstraction used
 in this work for this purpose is the object\_fifo of the MLIR-AIE
-framework~\cite{mliraie}, which is presented in
-section~\ref{sec:npu-objectfifo}.
+framework~\cite{mliraie}, presented in section~\ref{sec:npu-objectfifo}.
 
 Two properties of the model have direct consequences for top-k selection.
-The first is that the local memory size of each tile is small and fixed,
-so the computation must be broken into chunks that fit within it, with the
-partial results merged elsewhere. The second is that feeding the array is
-the host's responsibility, and it must prepare and forward every chunk.
-When the computation per element is small, as is the case in selection,
-the cost of feeding dominates over the cost of computation;
-section~\ref{sec:npu-pipeline} confirms this with a direct measurement.
+The local memory size of each tile is small and fixed, so the computation
+must be broken into chunks that fit within it, with the partial results
+merged elsewhere. Feeding the array is also the host's responsibility,
+which must prepare and forward every chunk. When the computation per
+element is small, as in selection, the cost of feeding dominates over the
+cost of computation. Section~\ref{sec:npu-pipeline} confirms this with a
+direct measurement.
 
 \section{Existing implementations and libraries}
 \label{sec:bg-related}
@@ -349,50 +338,49 @@ For the processor, the C++ standard library offers std::nth\_element, which
 partitions the array around the k-th element in expected linear time, and
 std::partial\_sort, which additionally sorts the result by maintaining a
 heap of size k. Both are universally available and well-tested, but
-strictly single-threaded: they exploit neither multiple threads nor the
+strictly single-threaded, exploiting neither multiple threads nor the
 hardware's vector extensions.
 
 For the GPU, CUB, part of the CCCL library collection~\cite{cccl}, provides
 DeviceTopK, a radix selection implementation as described in
 section~\ref{sec:bg-radix}. It is a mature and highly optimised solution,
-which this work uses as a baseline without attempting to surpass it across
-the entire parameter range.
+used here as a baseline without attempting to surpass it across the entire
+parameter range.
 
-It is worth noting that the extent to which algorithm choice depends on k
-is also recognised in industry. Recent work on AMD GPUs identifies exactly
-the same inversion recorded in section~\ref{sec:eval-time-k} and addresses
-it with an adaptive strategy: register-level bitonic sort for small k and
-radix selection for large k, with an empirically determined transition
-point~\cite{lin2026adaptivetopk}. The fact that an independent
-implementation on different hardware arrives at the same distinction
-reinforces the conclusion that the inversion is a property of the
-algorithms rather than of the specific platform.
+The extent to which algorithm choice depends on k is also recognised in
+industry: recent work on AMD GPUs identifies exactly the same overturn
+recorded in section~\ref{sec:eval-time-k} and addresses it with an
+adaptive strategy, register-level bitonic sort for small k and radix
+selection for large k, with an empirically determined transition
+point~\cite{lin2026adaptivetopk}. That an independent implementation on
+different hardware arrives at the same distinction reinforces the
+conclusion that the overturn is a property of the algorithms rather than
+of the specific platform.
 
 Alongside exact methods, a distinct line of \emph{approximate} algorithms
-has also developed, which trade some recall for speed and target primarily
+has also developed, trading some recall for speed and targeting primarily
 machine-learning workloads, where top-k selection proves to be a
 systematic bottleneck on accelerators designed for dense matrix
 multiplication~\cite{samaga2026}. The present work is restricted to exact
 selection, as required by the correctness check of
 section~\ref{sec:meth-correctness}.
 
-For the neural processing unit, no equivalent library exists. Its software
+For the neural processing unit, no equivalent library exists: its software
 ecosystem is oriented towards neural-network operators and does not
 include a top-k selection primitive. The closest available material is an
 official bitonic sort example on a single AI Engine
 tile~\cite{amd2024bitonicaie}, which, however, performs \emph{full}
 sorting, only for single-precision numbers, and for sizes up to 1024
-elements that fit in one tile's local memory. The gap from the problem
-addressed by the present work, namely selection rather than sorting, five
-data types, and inputs of up to $2^{24}$ elements requiring pipelining
-across multiple tiles, precisely defines the void this work is called to
-fill.
+elements that fit in one tile's local memory. This work instead addresses
+selection rather than sorting, five data types, and inputs of up to
+$2^{24}$ elements requiring pipelining across multiple tiles: precisely
+the void this work is called to fill.
 
-The absence of a ready-made solution has two consequences. First, every
+The absence of a ready-made solution has two consequences: every
 implementation must be built from scratch at the level of
-MLIR-AIE~\cite{mliraie}, a fact that makes this unit the most demanding
-part of the work. Second, there is no natural on-device baseline, so this
-work uses the host implementation as ground truth, a choice justified in
+MLIR-AIE~\cite{mliraie}, making this unit the most demanding part of the
+work, and there is no natural on-device baseline, so this work uses the
+host implementation as the reference, a choice justified in
 section~\ref{sec:npu-reference}.
 
 Overall, the literature on top-k selection for GPUs is extensive and
@@ -400,5 +388,5 @@ covers both sorting-network-based and radix-based
 methods~\cite{sismanis2012,lin2026adaptivetopk}. By contrast, the
 corresponding literature for AIE-type dataflow accelerators is limited, as
 these units are recent and their use focuses on convolution and
-matrix-multiplication workloads. This gap is precisely where the present
-work positions itself.
+matrix-multiplication workloads. This is precisely the gap where the
+present work positions itself.

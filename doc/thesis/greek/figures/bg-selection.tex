@@ -3,7 +3,7 @@
     \begin{tikzpicture}[x=1.0cm, y=1.0cm]
 
         % input
-        \foreach \v [count=\i from 0] in {5,2,9,1,7,3,8,4} {
+        \foreach \v [count=\i from 0] in {5,2,6,1,7,3,8,4} {
             \node[lane] (in\i) at (0.76*\i,0) {$\v$};
         }
         \node[rowlab] at (in0.west) {είσοδος};
@@ -13,7 +13,7 @@
             {(α) ταξινόμηση};
         \node[notemute, font=\tiny, anchor=east] at (5.68,-1.42)
             {$\Omega(n \log n)$ συγκρίσεις};
-        \foreach \v [count=\i from 0] in {9,8,7,5,4,3,2,1} {
+        \foreach \v [count=\i from 0] in {8,7,6,5,4,3,2,1} {
             \node[lanereg] (so\i) at (0.76*\i,-1.90) {$\v$};
         }
         \draw[bracemirror] (-0.40,-2.38) -- (5.72,-2.38);
@@ -25,7 +25,7 @@
             {(β) επιλογή \tl{top-k}, $k=3$};
         \node[notemute, font=\tiny, anchor=east] at (5.68,-3.26)
             {$\Theta(n)$ συγκρίσεις για σταθερό \tl{k}};
-        \foreach \v [count=\i from 0] in {9,7,8} {
+        \foreach \v [count=\i from 0] in {8,6,7} {
             \node[lanereg] (se\i) at (0.76*\i,-3.74) {$\v$};
         }
         \foreach \i in {3,4,5,6,7} {
