@@ -18,7 +18,7 @@ and maximum, and both of these operations exist as instructions that act on
 an entire vector register at once, without branches. A 512-bit register
 performs sixteen single-precision integer comparisons in the time of one.
 The instructions are referred to here by the names of the corresponding
-intrinsic functions of the standard~\cite{intelintrinsics}, which is also
+intrinsic functions of the standard~\cite{intelintrinsics}, also
 implemented by the processor described in section~\ref{sec:meth-machine}.
 
 The difficulty lies not in the comparison but in positioning the elements.
@@ -36,8 +36,8 @@ figure~\ref{fig:cpu-simd-motif}.
 
 The register width is not known at compile time. The code is compiled with
 all paths present, and the choice is made at start-up by querying the
-processor for the instructions it supports. If AVX-512 is available, the
-512-bit registers are selected; otherwise the 256-bit ones; and as a last
+processor for the instructions it supports: if AVX-512 is available, the
+512-bit registers are selected, otherwise the 256-bit ones, and as a last
 resort the scalar path. The same executable therefore runs on any machine,
 with the difference that on different hardware it follows a different code
 path and its results are not directly comparable, as also noted in
@@ -50,8 +50,8 @@ Vector instructions are specialised by data type: one instruction computes
 the minimum of signed integers, another of unsigned integers, and another
 of floating-point numbers. With five types, two register widths, and two
 algorithms, writing the code directly would lead to twenty nearly identical
-variants of the same code, with a corresponding maintenance cost and a
-corresponding risk of one diverging from another.
+variants of the same code, with a corresponding maintenance cost and risk
+of one diverging from another.
 
 Instead, a single interface is defined. For each combination of type and
 width a structure is declared that always exposes the same names: the
@@ -61,8 +61,8 @@ map-reduce. The algorithms are written once against this interface and
 never refer to a specific instruction.
 
 The benefit is twofold. Adding a data type requires only a new
-specialisation of the structure and no change to the algorithms. Moreover,
-the absence of a specialisation is itself detectable at compile time: if no
+specialisation of the structure and no change to the algorithms, and the
+absence of a specialisation is itself detectable at compile time: if no
 interface has been defined for some combination of type and width, the
 code is automatically routed to the scalar path instead of failing. The
 correctness check of section~\ref{sec:meth-correctness} validates each
@@ -149,7 +149,7 @@ The basic technique is fusing consecutive layers into a single pass. A
 layer is characterised by the distance $j$ between the elements being
 compared, and this distance determines what is feasible. When $j$ is
 smaller than the vector register width, the two elements of every
-comparison already lie within the same register. An entire sequence of
+comparison already lie within the same register, and an entire sequence of
 such layers is then executed as one load, a series of in-register shuffles
 and comparisons, and one store. When $j$ is larger but the working set of a
 chunk fits in the cache, the sequence is executed chunk by chunk, with each
@@ -167,8 +167,12 @@ the schedule. The first phase collapses into a single in-place pass, that
 is, one read and one write per element, hence $2n$. Each step of the
 second phase reads $n_i$ elements and writes $n_i/2$, and the re-sort that
 follows adds a further $2 \cdot n_i/2$, for a total of $2.5\,n_i$. Because
-$n_i$ halves at each step, the sum over the second phase tends to $5n$. The
-total traffic is therefore approximately $7n$ elements, which is the
+$n_i$ halves at each step, the sum over the second phase is a geometric 
+series:
+\[
+	\sum_i 2.5\,n_i = 2.5 \left( n + \frac{n}{2} + \frac{n}{4} + \cdots \right) = 2.5 \times 2n = 5n.
+\]
+The total traffic is therefore approximately $7n$ elements, which is the
 origin of the repetition factor of section~\ref{sec:meth-traffic}. For
 $n = 2^{22}$ and k equal to 256, this expression gives 117\,435\,392
 bytes, a value that matches the measured one exactly.
@@ -178,9 +182,9 @@ and not between groups, since each group depends on the result of the
 previous one. The output range of each group is divided among the threads,
 with boundaries aligned to the chunk size or the cache line so that two
 threads never write to the same line. A synchronisation barrier intervenes
-between groups. The thread count is further limited according to the input
-size, so that for small inputs the cost of synchronisation does not exceed
-the benefit of parallelism.
+between groups, and the thread count is further limited according to the
+input size, so that for small inputs the cost of synchronisation does not
+exceed the benefit of parallelism.
 
 Truncation layers cannot be executed in place, because each output element
 results from two input elements at different positions. For this reason a
@@ -329,18 +333,17 @@ affects the interpretation of every speed-up reported in
 chapter~\ref{ch:evaluation}. The library function is strictly
 single-threaded: it accepts no thread count and makes use of only one
 core. Bitonic sort, in contrast, uses up to eight threads, and map-reduce
-up to four or eight, depending on the input size. Every ratio of times
-between this work's implementations and the library therefore conflates
-two distinct causes: the difference in algorithm and the difference in
-core count.
+up to four or eight, depending on the input size, so every ratio of times
+between this work's implementations and the library conflates two
+distinct causes: the difference in algorithm and the difference in core
+count.
 
 This choice is not arbitrary. The question posed by this work is not which
 algorithm is better under equal resources, but how much faster the problem
 can be solved on each architecture relative to what a developer already
 has available. The established solution for the processor is indeed
-single-threaded. The reader should nonetheless bear in mind that a
-thread-for-thread comparison would be stricter and would yield smaller
-speed-ups.
+single-threaded, but the reader should bear in mind that a thread-for-thread
+comparison would be stricter and would yield smaller speed-ups.
 
 It should finally be noted that the measured data traffic of the reference
 implementation is a lower bound, as mentioned in
@@ -370,8 +373,8 @@ inefficiently, but because it moves a sevenfold volume of data. No further
 optimisation of the compute kernel is going to speed it up substantially;
 the room for improvement lies exclusively in reducing traffic. Map-reduce,
 on the other hand, already reads every element exactly once and operates
-close to the rate at which memory can feed it; under this condition it is
-essentially optimal, in the sense that it cannot be made faster without
+close to the rate at which memory can feed it, so under this condition it
+is essentially optimal, in the sense that it cannot be made faster without
 reading less.
 
 For large k the picture changes radically, and neither of the two

@@ -11,9 +11,20 @@ DIST_ORDER = ["uniform", "normal", "trimodal", "sorted", "reverse", "adversarial
 
 ALGO_LINESTYLE = {"bitonic": "-", "map_reduce": (0, (8, 3)), "gt": ":"}
 
+ALGO_ORDER = ["bitonic", "map_reduce", "gt"]
+
 
 def dist_rank(dist: str) -> int:
     return DIST_ORDER.index(dist) if dist in DIST_ORDER else len(DIST_ORDER)
+
+
+def algo_rank(algorithm: str) -> int:
+    return ALGO_ORDER.index(algorithm) if algorithm in ALGO_ORDER else len(ALGO_ORDER)
+
+
+def combo_rank(combo: str) -> tuple:
+    backend, _, algorithm = combo.partition("/")
+    return (backend, algo_rank(algorithm), algorithm)
 
 
 def dist_color(dist: str):
@@ -157,7 +168,7 @@ def plot_sensitivity(
             continue
         target_n = compare_n if (compare_n is not None and compare_n in all_ns) else max(all_ns)
 
-        combos = sorted(combo_map)
+        combos = sorted(combo_map, key=combo_rank)
         dists = sorted_dists({d for d_map in combo_map.values() for d in d_map})
         ratios: dict[str, list[Optional[float]]] = {d: [] for d in dists}
 

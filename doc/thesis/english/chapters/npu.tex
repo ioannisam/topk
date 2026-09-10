@@ -6,14 +6,13 @@
 
 The neural processing unit differs from the two previous architectures not in
 degree but in kind. It is not a device on which a program runs in the usual
-sense. It is an array of tiles configured in advance, with no cache, no
+sense, but an array of tiles configured in advance, with no cache, no
 dynamic memory allocation, and no ability to change its dataflow at runtime.
 
-The design question therefore changes fundamentally. On the processor and the
-GPU, the question was how the algorithm is distributed across threads. Here,
-the question is what small, fixed unit of work the array can execute
-efficiently, and how the host can feed it without interruption. As will
-become clear, the second part proves harder than the first.
+The design question therefore changes fundamentally. On the processor and
+the GPU, the question was how the algorithm is distributed across threads.
+Here, the question is what small, fixed unit of work the array can execute
+efficiently, and how the host can feed it without interruption.
 
 \subsection{Development flow with MLIR-AIE}
 \label{sec:npu-toolchain}
@@ -151,6 +150,18 @@ the best value of an entire chunk does not exceed the heap's root, the chunk
 is rejected in its entirety without examining any of its elements. Only for
 chunks that pass the filter does the host traverse the individual elements.
 
+This filter presupposes that the heap already has a realistic threshold
+before the first chunk is examined, which does not arise automatically here
+the way it does on the processor and the graphics unit, where the heap is
+bulk-initialised from the first k elements of the input. The host instead
+samples a portion of the input in advance, equal in size to the larger of k
+and two per cent of n, capped at n itself, and inserts it directly into the
+heap before the first job is dispatched to the array. This lets the summary
+filter work effectively from the start, instead of needing several chunks to
+accumulate first. For very small inputs this sample can cover the entire
+input, in which case no work is ever dispatched to the array at all, as
+discussed in section~\ref{sec:eval-time-n}.
+
 The division of roles is therefore the reverse of the intuitive one: the
 array does not perform the selection but produces the information that lets
 the host perform it cheaply. This pattern, in which the accelerated part is
@@ -168,7 +179,7 @@ shared buffer.
 
 This difference at first appears to be an advantage, and in terms of
 transfer cost it is: there is no twenty-fold bandwidth gap as in
-section~\ref{sec:gpu-memory}. But it also has the reverse side. Because the
+section~\ref{sec:gpu-memory}. But it also has the reverse side: because the
 memory is shared, every byte the host prepares for the array consumes the
 same memory bandwidth the processor would use if it performed the
 computation itself. Preparation is not free, and, as will become clear
@@ -262,7 +273,7 @@ correctness check as all other types, with no relaxation of the criterion.
 The alternative, that is, accepting an approximate result for a single type,
 would make the comparison across types unfair.
 
-\section{Ground truth implementation}
+\section{Reference implementation}
 \label{sec:npu-reference}
 
 The point of comparison is the same standard-library function used for the

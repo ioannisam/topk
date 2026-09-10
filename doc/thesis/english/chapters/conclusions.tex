@@ -12,7 +12,7 @@ what generalises from them beyond the specific hardware.
 
 \paragraph{Top-k selection is a data-traffic problem.}
 None of the nine configurations measured is bound by computational
-throughput. In the analysis of Section~\ref{sec:eval-roofline}, every
+capability. In the analysis of Section~\ref{sec:eval-roofline}, every
 kernel is placed on the sloped segment of the roofline, that is, in the
 region where performance is determined by bandwidth rather than by the rate
 of comparisons. The practical consequence is that optimisation means
@@ -23,7 +23,7 @@ the reference library, and yet still loses, because it moves seven times as
 much data.
 
 \paragraph{The appropriate algorithm is determined by the ratio $n/k$, not
-by the architecture.} The inversion in Section~\ref{sec:eval-time-k}
+by the architecture.} The overturn in Section~\ref{sec:eval-time-k}
 appears across all three architectures. The fastest implementation for k
 equal to 8 is the slowest for k equal to 131072, a slowdown by a factor of
 2800, while the sorting network on the same device is penalised by only a
@@ -37,8 +37,8 @@ conclusion that this is a property of the algorithms.
 \paragraph{The measurement boundary determines which architecture
 "wins".} In the algorithmic scope the graphics processing unit is faster
 across the entire range of sizes; in the end-to-end scope the processor is
-faster across that same entire range. The ranking, that is, does not invert
-somewhere in the middle, but completely, and the only difference between
+faster across that same entire range. The ranking, that is, does not
+overturn somewhere in the middle; the only difference between
 the two answers is where the measurement boundary is placed. This finding
 has methodological significance beyond the specific problem: any speed-up
 claim for offloading to an accelerator that reports only kernel time is not
@@ -71,8 +71,8 @@ where 61\% of the time is spent preparing and sending data and only 7\% on
 waiting for the device, is the quantitative expression of this mismatch.
 
 Finally, the sole exception deserves comment. For half-precision numbers,
-bitonic sort on the neural processing unit outperforms its ground truth in
-twenty-nine measured cases. The analysis in Section~\ref{sec:eval-dtypes}
+bitonic sort on the neural processing unit outperforms its reference
+implementation in twenty-nine measured cases. The analysis in Section~\ref{sec:eval-dtypes}
 shows, however, that this advantage arises because the library handles this
 particular type poorly, not because the device handles it well. This
 example is instructive methodologically: a speed-up over a baseline
@@ -87,9 +87,9 @@ collectively.
 
 The most significant asymmetry concerns the processor's baseline.
 std::partial\_sort is strictly single-threaded, whereas this thesis's
-implementations use up to eight threads. Every ratio of times between them
-therefore conflates two causes, the difference in algorithm and the
-difference in core count, as already noted in
+implementations use up to eight threads, so every ratio of times between
+them conflates two causes, the difference in algorithm and the difference
+in core count, as already noted in
 Section~\ref{sec:cpu-reference}. A thread-for-thread comparison would be
 stricter and would yield smaller speed-ups. This choice is justified by the
 question posed by the thesis, which concerns comparison with what the
@@ -104,8 +104,8 @@ not directly comparable with the corresponding percentages of this
 thesis's two implementations.
 
 For the neural processing unit there is no on-device baseline, because no
-top-k selection library exists for that architecture. The ground truth
-runs on the host, so the relevant comparisons answer the question "is
+top-k selection library exists for that architecture. The reference
+implementation runs on the host, so the relevant comparisons answer the question "is
 offloading worthwhile" rather than the question "how good is the
 implementation relative to the best possible one on the device".
 
@@ -129,7 +129,7 @@ assumed to transfer.
 The clearest direction follows directly from the limiting factor
 identified for the neural processing unit. Since most of the time is spent
 preparing and sending data per call, a workload that executes many top-k
-queries at once would amortise exactly this cost. Batched selection,
+queries at once would amortise exactly this cost; batched selection,
 moreover, arises naturally in the applications mentioned in
 Section~\ref{sec:bg-problem}, where selection is repeated at every step or
 for every query. This extension would determine whether the unit falls
@@ -142,7 +142,7 @@ the tools and interfaces exposed by the platform and is the most
 technically demanding of the open questions.
 
 A second direction is adaptive algorithm selection. Given that the
-inversion in Section~\ref{sec:eval-time-k} is systematic and predictable
+overturn in Section~\ref{sec:eval-time-k} is systematic and predictable
 from the ratio $n/k$, an implementation that dynamically chooses between
 the heap and the sorting network would cover the entire parameter range
 without a point of collapse. The transition point can be identified from

@@ -5,9 +5,9 @@
         \node[blkreg, minimum width=1.7cm, minimum height=0.52cm] (heap) at (-2.3,0.95)
             {\scriptsize σωρός $k$};
         \node[notemute, font=\tiny, anchor=north, align=center] at (-2.3,0.62)
-            {ρίζα $=\tau$};
+            {ρίζα $=8$};
 
-        \foreach \i in {0,...,7} { \node[lanereg] (t\i) at (\i,0.95) {$\tau$}; }
+        \foreach \i in {0,...,7} { \node[lanereg] (t\i) at (\i,0.95) {$8$}; }
         \node[notemute, font=\tiny, anchor=west] at (8.35,0.95) {κατώφλι σε καταχωρητή};
         \draw[flow] (heap.east) -- (t0.west);
 
@@ -17,7 +17,15 @@
             3/-1.45/{1,3,2,4,1,2,3,5}/{0,0,0,0,0,0,0,0},
             4/-2.10/{2,1,9,3,1,4,2,1}/{0,0,1,0,0,0,0,0}} {
             \foreach \val [count=\i from 0] in \vals {
-                \node[lane] (b\b-\i) at (\i,\y) {$\val$};
+                \ifnum\b=4
+                    \ifnum\i=2
+                        \node[lane] (b\b-\i) at (\i,\y) {$\color{figdrmD}\val$};
+                    \else
+                        \node[lane] (b\b-\i) at (\i,\y) {$\val$};
+                    \fi
+                \else
+                    \node[lane] (b\b-\i) at (\i,\y) {$\val$};
+                \fi
             }
             \node[rowlab, font=\tiny] at (b\b-0.west) {$B_\b$};
             \foreach \mv [count=\i from 0] in \mask {

@@ -14,15 +14,8 @@ A precondition for any timing comparison is the correctness of the result.
 The main sweep comprises 2700 cases, covering all three architectures, the
 three algorithms, the five data types, input sizes from $2^3$ to $2^{24}$,
 and the four values of k. All were verified against the ground truth of
-section~\ref{sec:meth-correctness}, and all passed.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{int/correctness/pass_rate}
-    \caption{Pass rate of the correctness check for the two algorithms of this
-    work, by architecture.}
-    \label{fig:eval-pass-rate}
-\end{figure}
+section~\ref{sec:meth-correctness}, and all passed: a 100\% pass rate for
+every architecture and algorithm, with no exceptions.
 
 This result is not a procedural detail. It means that every time reported in
 what follows corresponds to an implementation that produced the correct set
@@ -37,77 +30,90 @@ computation.
 
 \begin{figure}[H]
     \centering
-    \begin{subfigure}{\textwidth}
+    \begin{subfigure}{0.49\textwidth}
         \centering
-        \includegraphics[width=0.88\textwidth]{int/time/time_vs_n_algo_k8}
+        \includegraphics[width=\textwidth]{int/time/time_vs_n_algo_k8}
         \caption{Algorithmic scope.}
         \label{fig:eval-time-n-algo}
     \end{subfigure}
-
-    \vspace{1em}
-
-    \begin{subfigure}{\textwidth}
+    \hfill
+    \begin{subfigure}{0.49\textwidth}
         \centering
-        \includegraphics[width=0.88\textwidth]{int/time/time_vs_n_e2e_k8}
+        \includegraphics[width=\textwidth]{int/time/time_vs_n_e2e_k8}
         \caption{End-to-end scope.}
         \label{fig:eval-time-n-e2e}
     \end{subfigure}
     \caption[Time as a function of size, under the two measurement scopes]{Time as a function of input size, for k equal to 8, under the two
-    measurement scopes. The ranking of the architectures reverses completely
-    between the two.}
+    measurement scopes. The ranking of the architectures is completely
+    overturned between the two.}
     \label{fig:eval-time-n-k8}
 \end{figure}
 
-In the upper figure, which concerns the algorithmic scope, the ranking is not
-one-sided. The GPU is fastest at the smallest input, completing in
+In the left panel, which concerns the algorithmic scope, the GPU is fastest
+at the smallest input, completing in
 \qty{0.010}{\milli\second} against \qty{0.022}{\milli\second} for the CPU,
 and again at the largest, in \qty{0.43}{\milli\second} against
 \qty{1.23}{\milli\second}; for nearly the entire range in between, the CPU is
-the faster of the two, since its persistent thread pool now removes per-call
-overhead that used to dominate at these sizes. The exact size at which the
+the faster of the two. The exact size at which the
 two swap places is itself unstable across repeated runs of the same sweep:
 at these small absolute times, both architectures sit close enough to the
 timer's resolution that the ranking there reflects measurement noise rather
 than a fixed architectural difference.
 
-The other two architectures show a clear floor at small sizes. The NPU curves
+The NPU shows a clear floor at small sizes. Its curves
 remain completely flat around half a millisecond up to about $2^{16}$
 elements: throughout this range the time does not depend on the input size at
 all, since it is dominated by the fixed cost of dispatch and waiting. The CPU
 shows an analogous but much lower floor, on the order of five hundredths of a
 millisecond.
 
-This picture, however, is completely reversed in the lower figure, once the
+One point, however, stands out from this picture: at the smallest input
+size, where n and k coincide, NPU map-reduce shows a time noticeably below
+the floor just described. The reason lies in the sampling described in
+section~\ref{sec:npu-mapreduce}: when n=k=8, the sample that seeds the heap
+covers the entire input, so no work is ever dispatched to the tiles. This
+point therefore measures only the host side and does not reflect genuine
+participation by the array.
+
+This picture, however, is completely overturned in the right panel, once the
 measurement includes data transfer as well. In the end-to-end scope the CPU is
 faster than every other architecture at \emph{all} sizes examined, including
 the largest: the GPU kernel's \qty{0.43}{\milli\second} becomes
 \qty{5.69}{\milli\second} in total, while the CPU remains at
 \qty{1.23}{\milli\second}, since for it the two scopes coincide.
 
-This contrast is the first appearance of a pattern that recurs throughout the
-chapter. The algorithmic scope measures how well each device performs the
+The algorithmic scope measures how well each device performs the
 computation; the end-to-end scope measures whether it is worth delegating to
 it in the first place. The two answers do not coincide, and
 section~\ref{sec:eval-energy} shows that it is the second that also
-determines the energy picture.
-
-The NPU requires \qty{9.97}{\milli\second} at the largest input, i.e. more
-than any other architecture under either scope, for the reasons given in
-section~\ref{sec:npu-bottlenecks}.
+determines the energy picture. The NPU requires \qty{9.97}{\milli\second} at
+the largest input, more than any other architecture under either scope, for
+the reasons given in section~\ref{sec:npu-bottlenecks}.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.9\textwidth]{int/time/time_vs_n_backend_compare_bitonic_k8}
-    \caption{The same algorithm across the three architectures, for k equal to 8.}
-    \label{fig:eval-backend-bitonic}
+    \begin{subfigure}{0.49\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{int/time/time_vs_n_backend_compare_bitonic_k8}
+        \caption{Bitonic sort.}
+        \label{fig:eval-backend-bitonic}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.49\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{int/time/time_vs_n_backend_compare_map_reduce_k8}
+        \caption{Map-reduce.}
+        \label{fig:eval-backend-mapreduce}
+    \end{subfigure}
+    \caption[Each algorithm across the three architectures]{Each algorithm across the three architectures, for k equal to 8.}
+    \label{fig:eval-backend-compare}
 \end{figure}
 
 Comparing the same bitonic sort across the three architectures is
 illuminating, because the same level schedule is executed and the difference
 is due solely to the implementation. The two general-purpose architectures
 trade places along the range: the CPU is faster than the GPU through most of
-the small-to-medium sizes, since it now amortises its fixed per-call overhead
-well there, and the GPU pulls ahead only at the largest sizes, reaching a
+the small-to-medium sizes, and the GPU pulls ahead only at the largest sizes, reaching a
 factor of six at the largest size examined, consistent with the difference in
 available bandwidth. As with the comparison above, the exact size at which
 the two swap places moves between repeated runs of the same sweep and should
@@ -115,25 +121,40 @@ not be read as a fixed threshold. The NPU sits close to the CPU at these
 larger sizes, which is consistent with the finding that its time is spent
 almost entirely on the host.
 
+Map-reduce admits no such comparison in principle, since each architecture
+maintains and merges its local heaps in a fundamentally different way
+(chapters~\ref{ch:cpu} through~\ref{ch:npu}); the right panel shows instead
+how differently the same algorithmic idea plays out once implemented three
+times over. The GPU is the fastest of the three across almost the entire
+range, with the CPU trailing at a roughly constant distance except at small sizes,
+where the same caveat about measurement noise applies as above; at the
+largest input the GPU remains the faster of the two, as above, but without
+the intermediate crossover that bitonic sort shows. The NPU, in sharp contrast to its
+bitonic behaviour, is not close to the CPU here: it remains roughly an
+order of magnitude slower than both architectures at every size, reaching
+its already-noted time at the largest input. The reason follows from
+section~\ref{sec:npu-bottlenecks}: the
+array's part in map-reduce is only a per-chunk filter rather than a shared
+network schedule, so none of the structural similarity that keeps bitonic
+sort's NPU curve close to the CPU's carries over to this algorithm.
+
 \subsection{Dependence on the parameter k}
 \label{sec:eval-time-k}
 
 The dependence on k is the point at which the ranking of the algorithms
-reverses, and is perhaps the most significant finding of this work.
+is overturned, and is perhaps the most significant finding of this work.
 
 \begin{figure}[H]
     \centering
-    \begin{subfigure}{\textwidth}
+    \begin{subfigure}{0.49\textwidth}
         \centering
-        \includegraphics[width=0.88\textwidth]{int/time/time_vs_n_k_colored_cpu_bitonic}
+        \includegraphics[width=\textwidth]{int/time/time_vs_n_k_colored_cpu_bitonic}
         \caption{Bitonic sort, CPU.}
     \end{subfigure}
-
-    \vspace{1em}
-
-    \begin{subfigure}{\textwidth}
+    \hfill
+    \begin{subfigure}{0.49\textwidth}
         \centering
-        \includegraphics[width=0.88\textwidth]{int/time/time_vs_n_k_colored_gpu_map_reduce}
+        \includegraphics[width=\textwidth]{int/time/time_vs_n_k_colored_gpu_map_reduce}
         \caption{Map-reduce, GPU.}
     \end{subfigure}
     \caption[Time as a function of size, by value of k]{Time as a function of input size, with a separate curve for each
@@ -154,17 +175,17 @@ on the GPU the same curves are separated by three orders of magnitude.
         & \multicolumn{2}{c}{k=8} & \multicolumn{2}{c}{k=131072} \\
         Implementation & ms & rank & ms & rank \\
         \hline
-        GPU map-reduce & 0.43 & 1 & 1191.37 & 6 \\
-        GPU bitonic & 1.34 & 3 & 8.22 & 1 \\
-        CPU map-reduce & 1.23 & 2 & 60.37 & 5 \\
-        NPU bitonic & 8.17 & 5 & 56.70 & 3 \\
         CPU bitonic & 8.01 & 4 & 43.33 & 2 \\
+        CPU map-reduce & 1.23 & 2 & 60.37 & 5 \\
+        GPU bitonic & 1.34 & 3 & 8.22 & 1 \\
+        GPU map-reduce & 0.43 & 1 & 1191.37 & 6 \\
+        NPU bitonic & 8.17 & 5 & 56.70 & 3 \\
         NPU map-reduce & 9.97 & 6 & 59.69 & 4 \\
         \hline
     \end{tabular}
     \caption[Algorithmic time for the two extremes of k]{Algorithmic time for the two extremes of k, at an input of $2^{24}$
     elements. The ranking concerns the six implementations of this work and
-    does not include the ground-truth implementations.}
+    does not include the reference libraries.}
     \label{tab:eval-k-inversion}
 \end{table}
 
@@ -173,11 +194,11 @@ difference of three orders of magnitude. GPU map-reduce slows down by a
 factor of 2800 between the two extremes, whereas bitonic sort on the same
 architecture slows down by barely a factor of six. At small k the two CPU
 implementations now also rank ahead of their position at large k, map-reduce
-overtaking GPU bitonic and bitonic overtaking NPU bitonic, but the reversal
+overtaking GPU bitonic and bitonic overtaking NPU bitonic, but the overturn
 itself is unaffected: the implementation cheapest at k equal to 8 is never the
 implementation cheapest at k equal to 131072.
 
-The reversal is not a peculiarity of this implementation. Independent studies
+This overturn is not a peculiarity of this implementation. Independent studies
 on GPUs from two different vendors report the same dependence on k and
 address it with adaptive algorithm switching~\cite{zhang2023gputopk,lin2026adaptivetopk};
 there, the growth in time of partial-sorting methods with k is attributed
@@ -219,7 +240,7 @@ depends on the ratio $n/k$ and not on the architecture.
         \caption{CPU, k=131072.}
     \end{subfigure}
 
-    \vspace{0.5em}
+    \vspace{0.25em}
 
     \begin{subfigure}{0.49\textwidth}
         \centering
@@ -233,7 +254,7 @@ depends on the ratio $n/k$ and not on the architecture.
         \caption{GPU, k=131072.}
     \end{subfigure}
 
-    \vspace{0.5em}
+    \vspace{0.25em}
 
     \begin{subfigure}{0.49\textwidth}
         \centering
@@ -246,7 +267,7 @@ depends on the ratio $n/k$ and not on the architecture.
         \includegraphics[width=\textwidth]{int/time/speedup_vs_gt_npu_k131072}
         \caption{NPU, k=131072.}
     \end{subfigure}
-    \caption[Speedup relative to the ground-truth implementation]{Speedup relative to the ground-truth implementation of the same
+    \caption[Speedup relative to the reference implementation]{Speedup relative to the reference implementation of the same
     architecture. Left column k equal to 8, right column k equal to 131072,
     one row per architecture. Values above unity mean that this work's
     implementation is faster than the library.}
@@ -263,7 +284,7 @@ this implementation uses eight threads, so this factor is not purely
 algorithmic.
 
 The largest speedup in the entire figure appears elsewhere, however, and is a
-consequence of the reversal in section~\ref{sec:eval-time-k}. For large k,
+consequence of the overturn in section~\ref{sec:eval-time-k}. For large k,
 where heap-based selection collapses, bitonic sort on the CPU reaches roughly
 six times faster than the library. The reason is that the library, too,
 relies on a heap of size k and suffers the same overhead, while the sorting
@@ -284,7 +305,7 @@ the very processor that would run the library is in any case consumed by
 preparing the data for the device.
 
 The qualifier ``for the integer types'' is not a hedge. For floating-point
-types, and especially for half precision, the picture reverses and the NPU
+types, and especially for half precision, the picture overturns and the NPU
 does indeed surpass the library; the explanation is given in
 section~\ref{sec:eval-dtypes}, after the behaviour across types is first
 presented.
@@ -301,7 +322,7 @@ presented.
         \label{fig:eval-roofline-k8}
     \end{subfigure}
 
-    \vspace{1em}
+    \vspace{0.3em}
 
     \begin{subfigure}{\textwidth}
         \centering
@@ -362,32 +383,25 @@ working set stops fitting in the last level.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.9\textwidth]{int/memory/cpu_roof_utilization_k8}
-    \caption{Utilisation of the two ceilings on the CPU, for k equal to 8.}
-    \label{fig:eval-roof-util}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
     \begin{subfigure}{\textwidth}
         \centering
-        \includegraphics[width=0.66\textwidth]{int/memory/cpu_memory_bandwidth_vs_n_k8}
+        \includegraphics[width=0.62\textwidth]{int/memory/cpu_memory_bandwidth_vs_n_k8}
         \caption{CPU.}
     \end{subfigure}
 
-    \vspace{0.6em}
+    \vspace{0.15em}
 
     \begin{subfigure}{\textwidth}
         \centering
-        \includegraphics[width=0.66\textwidth]{int/memory/gpu_memory_bandwidth_vs_n_k8}
+        \includegraphics[width=0.62\textwidth]{int/memory/gpu_memory_bandwidth_vs_n_k8}
         \caption{GPU.}
     \end{subfigure}
 
-    \vspace{0.6em}
+    \vspace{0.15em}
 
     \begin{subfigure}{\textwidth}
         \centering
-        \includegraphics[width=0.66\textwidth]{int/memory/npu_memory_bandwidth_vs_n_k8}
+        \includegraphics[width=0.62\textwidth]{int/memory/npu_memory_bandwidth_vs_n_k8}
         \caption{NPU.}
     \end{subfigure}
     \caption[Achieved bandwidth by architecture]{Achieved bandwidth as a function of input size, one architecture per
@@ -428,13 +442,6 @@ is essentially invisible and the time is spent entirely on transfers and
 launches. Even at the largest input, the end-to-end time remains roughly
 three times the algorithmic time.
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.9\textwidth]{int/energy/energy_by_backend_net_k8}
-    \caption{Net energy by architecture and algorithm, for k equal to 8.}
-    \label{fig:eval-energy}
-\end{figure}
-
 The energy picture differs substantially from the time picture, and the
 difference is due to the symmetric measurement scope of
 section~\ref{sec:meth-energy-scope}: each architecture is charged the total
@@ -457,9 +464,21 @@ board power, is not more economical.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.9\textwidth]{int/energy/power_by_backend_net_k8}
-    \caption{Net power by architecture and algorithm, for k equal to 8.}
-    \label{fig:eval-power}
+    \begin{subfigure}{0.49\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{int/energy/energy_by_backend_net_k8}
+        \caption{Net energy.}
+        \label{fig:eval-energy}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.49\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{int/energy/power_by_backend_net_k8}
+        \caption{Net power.}
+        \label{fig:eval-power}
+    \end{subfigure}
+    \caption[Net energy and power by architecture and algorithm]{Net energy and power by architecture and algorithm, for k equal to 8.}
+    \label{fig:eval-energy-power}
 \end{figure}
 
 Juxtaposing figures~\ref{fig:eval-energy} and~\ref{fig:eval-power} highlights
@@ -601,24 +620,6 @@ established solution is weakest, not where the NPU is strongest.
 \section{Sensitivity to the input distribution}
 \label{sec:eval-distributions}
 
-\begin{table}[H]
-    \centering
-    \begin{tabular}{lrrrr}
-        \hline
-        Implementation & uniform & adversarial & sorted & reverse \\
-        \hline
-        CPU bitonic & 42.98 & 43.20 & 43.16 & 43.05 \\
-        GPU bitonic & 8.08 & 8.24 & 8.09 & 8.13 \\
-        CPU reference & 73.97 & 73.91 & 765.13 & 10.60 \\
-        NPU bitonic & 56.69 & 56.56 & 678.15 & 12.78 \\
-        GPU map-reduce & 1190.89 & 1190.89 & 1138.59 & 1105.88 \\
-        \hline
-    \end{tabular}
-    \caption[Algorithmic time by input distribution]{Algorithmic time by input distribution, in ms, for single precision,
-    $2^{24}$ elements, and k equal to 131072.}
-    \label{tab:eval-dists}
-\end{table}
-
 \begin{figure}[H]
     \centering
     \begin{subfigure}{\textwidth}
@@ -628,7 +629,7 @@ established solution is weakest, not where the NPU is strongest.
         \label{fig:eval-dists-k8}
     \end{subfigure}
 
-    \vspace{1em}
+    \vspace{0.3em}
 
     \begin{subfigure}{\textwidth}
         \centering
@@ -662,6 +663,16 @@ map-reduce, by a factor of twenty-five, through the same mechanism described
 in section~\ref{sec:cpu-mapreduce}. Sensitivity to the data is therefore a
 property of the algorithm rather than of the implementation: whoever chooses
 a heap inherits it.
+
+The GPU's reference library shows a third pattern: it is slowed by nearly
+the same factor in both directions, 4.95 for sorted against 4.92 for
+reverse, rather than favouring one the way the heaps do. Since sorting does
+not alter the value distribution (section~\ref{sec:meth-distributions}),
+this is not the radix-adversarial digit clustering of
+section~\ref{sec:bg-radix} but a positional effect: the candidates
+surviving the critical bucket end up clustered at one end of the array or
+the other, which burdens the library's parallel compaction step symmetrically
+regardless of which end they land on.
 
 Two observations deserve particular attention. First, bitonic sort on the NPU
 \emph{is} sensitive to the distribution, unlike the other two architectures,

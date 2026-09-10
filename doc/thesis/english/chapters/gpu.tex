@@ -38,16 +38,16 @@ The way the grid size is determined, however, differs fundamentally between
 the two, and the difference reflects the structure of each algorithm. In
 bitonic sort the grid is determined by the data: each block takes on one
 tile, so the number of blocks is simply the number of tiles into which the
-active segment is divided. The mapping is direct and leaves no freedom of
+active segment is divided, with a direct mapping that leaves no freedom of
 choice.
 
 In map-reduce, by contrast, the grid is a matter of decision, and the
-decision follows from three independent constraints. The first is the
-occupancy the hardware allows, which the implementation queries from the
-device rather than assuming. The second is the heap-filling condition of
+decision follows from three independent constraints: the occupancy the
+hardware allows, which the implementation queries from the device rather
+than assuming; the heap-filling condition of
 Section~\ref{sec:gpu-mapreduce-limit}, which deliberately reduces the number
-of blocks when more threads would mean heaps that never filter. The third is
-the available workspace: because each thread requires a heap of size k, the
+of blocks when more threads would mean heaps that never filter; and the
+available workspace, since each thread requires a heap of size k, so the
 total number of threads is bounded by an upper limit on memory, which
 becomes binding for large k. Of the three, the strictest prevails.
 
@@ -78,7 +78,7 @@ On the GPU a second cost is added that does not exist on the CPU. Every
 kernel launch carries a fixed overhead, and a scan with hundreds of launches
 pays that overhead hundreds of times. For this reason the entire network is
 not launched kernel by kernel; instead it is captured once as an execution
-graph and then replayed. Scheduling is thus performed once rather than for
+graph and then replayed, so scheduling is performed once rather than for
 every stage.
 
 The kernels that make up the graph are of three kinds, and the choice
@@ -101,12 +101,12 @@ tile of data into it, executes as many stages as possible entirely within
 it, and writes it back once. Any stages merged in this way incur no
 additional traffic to global memory.
 
-The tile size follows from two constraints. On one hand, it cannot exceed
-the 48 KB available per thread block without special configuration. On the
-other hand, it is chosen smaller when the working set fits in the device's
-second-level cache, in which case the constraint is no longer traffic to
-main memory but the number of blocks that can be simultaneously active. For
-32-bit integers the tile ends up at 8192 elements.
+The tile size follows from two constraints: it cannot exceed the 48 KB
+available per thread block without special configuration, and it is chosen
+smaller when the working set fits in the device's second-level cache, in
+which case the constraint is no longer traffic to main memory but the
+number of blocks that can be simultaneously active. For 32-bit integers the
+tile ends up at 8192 elements.
 
 This constraint is not specific to the present implementation: published
 partial-sorting methods for GPUs are subject to the same bound and do not
@@ -201,7 +201,7 @@ implementation recognises this condition and reacts to it. Before launch, it
 is computed whether the heaps manage to fill under full occupancy of the
 device. When this holds, the number of blocks is deliberately limited,
 inversely proportional to k, so that each thread takes on a larger share of
-the input and its heap filters effectively. Nominal parallelism is thus
+the input and its heap filters effectively: nominal parallelism is thus
 sacrificed for actual rejection. When, conversely, the heaps are not going
 to fill under any circumstance, reducing the number of blocks would offer
 nothing, and the device is used at full occupancy.
@@ -249,20 +249,18 @@ the limiting factor is the bus itself and not the way data is prepared on
 either side of it.
 
 As for the memory footprint on the device, the two implementations follow
-the same logic as their CPU counterparts. Bitonic sort allocates two arrays
-of size n, since the truncation stages are not performed in place.
-Map-reduce allocates the input plus the heap workspace, which here, however,
-is not negligible: it is proportional to the product of the number of
-threads and k, and for large values of k it can approach the size of the
-input itself.
+the same logic as their CPU counterparts: bitonic sort allocates the two
+arrays of size n from section~\ref{sec:gpu-bitonic}, and map-reduce the
+per-thread heaps from section~\ref{sec:gpu-mapreduce}. For large values of
+k, the heap workspace can approach the size of the input itself.
 
-\section{Ground truth}
+\section{Reference implementation}
 \label{sec:gpu-reference}
 
 The baseline for comparison on the GPU is the top-k selection function of
 the CUB library, which ships with the CUDA toolkit. Unlike the CPU case,
-where the ground truth is single-threaded and the comparison conflates two
-causes, here there is no such asymmetry: the library runs on the same
+where the reference implementation is single-threaded and the comparison
+conflates two causes, here there is no such asymmetry: the library runs on the same
 device, exploits the same parallelism, and is measured in the same way. The
 comparison is therefore rigorous.
 
@@ -275,7 +273,7 @@ two implementations developed in this work.
 
 The recorded data traffic is limited to the input and output and is
 reported as a lower bound, since the library's internal passes are not
-observable from the calling code. The same holds for the number of
+observable from the calling code; the same holds for the number of
 comparisons.
 
 It should be stated from the outset that this baseline is a strong one. On
@@ -333,7 +331,7 @@ about two and a half percent of the computational one. The implementation,
 in other words, exploits the device efficiently. Its problem is not the way
 it moves data, but the fact that it is forced to move a sevenfold volume.
 
-The contrast with the ground truth library makes this distinction
+The contrast with the reference library makes this distinction
 quantitative, and it is the most instructive point of the chapter. The
 library exploits only about one-quarter of the bandwidth ceiling, clearly
 less than bitonic sort, and yet finishes faster. The reason is that it moves
