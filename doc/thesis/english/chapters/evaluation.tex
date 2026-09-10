@@ -439,8 +439,9 @@ is useful, since it shows why the two measurement scopes diverge so sharply
 on the GPU. The end-to-end curve remains steady near three tenths of a
 millisecond up to about $2^{16}$ elements: throughout this range the kernel
 is essentially invisible and the time is spent entirely on transfers and
-launches. Even at the largest input, the end-to-end time remains roughly
-three times the algorithmic time.
+launches. Even at the largest input, the end-to-end time remains a multiple of the
+algorithmic time, from about five times for bitonic sort to thirteen
+times for map-reduce.
 
 The energy picture differs substantially from the time picture, and the
 difference is due to the symmetric measurement scope of
@@ -683,7 +684,7 @@ dominates the time.
 
 Second, juxtaposing the two values of k isolates the cause of the
 sensitivity. GPU map-reduce is sensitive for k equal to 8, where the sorted
-input slows it down by a factor of 4.3, but becomes nearly unaffected for k
+input slows it down by a factor of 4.0, but becomes nearly unaffected for k
 equal to 131072, where the same input changes it by only 4\%. The same code,
 with the same data, changes behaviour because the limiting factor changes: in
 the second case it is not rejection that limits it but the lack of

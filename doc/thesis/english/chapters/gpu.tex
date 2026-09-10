@@ -133,7 +133,7 @@ For the largest value of k examined, this condition breaks down. The sorted
 blocks reach a size of 131072 elements, sixteen times larger than the tile,
 so most of the stages of the first phase can no longer be merged and instead
 execute as passes over global memory. The measured traffic increases
-correspondingly, from sevenfold to between twenty-five and fifty-six times
+correspondingly, from sevenfold to between twenty-two and twenty-nine times
 the naive estimate, depending on the input size. This is the reason why the
 repetition factor of Section~\ref{sec:meth-traffic} is stated only for k
 much smaller than n, and part of the explanation for the implementation's
@@ -220,8 +220,9 @@ twentyfold.
 
 Within the device, the traffic picture is analogous to that of the CPU but
 not identical. For small k, bitonic sort moves a sevenfold volume, as on the
-CPU, while map-reduce moves roughly threefold. The difference is due
-entirely to the heap workspace described in Section~\ref{sec:gpu-mapreduce}:
+CPU, while map-reduce's traffic depends noticeably on the input size. The
+difference is due entirely to the heap workspace described in
+Section~\ref{sec:gpu-mapreduce}:
 with thousands of threads, each maintaining its own heap in global memory,
 the term that was negligible on the CPU becomes comparable to the scan
 itself.
@@ -236,7 +237,7 @@ words, costs more than twice the computation it serves.
 This observation is precisely why the work measures two scopes rather than
 one, as defined in Section~\ref{sec:meth-energy-scope}. For the same run,
 the algorithmic time is about half a millisecond while the total exceeds
-two: more than three-quarters of the cost has nothing to do with the
+two: nearly three-quarters of the cost has nothing to do with the
 computation at all. A comparison based solely on the algorithmic scope would
 credit the GPU with an advantage it does not have once the problem is framed
 as data transfer to and from main memory.
@@ -320,20 +321,20 @@ Chapter~\ref{ch:evaluation}.
 
 On the GPU, bottlenecks must be examined separately for each measurement
 scope, because they are not the same. In the end-to-end scope, the bus to
-the host dominates, as shown in Section~\ref{sec:gpu-memory}: more than
+the host dominates, as shown in Section~\ref{sec:gpu-memory}: nearly
 three-quarters of the time has nothing to do with computation at all. What
 follows therefore concerns the algorithmic scope, where the limits of the
 device itself become visible.
 
 For small k, bitonic sort is clearly limited by memory, reaching about
-two-thirds of the measured memory bandwidth ceiling while exploiting only
+three-fifths of the measured memory bandwidth ceiling while exploiting only
 about two and a half percent of the computational one. The implementation,
 in other words, exploits the device efficiently. Its problem is not the way
 it moves data, but the fact that it is forced to move a sevenfold volume.
 
 The contrast with the reference library makes this distinction
 quantitative, and it is the most instructive point of the chapter. The
-library exploits only about one-quarter of the bandwidth ceiling, clearly
+library exploits only about one-fifth of the bandwidth ceiling, clearly
 less than bitonic sort, and yet finishes faster. The reason is that it moves
 a volume equal to the naive estimate, rather than a sevenfold one. The ratio
 of the two times predicted from these two pairs of quantities coincides

@@ -36,9 +36,10 @@ conclusion that this is a property of the algorithms.
 
 \paragraph{The measurement boundary determines which architecture
 "wins".} In the algorithmic scope the graphics processing unit is faster
-across the entire range of sizes; in the end-to-end scope the processor is
-faster across that same entire range. The ranking, that is, does not
-overturn somewhere in the middle; the only difference between
+only at the two extremes of the size range; in the end-to-end scope the
+processor is faster across the entire range, including those same
+extremes. The ranking, that is, overturns exactly where the graphics
+processing unit appeared to win; the only difference between
 the two answers is where the measurement boundary is placed. This finding
 has methodological significance beyond the specific problem: any speed-up
 claim for offloading to an accelerator that reports only kernel time is not
@@ -60,7 +61,7 @@ Pareto front, and both run on the processor.
 Overall, for top-k selection with small k, offloading to an accelerator
 does not merely fail to deliver a benefit; it is measurably worse than not
 offloading at all, with the energy-delay product trailing by a factor of
-between twenty-eight and seventy-eight relative to map-reduce on the
+between twenty-eight and forty-three relative to map-reduce on the
 processor. The conclusion does not concern the quality of the accelerators
 but the match between workload and architecture. The design principle of
 neural processing units, as stated in Section~\ref{sec:bg-arch-npu}, is to
