@@ -8,7 +8,7 @@
 στην ίδια ψηφίδα με τον επεξεργαστή εγείρει το εύλογο ερώτημα αν συμφέρει η
 ανάθεση τέτοιων υπολογισμών σε επιταχυντή.
 
-Η εργασία υλοποιεί δύο αλγορίθμους με θεμελιωδώς διαφορετική συμπεριφορά. Την
+Η εργασία υλοποιεί δύο αλγορίθμους με θεμελιωδώς διαφορετική συμπεριφορά: την
 περικομμένη διτονική ταξινόμηση, που είναι ανεξάρτητη από τα δεδομένα, και την
 επιλογή με τοπικούς σωρούς, που εξαρτάται από αυτά, σε τρεις αρχιτεκτονικές:
 επεξεργαστή με διανυσματικές επεκτάσεις \tl{AVX-512}, μονάδα γραφικών με
@@ -45,8 +45,8 @@ noticeable. The recent integration of neural processing units into the same die
 as the processor makes the question of whether offloading such computations to
 an accelerator is worthwhile a reasonable one.
 
-This work implements two algorithms with fundamentally different behaviour.
-Truncated bitonic sorting which is data-oblivious and map-reduce selection with
+This work implements two algorithms with fundamentally different behaviour:
+truncated bitonic sorting which is data-oblivious and map-reduce selection with
 local heaps which is data-dependent, on three architectures: a processor with
 AVX-512 vector extensions, a GPU programmed in CUDA, and an AMD XDNA neural
 processing unit. The implementations were evaluated with a unified methodology
@@ -66,6 +66,6 @@ offloading is measurably worse than computing on the processor.
 
 \textbf{Keywords:} top-k selection, bitonic sorting networks, heterogeneous
 computing, neural processing unit, MLIR-AIE, SIMD vectorisation, energy
-efficiency, roofline model
+assessment, roofline model
 
 \selectlanguage{greek}
