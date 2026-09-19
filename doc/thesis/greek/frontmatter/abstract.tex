@@ -10,13 +10,14 @@
 
 Η εργασία υλοποιεί δύο αλγορίθμους με θεμελιωδώς διαφορετική συμπεριφορά: την
 περικομμένη διτονική ταξινόμηση, που είναι ανεξάρτητη από τα δεδομένα, και την
-επιλογή με τοπικούς σωρούς, που εξαρτάται από αυτά, σε τρεις αρχιτεκτονικές:
-επεξεργαστή με διανυσματικές επεκτάσεις \tl{AVX-512}, μονάδα γραφικών με
-\tl{CUDA} και μονάδα νευρωνικής επεξεργασίας \tl{AMD XDNA}. Οι υλοποιήσεις
-αξιολογήθηκαν με ενιαία μεθοδολογία σε δύο πεδία μέτρησης, το αλγοριθμικό και
-το \tl{end-to-end}, καταγράφοντας τους χρόνους εκτέλεσης, το ενεργειακό
-αποτύπωμα και τον όγκο διακινούμενων δεδομένων. Η τελική τους απόδοση αναλύθηκε
-σε σύγκριση με τις μέγιστες θεωρητικές δυνατότητες του συστήματος.
+επιλογή με τοπικούς σωρούς, που εξαρτάται από αυτά. Οι υλοποιήσεις
+πραγματοποιήθηκαν σε τρεις αρχιτεκτονικές: επεξεργαστή με διανυσματικές
+επεκτάσεις \tl{AVX-512}, μονάδα γραφικών με \tl{CUDA} και μονάδα νευρωνικής
+επεξεργασίας \tl{AMD XDNA}. Αξιολογήθηκαν με ενιαία μεθοδολογία σε δύο πεδία
+μέτρησης, το αλγοριθμικό και το \tl{end-to-end}, καταγράφοντας τους χρόνους
+εκτέλεσης, το ενεργειακό αποτύπωμα και τον όγκο διακινούμενων δεδομένων. Η
+τελική τους απόδοση αναλύθηκε σε σύγκριση με τις μέγιστες θεωρητικές
+δυνατότητες του συστήματος.
 
 Τα αποτελέσματα δείχνουν ότι το πρόβλημα περιορίζεται από την κίνηση δεδομένων
 σε κάθε αρχιτεκτονική. Η κατάταξη των δύο αλγορίθμων ανατρέπεται με τον λόγο
@@ -46,13 +47,14 @@ as the processor makes the question of whether offloading such computations to
 an accelerator is worthwhile a reasonable one.
 
 This work implements two algorithms with fundamentally different behaviour:
-truncated bitonic sorting which is data-oblivious and map-reduce selection with
-local heaps which is data-dependent, on three architectures: a processor with
-AVX-512 vector extensions, a GPU programmed in CUDA, and an AMD XDNA neural
-processing unit. The implementations were evaluated with a unified methodology
-across two measurement scopes, algorithmic and end-to-end, recording execution
-time, energy footprint and the volume of data moved. Their resulting
-performance was analysed against the system's maximum theoretical capabilities.
+truncated bitonic sorting, which is data-oblivious, and map-reduce selection
+with local heaps, which is data-dependent. The implementations targeted three
+architectures: a processor with AVX-512 vector extensions, a GPU programmed in
+CUDA and an AMD XDNA neural processing unit. They were evaluated with a unified
+methodology across two measurement scopes, algorithmic and end-to-end,
+recording execution time, energy footprint and the volume of data moved. Their
+resulting performance was analysed against the system's maximum theoretical
+capabilities.
 
 The results show that the problem is limited by data movement on every
 architecture. The ranking of the two algorithms is overturned by the ratio
