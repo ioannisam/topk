@@ -1,57 +1,57 @@
-\chapter{CPU Implementation}
+\chapter{CPU implementation}
 \label{ch:cpu}
 
-\section{Design decisions}
+\section{Design choices}
 \label{sec:cpu-design}
 
 Four decisions run through both implementations in this chapter and are
 described here once: how vector instructions are exploited, how the same
-algorithm supports five data types, how half precision is handled, and how
-work is distributed across threads.
+algorithm supports five data types, how half precision is handled, and
+how work is distributed across threads.
 
 \subsection{Vectorisation}
 \label{sec:cpu-simd}
 
-Both algorithms rely on an operation that vectorises exceptionally well. The
-compare-exchange of two elements is equivalent to computing their minimum
-and maximum, and both of these operations exist as instructions that act on
-an entire vector register at once, without branches. A 512-bit register
-performs sixteen single-precision integer comparisons in the time of one.
-The instructions are referred to here by the names of the corresponding
-intrinsic functions of the standard~\cite{intelintrinsics}, also
-implemented by the processor described in section~\ref{sec:meth-machine}.
+Both algorithms rely on an operation that vectorises exceptionally well.
+The compare-exchange of two elements is equivalent to computing their
+minimum and maximum, and both of these operations exist as instructions
+that act on an entire vector register at once, without branches. A
+512-bit register performs sixteen single-precision integer comparisons
+in the time of one. The instructions are referred to here by the names
+of the corresponding intrinsic functions of the
+standard~\cite{intelintrinsics}, also implemented by the processor
+described in section~\ref{sec:meth-machine}.
 
-The difficulty lies not in the comparison but in positioning the elements.
-To compare two elements separated by a distance $j$, they must be brought
-to the same position in two different registers. When $j$ is smaller than
-the register width, this is achieved by shuffling within the register: the
-contents are shifted by $j$ positions, the minimum and maximum are
-computed, and the result is reassembled by alternately selecting from the
-two using a mask. The sequence "shuffle, minimum, maximum, select" is the
-fundamental motif on which the layer fusion of
-section~\ref{sec:cpu-bitonic} is built, and it is depicted in
+The difficulty lies not in the comparison but in positioning the
+elements. To compare two elements separated by a distance $j$, they must
+be brought to the same position in two different registers. When $j$ is
+smaller than the register width, this is achieved by shuffling within
+the register: the contents are shifted by $j$ positions, the minimum and
+maximum are computed, and the result is reassembled by alternately
+selecting from the two using a mask. The sequence ``shuffle, minimum,
+maximum, select'' is the fundamental motif on which the layer fusion of
+section~\ref{sec:cpu-bitonic} is built, depicted in
 figure~\ref{fig:cpu-simd-motif}.
 
 \input{figures/cpu-simd-motif}
 
-The register width is not known at compile time. The code is compiled with
-all paths present, and the choice is made at start-up by querying the
-processor for the instructions it supports: if AVX-512 is available, the
-512-bit registers are selected, otherwise the 256-bit ones, and as a last
-resort the scalar path. The same executable therefore runs on any machine,
-with the difference that on different hardware it follows a different code
-path and its results are not directly comparable, as also noted in
-appendix~\ref{app:reproducibility}.
+The register width is not known at compile time. The code is compiled
+with all paths present, and the choice is made at start-up, by querying
+the processor for the instructions it supports: if AVX-512 is available,
+the 512-bit registers are selected, otherwise the 256-bit ones, and as a
+last resort the scalar path. The same executable therefore runs on any
+machine, with the difference that on different hardware it follows a
+different code path and its results are not directly comparable.
 
 \subsection{Vector type abstraction}
 \label{sec:cpu-simd-traits}
 
-Vector instructions are specialised by data type: one instruction computes
-the minimum of signed integers, another of unsigned integers, and another
-of floating-point numbers. With five types, two register widths, and two
-algorithms, writing the code directly would lead to twenty nearly identical
-variants of the same code, with a corresponding maintenance cost and risk
-of one diverging from another.
+Vector instructions are specialised by data type: one instruction
+computes the minimum of signed integers, another of unsigned integers,
+another of floating-point numbers. With five types, two register widths,
+and two algorithms, writing the code directly would lead to twenty
+nearly identical variants of the same code, with a matching maintenance
+cost and the risk of one drifting from another.
 
 Instead, a single interface is defined. For each combination of type and
 width a structure is declared that always exposes the same names: the
@@ -60,47 +60,44 @@ masked select, shuffle, and the generation of the candidate mask used by
 map-reduce. The algorithms are written once against this interface and
 never refer to a specific instruction.
 
-The benefit is twofold. Adding a data type requires only a new
-specialisation of the structure and no change to the algorithms, and the
-absence of a specialisation is itself detectable at compile time: if no
-interface has been defined for some combination of type and width, the
-code is automatically routed to the scalar path instead of failing. The
-correctness check of section~\ref{sec:meth-correctness} validates each
-combination separately, so the equivalence of the paths is not an
-assumption but a verified property.
+This architectural abstraction secures two key advantages: adding a new
+data type requires only a new specialisation of the structure, with no
+changes to the algorithms, and the absence of a specialisation is caught
+early, at compile time. If no interface is defined for some combination
+of type and width, the code automatically falls back to the scalar path
+instead of failing. The equivalence of the paths is checked.
 
 \subsection{Half-precision floating-point support}
 \label{sec:cpu-fp16}
 
 Half precision is a special case, because the processor stores 16-bit
-values but has no arithmetic instructions that operate directly on them at
-the width the algorithm requires. The obvious solution, scalar processing,
-would negate any benefit.
+values but has no arithmetic instructions that operate directly on them
+at the width the algorithm requires. The obvious solution, scalar
+processing, would negate any benefit.
 
-The adopted solution exploits the fact that conversion between the two
-representations is a single instruction. The half-precision specialisation
-of the interface defines its vector type as that of single precision: the
-load reads sixteen 16-bit values and converts them to sixteen 32-bit
-values, all operations execute in single precision, and the store converts
-them back. The data remain in half precision in memory and are in single
-precision only for the duration of the computation, as shown in
-figure~\ref{fig:cpu-fp16}.
+The solution adopted exploits the fact that conversion between the two
+representations is a single instruction. The half-precision
+specialisation of the interface defines its vector type as that of
+single precision: the load reads sixteen 16-bit values and converts them
+to sixteen 32-bit values, all operations execute in single precision,
+and the store converts them back. The data remain in half precision in
+memory and are in single precision only for the duration of the
+computation, as shown in figure~\ref{fig:cpu-fp16}.
 
 \input{figures/cpu-fp16}
 
-This approach is exact rather than approximate. Every half-precision value
-is represented exactly in single precision, and the only operations
+This approach is not approximate. Every half-precision value is
+represented exactly in single precision, and the only operations
 performed are minimum and maximum, which select one of the two inputs
-rather than computing a new value. No rounding intervenes, so the result is
-identical to that of a hypothetical implementation that operated natively
-in half precision.
+rather than compute a new value. No rounding intervenes: the result is
+identical to that of a hypothetical implementation that operated
+natively in half precision.
 
-The gain is significant for precisely the reasons discussed in
-section~\ref{sec:cpu-memory}. The register width in elements remains
-sixteen, the same as for single precision, so the rate of comparisons does
-not change. Data traffic, however, is halved, since each element occupies
-half the bytes. For memory-bound algorithms, as both were shown to be, this
-translates directly into a speed-up.
+The register width in elements remains
+sixteen, the same as for single precision, so the rate of comparisons
+does not change. Data traffic, however, is halved, since each element
+occupies half the bytes. For memory-bound algorithms, as both were shown
+to be, this translates directly into a speed-up.
 
 \subsection{Parallelisation across multiple threads}
 \label{sec:cpu-threads}
@@ -110,295 +107,281 @@ this difference determines how aggressively each can be scaled.
 
 Bitonic sort has global dependencies: each group of layers requires the
 result of the previous one to be complete. Parallelism is therefore
-confined to within a group, with a synchronisation barrier between groups.
-The advantage is that threads maintain no private state, and their cost is
-limited to synchronisation.
+confined to within a group, with a synchronisation barrier between
+groups. The advantage is that threads maintain no private state, and
+their cost is limited to synchronisation.
 
-Map-reduce has the opposite structure: threads work entirely independently
-on mutually disjoint segments and meet only once, at the merge. No
-synchronisation is required during the scan, but each thread maintains its
-own heap of size k, and the final merge is serial and proportional to the
-number of threads.
+Map-reduce has the opposite structure: threads work entirely
+independently on disjoint segments and meet only once, at the merge. No
+synchronisation is required during the scan, but each thread maintains
+its own heap of size $k$, and the final merge is serial and proportional
+to the number of threads.
 
-The consequence is that the optimal number of threads is not the same for
-the two. Bitonic sort tolerates more threads on smaller inputs, whereas
-map-reduce requires a substantially larger share of work per thread to
-amortise the cost of the extra heap and the serial phase. In both cases the
-thread count is dynamically limited according to the input size, so that
-parallelism never costs more than it returns. The effect of this choice on
-the results is discussed in section~\ref{sec:cpu-bottlenecks}.
+The optimal number of threads is thus not the same for the two. Bitonic
+sort tolerates more threads on smaller inputs, whereas map-reduce
+requires a substantially larger share of work per thread to amortise the
+cost of the extra heap and the serial phase. In both cases the thread
+count is dynamically limited according to input size, so that
+parallelism never costs more than it returns.
 
 \section{Bitonic sort}
 \label{sec:cpu-bitonic}
 
-The layer schedule of section~\ref{sec:bg-truncated-bitonic} is constructed
+The layer schedule of section~\ref{sec:bg-truncated-bitonic} is built
 once and is shared across all three architectures: a first phase forms
-sorted blocks of size $k'$, the smallest power of two not less than k, and
-a second phase merges them in pairs, retaining the best $k'$ out of the
+sorted blocks of size $k'$, the smallest power of two not less than $k$,
+and a second phase merges them in pairs, keeping the best $k'$ of the
 $2k'$ compared each time.
 
-A direct translation of this schedule into code results in an
-implementation that is hopelessly memory-bound. For k equal to 256, the
-first phase alone consists of 36 layers, each of which would be a separate
-pass over the entire array. For an input of four million elements this
-means dozens of consecutive 16 MB reads and writes, with minimal
-computation in between. The entire implementation of this work is
-organised around avoiding precisely this pattern.
+A direct translation of this schedule into code produces an
+implementation that is hopelessly memory-bound. For $k$ equal to 256,
+the first phase alone consists of 36 layers, each of which would be a
+separate pass over the entire array. For an input of four million
+elements this means dozens of consecutive 16 MB reads and writes, with
+almost no computation in between. This work's entire implementation is
+organised around avoiding exactly this pattern.
 
 The basic technique is fusing consecutive layers into a single pass. A
-layer is characterised by the distance $j$ between the elements being
+layer is characterised by the distance $j$ between the elements
 compared, and this distance determines what is feasible. When $j$ is
 smaller than the vector register width, the two elements of every
-comparison already lie within the same register, and an entire sequence of
-such layers is then executed as one load, a series of in-register shuffles
-and comparisons, and one store. When $j$ is larger but the working set of a
-chunk fits in the cache, the sequence is executed chunk by chunk, with each
-chunk staying in the cache for all the layers. Only layers with very large
-$j$ require a separate pass. In addition, a truncation layer whose
-distance equals the register width also absorbs the re-sort layers that
-follow it. The two schemes are contrasted in
+comparison already lie within the same register, and a whole sequence of
+such layers then executes as a single load, a series of in-register
+shuffles and comparisons, and a single store. When $j$ is larger but the
+working set of a chunk fits in the cache, the sequence executes chunk by
+chunk, with each chunk staying in cache for all its layers. Only layers
+with very large $j$ require a separate pass. In addition, a truncation
+layer whose distance equals the register width also absorbs the re-sort
+layers that follow it. The two schemes are contrasted in
 figure~\ref{fig:cpu-layer-fusion}.
 
 \input{figures/cpu-layer-fusion}
 
-The result is that data traffic is not merely measurable, as described in
-section~\ref{sec:meth-traffic}, but also predictable from the structure of
-the schedule. The first phase collapses into a single in-place pass, that
-is, one read and one write per element, hence $2n$. Each step of the
-second phase reads $n_i$ elements and writes $n_i/2$, and the re-sort that
-follows adds a further $2 \cdot n_i/2$, for a total of $2.5\,n_i$. Because
-$n_i$ halves at each step, the sum over the second phase is a geometric 
-series:
+The resulting data traffic is predictable from the structure of the
+schedule. The first phase collapses into a single in-place pass,
+that is, one read and one write per element, hence $2n$. Each step of
+the second phase reads $n_i$ elements and writes $n_i/2$, and the
+re-sort that follows adds a further $2 \cdot n_i/2$, for a total of
+$2.5\,n_i$. Because $n_i$ halves at each step, the sum over the second
+phase is a geometric series:
 \[
 	\sum_i 2.5\,n_i = 2.5 \left( n + \frac{n}{2} + \frac{n}{4} + \cdots \right) = 2.5 \times 2n = 5n.
 \]
-The total traffic is therefore approximately $7n$ elements, which is the
-origin of the repetition factor of section~\ref{sec:meth-traffic}. For
-$n = 2^{22}$ and k equal to 256, this expression gives 117\,435\,392
-bytes, a value that matches the measured one exactly.
+Total traffic is therefore about $7n$ elements, which is the origin of
+the repetition factor of section~\ref{sec:meth-traffic}. For $n =
+2^{22}$ and $k$ equal to 256, this expression gives 117\,435\,392 bytes,
+a value that matches the measured one exactly.
 
-Concurrent execution across multiple threads takes place within each group
-and not between groups, since each group depends on the result of the
-previous one. The output range of each group is divided among the threads,
-with boundaries aligned to the chunk size or the cache line so that two
-threads never write to the same line. A synchronisation barrier intervenes
-between groups, and the thread count is further limited according to the
-input size, so that for small inputs the cost of synchronisation does not
-exceed the benefit of parallelism.
+Concurrent execution across multiple threads takes place within each
+group, not between groups, since each group depends on the result of the
+previous one. The output range of each group is divided among the
+threads, with boundaries aligned to the chunk size or the cache line so
+that two threads never write to the same line. A synchronisation barrier
+intervenes between groups, and the thread count is further limited
+according to input size, so that for small inputs the cost of
+synchronisation does not exceed the benefit of parallelism.
 
-Truncation layers cannot be executed in place, because each output element
-results from two input elements at different positions. For this reason a
-second array of the same size is maintained, and the two arrays are
-swapped after each such group. The extra memory is the price paid for
+Truncation layers cannot execute in place, because each output element
+results from two input elements at different positions. For this reason
+a second array of the same size is maintained, and the two arrays are
+swapped after each such group -- the extra memory is the price paid for
 avoiding intermediate copies.
 
-Finally, every vectorised path is accompanied by an equivalent scalar one.
-If the hardware does not support the required width, or if the parameters
-of a layer fall outside the range handled by the vectorised
+Finally, every vectorised path is accompanied by an equivalent scalar
+one. If the hardware does not support the required width, or if the
+parameters of a layer fall outside the range handled by the vectorised
 implementation, the same sequence of layers is executed in scalar form.
-The result is identical and only the time differs, which allows the
-correctness check of section~\ref{sec:meth-correctness} to validate both
-paths.
+The result is identical, and only the time differs, which lets the
+correctness check validate both paths.
 
 \section{Map-reduce with local heaps}
 \label{sec:cpu-mapreduce}
 
 The second algorithm follows an entirely different logic from the first.
 Rather than imposing a fixed sequence of comparisons independent of the
-data, it maintains the k best elements seen so far and tests every new
-element against them. The input is divided into segments, one per thread,
-each thread produces its own k best, and the partial results are merged at
-the end.
+data, it maintains the $k$ best elements seen so far and tests every new
+element against them. The input is split into segments, one per thread;
+each thread produces its own $k$ best, and the partial results are
+merged at the end.
 
-Each thread maintains a heap of size k, whose root is the worst of the k
-elements selected so far. The heap is bulk-initialised from the first k
-elements of the segment, which costs linearly in k and is cheaper than k
-successive insertions. From that point on, the root acts as a threshold:
-any element that does not exceed it can be rejected without any further
-work.
+Each thread maintains a heap of size $k$, whose root is the worst of the
+$k$ elements selected so far. The heap is bulk-initialised from the
+first $k$ elements of the segment, which costs linearly in $k$ and is
+cheaper than $k$ successive insertions. From then on, the root acts as a
+threshold: any element that does not exceed it can be rejected with no
+further work.
 
-The critical point of the implementation is that this rejection happens in
-bulk. The threshold is broadcast into a vector register and compared
+The critical point of the implementation is that this rejection happens
+in bulk. The threshold is broadcast into a vector register and compared
 simultaneously against an entire block of elements, producing a binary
-mask that indicates which of them are candidates. The implementation
-examines four such blocks together and, if the union of the four masks is
-zero, skips all four with a single check. In the common case, where the
-heap has already filled with large values and most elements are rejected,
-the bulk of the input is traversed in exactly this way: it is read,
+mask that shows which of them are candidates. The implementation
+examines four such blocks together and, if the union of the four masks
+is zero, skips all four with a single check. In the common case, where
+the heap has already filled with large values and most elements are
+rejected, the bulk of the input is traversed exactly this way: read,
 compared vectorwise, and rejected, with no element ever examined
 individually. The process is depicted in
 figure~\ref{fig:cpu-mapreduce-reject}.
 
 \input{figures/cpu-mapreduce-reject}
 
-Scalar work is performed only for the bits that are actually set. For each
-such element, the root is replaced and the heap is restored by sifting
+Only for the bits that are actually set is scalar work performed. For
+each such element, the root is replaced and the heap restored by sifting
 down. Replacing the root is preferred over extraction followed by
 reinsertion, since the latter would traverse the heap twice instead of
 once.
 
-This is precisely where the data dependence described in
+This is exactly where the data dependence described in
 section~\ref{sec:meth-distributions} originates. If the input is
 descending, the heap fills immediately with the largest values, the
 threshold rises to its maximum possible value from the outset, and the
-entire remainder of the input is rejected in bulk. If it is ascending, the
+entire rest of the input is rejected in bulk. If it is ascending, the
 opposite happens: every new element exceeds the root, no mask is ever
 zero, and a full sift-down is executed for every element. The same code,
-given an input of the same size, performs almost no work beyond reading in
-one case and the maximum possible in the other.
+given an input of the same size, performs almost no work beyond reading
+in one case, and the maximum possible in the other.
 
-The merge phase is simple and serial. The elements of each local heap are
-offered in turn to the first one, using the same threshold criterion, and
-the final result is sorted. The cost of this phase is proportional to the
-product of the number of threads and k and does not depend on the input
-size, so for large n it is negligible compared to the scan.
+The merge phase is simple and serial. The elements of each local heap
+are offered in turn to the first one, using the same threshold
+criterion, and the final result is sorted. The cost of this phase is
+proportional to the product of the number of threads and $k$, and does
+not depend on input size, so for large $n$ it is negligible next to the
+scan.
 
-Data traffic follows directly from this structure: every input element is
-read exactly once, and the merge moves twice the product of the number of
-threads and k. The figure is therefore exact. The comparison count, in
-contrast, is reported as a lower bound, precisely because the depth of
-each sift-down depends on the values; the count records one comparison per
-element and disregards the reordering of the heap. This is the distinction
-stated in section~\ref{sec:meth-traffic}.
+Data traffic follows directly from this structure: every input element
+is read exactly once, and the merge moves twice the product of the
+number of threads and $k$. This figure is therefore exact. The
+comparison count, by contrast, is reported as a lower bound, precisely
+because the depth of each sift-down depends on the values; the count
+records one comparison per element and ignores the reordering of the
+heap.
 
-The thread count is limited far more conservatively than in bitonic sort:
-roughly one million elements per thread are required. The reason is that
-every additional thread adds another heap of size k and burdens the serial
-merge, so beyond some point parallelism costs more than it returns. The
-consequence is that for an input of four million elements, four threads
-are used rather than eight, even when eight are requested.
+The thread count is limited far more conservatively than in bitonic
+sort: roughly one million elements per thread are required. The reason
+is that every additional thread adds another heap of size $k$ and
+burdens the serial merge, so that beyond some point parallelism costs
+more than it returns. For an input of four million elements,
+consequently, four threads are used rather than eight, even when eight
+are requested.
 
 \section{Memory management and data traffic}
 \label{sec:cpu-memory}
 
 The two algorithms solve the same problem on the same machine, but their
-memory behaviour is radically different. Contrasting them is instructive,
-because most of the difference in performance is explained by this alone.
+memory behaviour is radically different. Contrasting them is
+instructive, because most of the performance difference is explained by
+this alone.
 
-The fundamental difference is the volume of traffic. From the expressions
-in sections~\ref{sec:cpu-bitonic} and~\ref{sec:cpu-mapreduce}, bitonic
-sort moves approximately $7n$ elements, whereas map-reduce moves $n$ plus
-a term proportional to the product of the number of threads and k, which
-is negligible for small k. For an input of four million integers, the
-first moves 117 MB and the second 17 MB. The ratio of seven to one is not
-an artefact of the implementation but of the algorithm itself: the
-sorting network is obliged to traverse the data many times, whereas
-heap-based selection traverses it exactly once.
+The fundamental difference is the volume of traffic. From the
+expressions in sections~\ref{sec:cpu-bitonic}
+and~\ref{sec:cpu-mapreduce}, bitonic sort moves approximately $7n$
+elements, while map-reduce moves $n$ plus a term proportional to the
+product of the number of threads and $k$, negligible for small $k$. For
+an input of four million integers, the first moves 117 MB and the second
+17 MB. The ratio of seven to one comes from the algorithm itself, not
+the implementation: the sorting network is obliged to traverse the data
+many times, while heap-based selection traverses it exactly once.
 
-Equally important is the nature of the access. Map-reduce reads the input
-and never modifies it, so its traffic is purely sequential reading, the
-most favourable pattern possible for the hardware prefetcher. Bitonic
-sort, by contrast, writes on every pass, and the comparisons take place
-between elements separated by a variable distance, which at certain
-layers exceeds the entire chunk that fits in the cache.
+Equally important is the nature of the access. Map-reduce reads the
+input and never modifies it, so its traffic is purely sequential
+reading, the most favourable pattern possible for the hardware
+prefetcher. Bitonic sort, by contrast, writes on every pass, and the
+comparisons take place between elements separated by a variable
+distance, which at some layers exceeds the entire chunk that fits in
+cache.
 
 The memory footprint also differs. Bitonic sort requires a second array
-equal in size to the first, for the reason explained in
-section~\ref{sec:cpu-bitonic}, so it allocates a total of $2n$ elements.
+equal in size to the first, so it allocates $2n$ elements in total.
 Map-reduce allocates only the local heaps, that is, the product of the
-number of threads and k elements, independent of the input size. For
-small k this total is small enough to remain permanently in the fastest
-levels of the hierarchy, and the only traffic to main memory is the
-reading of the input itself.
+number of threads and $k$, independent of input size. For small $k$ this
+total is small enough to remain permanently in the fastest levels of the
+hierarchy, and the only traffic to main memory is reading the input
+itself.
 
-The consequence is that the two algorithms sit at different points
-relative to the ceilings of section~\ref{sec:meth-roofline}. Both perform
-few operations per byte, so neither approaches the compute ceiling, but
-map-reduce achieves a substantially higher transfer rate than bitonic
-sort, as expected from its more favourable access pattern. Bitonic sort
-pays twice over: it moves a sevenfold volume, and it moves it at a lower
+The two algorithms therefore sit at different points relative to the
+ceilings of section~\ref{sec:meth-roofline}. Both perform few operations
+per byte, so neither approaches the compute ceiling, but map-reduce
+achieves a substantially higher transfer rate than bitonic sort, as
+expected from its more favourable access pattern. Bitonic sort pays
+twice over: it moves a sevenfold volume, and it moves it at a lower
 rate.
 
-It should finally be noted that this advantage is not universal. The term
-relating to the local heaps grows with k, and for the larger values
-examined it ceases to be negligible: the heap no longer fits in the
-fastest cache levels, and the merge phase, being serial, acquires a weight
-comparable to the scan. Bitonic sort, whose traffic depends much more
-weakly on k, incurs no equivalent penalty. The comparison of the two
-across the full range of parameters is carried out in
-chapter~\ref{ch:evaluation}.
+This advantage is not universal, though. The term relating to the local
+heaps grows with $k$, and for the larger values examined it ceases to be
+negligible: the heap no longer fits in the fastest cache levels, and the
+merge phase, being serial, acquires a weight comparable to the scan.
+Bitonic sort, whose traffic depends much more weakly on $k$, incurs no
+equivalent penalty.
 
 \section{Reference implementation}
 \label{sec:cpu-reference}
 
 The baseline for the processor is std::partial\_sort from the standard
 library, for the reasons explained in
-section~\ref{sec:meth-baseline-libraries}. It is integrated into the same
-harness as this work's two implementations, runs in the same measurement
-loop, and is verified by the same correctness check, so its times are
-directly comparable.
+section~\ref{sec:meth-baseline-libraries}. It is integrated into the
+same harness as this work's two implementations, runs in the same
+measurement loop, and is verified by the same correctness check, so its
+times are directly comparable.
 
-There is, however, an asymmetry that must be stated explicitly, because it
-affects the interpretation of every speed-up reported in
-chapter~\ref{ch:evaluation}. The library function is strictly
-single-threaded: it accepts no thread count and makes use of only one
-core. Bitonic sort, in contrast, uses up to eight threads, and map-reduce
-up to four or eight, depending on the input size, so every ratio of times
-between this work's implementations and the library conflates two
-distinct causes: the difference in algorithm and the difference in core
-count.
+There is, however, an asymmetry that affects how every speed-up is
+measured. The library function is strictly single-threaded: it accepts no thread count and uses only one core.
+Bitonic sort, by contrast, uses up to eight threads and map-reduce up to
+four or eight, depending on input size, so every ratio of times between
+this work's implementations and the library conflates two distinct
+causes: the difference in algorithm and the difference in core count.
 
-This choice is not arbitrary. The question posed by this work is not which
-algorithm is better under equal resources, but how much faster the problem
-can be solved on each architecture relative to what a developer already
-has available. The established solution for the processor is indeed
-single-threaded, but the reader should bear in mind that a thread-for-thread
-comparison would be stricter and would yield smaller speed-ups.
-
-It should finally be noted that the measured data traffic of the reference
-implementation is a lower bound, as mentioned in
-section~\ref{sec:meth-traffic}: only the input and output are counted,
-while the library's internal passes are not observable. Every memory
-ceiling utilisation percentage reported for it is therefore an
-underestimate and is not directly comparable with the corresponding
-percentages of the other two implementations.
+This choice is not arbitrary. The central question this work asks is the
+practical speed-up each architecture offers, measured against the
+standard solution a developer already has available. Since the
+established solution for the processor is indeed single-threaded, it is
+used as the realistic baseline. The reader should nonetheless bear in
+mind that a stricter ``thread-for-thread'' evaluation would give smaller
+speed-ups.
 
 \section{Limiting factors}
 \label{sec:cpu-bottlenecks}
 
-Placing the measurements against the ceilings of
-section~\ref{sec:meth-roofline} shows that the limiting factor is not the
-same across the full range of parameters, and in fact it reverses.
+The limiting factor is not the same across the full range of $k$. In
+fact, this shift is decisive enough to change which of the two
+implementations is faster.
 
-For small k and large input, both implementations are clearly
+For small $k$ and large input, both implementations are clearly
 memory-bound. At the largest input examined, bitonic sort approaches
 four-fifths of the measured bandwidth ceiling and map-reduce
-three-quarters, while both utilise around five per cent of the compute ceiling.
-The gap between the two figures leaves no room for doubt about the nature
-of the limitation.
+three-quarters, while both utilise around five percent of the compute
+ceiling. The gap between the two figures leaves no room for doubt about
+the nature of the limitation.
 
-This diagnosis has a practical consequence for any attempt at improvement.
-Bitonic sort is not slow because it performs its comparisons
-inefficiently, but because it moves a sevenfold volume of data. No further
-optimisation of the compute kernel is going to speed it up substantially;
-the room for improvement lies exclusively in reducing traffic. Map-reduce,
-on the other hand, already reads every element exactly once and operates
-close to the rate at which memory can feed it, so under this condition it
-is essentially optimal, in the sense that it cannot be made faster without
-reading less.
+This diagnosis has a practical consequence for any attempt at
+improvement. Bitonic sort is not slow because its comparisons are
+inefficient, but because it moves a sevenfold volume of data. No further
+optimisation of the compute kernel is going to speed it up
+substantially; the room for improvement lies exclusively in reducing
+traffic. Map-reduce, on the other hand, already reads every element
+exactly once and operates close to the rate at which memory can feed it;
+under this condition it is essentially optimal, in the sense that it
+cannot be made faster without reading less.
 
-For large k the picture changes radically, and neither of the two
-approaches either ceiling. At the largest value of k examined,
-utilisation of both ceilings falls to figures on the order of one per cent
-for map-reduce and a little above ten per cent for bitonic sort. When a
-measurement is far from both ceilings, the limitation is neither
-bandwidth nor compute capability, but latency and insufficient
-parallelism.
+For large $k$ the picture changes radically, and neither of the two
+approaches either ceiling. At the largest value of $k$ examined,
+utilisation of both ceilings falls to figures on the order of one
+percent for map-reduce and a little above ten percent for bitonic sort.
+When a measurement is far from both ceilings, the real limiting factors
+are latency and insufficient parallelism, rather than bandwidth or
+compute capability.
 
-The mechanism is clear for map-reduce and follows from
-section~\ref{sec:cpu-mapreduce}. As k grows, the heap's threshold falls
-and the rejection rate collapses: the fast path that skips four blocks at
-once ceases to activate, and almost every element forces a full
+For map-reduce, as $k$ grows the heap's threshold
+falls and the rejection rate collapses: the fast path that skips four
+blocks at once stops activating, and almost every element forces a full
 sift-down. At the same time the heap stops fitting in the fastest cache
-levels, so every sift-down becomes a sequence of accesses at a random
-address and a depth logarithmic in k. The algorithm turns from
-bandwidth-bound to latency-bound, and at the largest value of k it ends up
-slower than bitonic sort, which it had outperformed by a factor of six for
-small k.
+levels, so every sift-down becomes a sequence of random-address accesses
+of depth logarithmic in $k$. The algorithm turns from bandwidth-bound to
+latency-bound, and at the largest value of $k$ it ends up slower than
+bitonic sort.
 
-A secondary but real factor is the thread-scaling limits described in the
-preceding sections. Because map-reduce requires roughly one million
-elements per thread, only a fraction of the available cores is used at
-medium input sizes. Part of the gap from the ceiling in this region is
-therefore not due to the algorithm but to the fact that the processor is
-not working at full capacity.
+A secondary but real factor is the thread-scaling limits described in
+the preceding sections. Because map-reduce requires roughly one million
+elements per thread, only part of the available cores is used at medium
+input sizes. Part of the gap from the ceiling in this region is
+therefore not due to the algorithm but to the processor not working at
+full capacity.

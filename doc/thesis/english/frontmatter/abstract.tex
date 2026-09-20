@@ -12,6 +12,7 @@
   colbacktitle=black!10,
   coltitle=black,
   fonttitle=\normalsize,
+  titlerule=0pt
 ]
 \small
 Warning! This document was translated from Greek into English automatically
@@ -24,28 +25,28 @@ Top-k selection, the task of identifying the k largest elements of a set, appear
 across a wide range of applications and is repeated often enough that its cost is
 noticeable. The recent integration of neural processing units into the same
 die as the processor makes the question of whether offloading such
-computations to an accelerator is worthwhile a practical one.
+computations to an accelerator is worthwhile a reasonable one.
 
-This work implements two algorithms with fundamentally different behaviour,
-truncated bitonic sorting which is data-oblivious and map-reduce selection with
-local heaps which is data-dependent, on three architectures: a processor with
-AVX-512 vector extensions, a GPU programmed in CUDA, and an AMD XDNA neural
-processing unit. All six
-implementations were measured over the same parameter space, under two explicitly
-distinct measurement scopes, recording time, energy and the volume of data moved
-and placing every run against a roofline measured on the same machine.
+This work implements two algorithms with fundamentally different behaviour:
+truncated bitonic sorting, which is data-oblivious, and map-reduce selection
+with local heaps, which is data-dependent. The implementations targeted three
+architectures: a processor with AVX-512 vector extensions, a GPU programmed in
+CUDA and an AMD XDNA neural processing unit. They were evaluated with a unified
+methodology across two measurement scopes, algorithmic and end-to-end,
+recording execution time, energy footprint and the volume of data moved. Their
+resulting performance was analysed against the system's maximum theoretical
+capabilities.
 
 The results show that the problem is limited by data movement on every
-architecture, that the ranking of the two algorithms is overturned by the ratio $n/k$
-rather than by the architecture and that the choice of measurement boundary
-completely overturns the ranking of the architectures. In energy terms the neural
-processing unit exhibits the lowest power draw and simultaneously the highest
-consumption, since duration dominates the product. No accelerator run is
-Pareto-optimal: for small k, offloading is measurably worse than computing on the
-processor.
+architecture. The ranking of the two algorithms is overturned by the ratio
+$n/k$ and the choice of measurement scope completely overturns the ranking of
+the architectures. In energy terms the neural processing unit exhibits the
+lowest power draw and simultaneously the highest consumption, since duration
+dominates the product. No accelerator run is Pareto-optimal: for small k,
+offloading is measurably worse than computing on the processor.
 
 \vspace{1em}
 
 \textbf{Keywords:} top-k selection, bitonic sorting networks, heterogeneous
 computing, neural processing unit, MLIR-AIE, SIMD vectorisation, energy
-efficiency, roofline model
+assessment, roofline model

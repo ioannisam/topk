@@ -4,14 +4,14 @@
 \section{Reference system}
 \label{sec:meth-machine}
 
-All measurements in this work come from a single system that hosts all
-three compared architectures: a general-purpose processor (CPU), a
-discrete graphics unit (GPU), and a neural processing unit (NPU)
-integrated into the same die as the processor. This isolates
-differences between implementations from differences between platforms,
-but introduces a constraint that shapes the measurement conditions: the
-system is a laptop, so the three units share a common thermal and power
-budget, handled as described in section~\ref{sec:meth-conditions}.
+All measurements in this work come from a single system, which
+carries all three architectures being compared: a general-purpose
+processor (CPU), a discrete graphics unit (GPU), and a neural
+processing unit (NPU) integrated into the same die as the processor.
+This isolates implementation differences from platform differences,
+but introduces a constraint: the system is a laptop, so the three
+units share a common thermal and power budget, an issue handled as
+described in section~\ref{sec:meth-conditions}.
 
 \begin{table}[H]
     \centering
@@ -35,64 +35,67 @@ budget, handled as described in section~\ref{sec:meth-conditions}.
         Software & XRT 2.21.75, firmware 1.5.5.391 \\
         \hline
     \end{tabular}
-    \caption{The reference system on which all measurements were carried out.}
+    \caption{The reference system on which all measurements were run.}
     \label{tab:machine}
 \end{table}
 
-The processor has eight physical cores with simultaneous multithreading.
-All measurements run with one thread per physical core, so no two threads
-share a vector unit. The cache hierarchy sets the knee points of the
-measured bandwidth scale (section~\ref{sec:meth-roofline}): depending on
-input size and data type, the working set may fit in L2, L3, or only
-main memory, and each implementation is compared against the ceiling for
+The processor has eight physical cores with simultaneous
+multithreading, and all measurements run with one thread per physical
+core, so that no two threads share the same vector unit. The cache
+hierarchy sets the knee points of the measured bandwidth scale
+(section~\ref{sec:meth-roofline}): depending on input size and data
+type, the working set may fit in L2, in L3, or only in main memory,
+and each implementation is compared against the ceiling that matches
 its own working set.
 
-Main memory is arranged as two identical \qty{16}{\gibi\byte} modules in
-dual-channel mode at 5600 MT/s. A single-channel arrangement would halve
-the available bandwidth, so a memory-bound implementation would give
-substantially different results on an otherwise identical system.
+Main memory is arranged as two identical \qty{16}{\gibi\byte} modules
+in dual-channel mode, at 5600 MT/s. A single-channel arrangement
+would halve the available bandwidth, and a memory-bound
+implementation would give substantially different results on an
+otherwise identical system.
 
-The neural processing unit has no memory of its own. It is fed from the
-same DDR5 through the same memory controllers as the processor, on the
-same silicon die. This has two consequences that recur throughout
-this work: the cost of preparing data on the host is not separable from
-the cost of the computation itself, and the energy meter used covers the
-whole package rather than the AIE tiles individually
+The neural processing unit has no memory of its own; it is fed from
+the same DDR5, and through the same memory controllers, as the
+processor, on the same silicon die. Two consequences of this recur
+throughout this work: the cost of preparing data on the host is not
+separable from the cost of the computation, and the energy meter used
+covers the whole package rather than the AIE tiles individually
 (section~\ref{sec:meth-energy}).
 
-The figures in table~\ref{tab:machine} were verified by the system itself
-rather than taken from manufacturer datasheets.
+The entries of table~\ref{tab:machine} were verified from the system
+itself, not from manufacturer datasheets.
 
 \section{Structure of the measurement harness}
 \label{sec:meth-harness}
 
-The measurement harness has four layers, with one principle running
-through the design: the measurement procedure is common to all
-architectures, and only the compute kernel differs, so no implementation
-controls how it is itself measured.
+The measurement harness is organised into four layers around one
+principle: the measurement procedure itself is common to all
+architectures, and only the compute kernel differs. No
+implementation, therefore, controls how it is itself measured.
 
-The first layer is a shared C++ core used by all three implementations.
-It reads parameters, generates the input, schedules the bitonic
-network's stages, reads the energy meters, runs the warm-up and
-measurement loop, checks correctness, and prints the report. All of this
-happens in one place, so the timing and energy measurements of every
-architecture are defined by the same code.
+The first layer is a shared C++ core that all three implementations
+share. It reads the parameters, generates the input, schedules the
+bitonic network's layers, reads the energy meters, runs the warm-up
+and measurement loop, checks correctness, and prints the report. All
+of this happens in one place, so that the timing and energy
+measurements of every architecture are defined by the same code.
 
 The second layer consists of the per-architecture executables. Each
-implements the same interface for the three compared algorithms, namely
-bitonic sort, map-reduce with local heaps, and the reference implementation,
-providing only the function that performs the computation. This function
-is called by the shared measurement loop of the first layer.
+implements the same interface for the three compared algorithms --
+bitonic sort, map-reduce with local heaps, and the reference
+implementation -- providing only the function that performs the
+computation, which the shared measurement loop of the first layer
+calls.
 
-The third layer is the sweep driver. It enumerates the parameter space of
-section~\ref{sec:meth-parameters} and runs each case as a separate
-process, recording its output verbatim along with its outcome, so that
-each case starts from a clean memory state and the failure of one does
-not invalidate the sweep.
+The third layer is the sweep driver: it enumerates the parameter
+space of section~\ref{sec:meth-parameters} and runs each case as a
+separate process, recording its output verbatim together with its
+outcome, so that each case starts from a clean memory state and the
+failure of one does not invalidate the sweep.
 
-The fourth layer converts the raw results into tables and plots, and
-operates on the same report text the user reads. There is no separate
-output path to the tools, so the values shown in the plots are by
+The fourth, finally, converts the raw results into tables and plots,
+on top of the same report text the user reads. There is no separate
+output path to the tools, so the values in the plots are by
 construction the values printed by the executable. The execution
 environment is stored alongside the results, as described in
 section~\ref{sec:meth-conditions}, and the commands that produce each
@@ -107,18 +110,19 @@ structure is summarised in figure~\ref{fig:meth-harness}.
 \subsection{Measurement scopes: algo and end-to-end}
 \label{sec:meth-energy-scope}
 
-Comparing three architectures requires a decision about what counts as
-cost. An accelerator that completes the computation very quickly but
-requires the whole input to be transferred to and from main memory is not
-necessarily faster than a processor working in place, so each case is
-measured in two scopes rather than one.
+Comparing three architectures presupposes a decision about what
+exactly is counted as cost. An accelerator that finishes the
+computation very quickly, but requires the whole input to be
+transferred to and from main memory, is not necessarily faster than a
+processor working in place. This is why every case is measured in
+two scopes, not one.
 
-The end-to-end scope covers the whole call from the host's point of
-view: everything required so that, given an input in main memory, the
+The end-to-end scope covers the entire call from the host's side:
+everything required so that, given an input in main memory, the
 result is also found in main memory. The algo scope covers only the
-region in which the computation itself executes. The difference between
-the two is the cost imposed by heterogeneity itself, and is summarised
-per architecture in table~\ref{tab:scopes} and schematically in
+region in which the computation itself runs. Their difference is the
+cost imposed by heterogeneity itself, summarised per architecture in
+table~\ref{tab:scopes} and schematically in
 figure~\ref{fig:meth-scopes}.
 
 \begin{table}[H]
@@ -138,300 +142,318 @@ figure~\ref{fig:meth-scopes}.
 
 \input{figures/meth-scopes}
 
-For the processor the two scopes coincide by definition, since it is
-itself the accelerator and there is no host cost to subtract. Any other
-choice would give it an advantage it does not deserve.
+On the processor the two scopes coincide by definition: it is itself
+the accelerator, and there is no host cost to subtract. Any other
+choice would grant it an advantage it does not deserve.
 
-The energy meter opens and closes at exactly the same points in the code
-as the corresponding timer, so time and energy refer to the same region
-of execution and are directly comparable. A third, wider window around
-the entire measurement loop is additionally recorded as an upper-bound
-sanity check, discussed in section~\ref{sec:meth-energy}.
+The energy meter opens and closes at exactly the same points in the
+code as the corresponding timer, so time and energy refer to the same
+region of execution and are directly comparable. A third, wider
+window around the entire measurement loop is additionally recorded as
+an upper-bound sanity check; it is discussed in
+section~\ref{sec:meth-energy}.
 
-The choice of scope therefore determines the question a measurement
-answers: end-to-end is the fair scope for comparing across architectures,
-since none of them hides its own data-transfer cost, while algo is
-useful for comparing implementations within the same architecture, but
-not sufficient on its own for claims across architectures, precisely
-because it omits the transfers.
+The choice of scope determines the question a measurement answers.
+End-to-end is the fair scope for comparison across architectures,
+since none of them hides its own data-transfer cost. Algo is useful
+for comparison within the same architecture, but does not suffice for
+claims across architectures, precisely because it omits the
+transfers.
 
 \subsection{Timing}
 \label{sec:meth-timing}
 
-The two scopes are not necessarily measured with the same mechanism. The
-end-to-end scope is always measured with a host clock, on either side of
-the call, since by definition it concerns time as perceived by the host.
-The algo scope is measured with whatever mechanism each architecture
-provides for the region of its own computation.
+The two scopes are not necessarily measured with the same mechanism.
+The end-to-end scope is always measured with a host clock, on either
+side of the call, since by definition it concerns time as perceived
+by the host. The algo scope is measured with whatever mechanism each
+architecture provides for the region of its own computation.
 
-On the graphics unit the measurement cannot be done with a host clock.
-Kernels launch asynchronously: the call returns as soon as the kernel is
-placed in the command stream, not when it completes. A host clock
-would therefore measure the time of the launch rather than of execution,
-and forced synchronisation would add its own cost to the kernel. Events,
-recorded within the command stream and timed by the device itself, are
-used instead.
+On the graphics unit the measurement cannot be done with a host
+clock. Kernels launch asynchronously: the call returns as soon as the
+kernel is placed in the command stream, not when it finishes. A host
+clock would therefore measure the time of the launch rather than of
+the execution, while forced synchronisation would add its own cost to
+the kernel. Events, recorded within the command stream and timed by
+the device itself, are used instead.
 
-On the neural processing unit there is no equivalent device-side meter,
-so the algo scope is defined by a host clock around the region of the
-offload. This region does not contain only the execution on the tiles:
-it includes allocating and preparing the buffers, dispatching the jobs,
-and the final merge of the partial results on the host. This quantity
-should therefore be read as the cost of the entire offload procedure, not
-as the tiles' compute time. This distinction is essential for the conclusions
-of chapter~\ref{ch:npu}.
+On the neural processing unit there is no equivalent device-side
+meter; the algo scope is therefore defined by a host clock around the
+region of the offload. This region does not contain only the
+execution on the tiles: it includes allocating and preparing the
+buffers, dispatching the jobs, and the final merge of the partial
+results on the host. It must therefore be read as the cost of the
+entire offload procedure, not as the compute time of the AIE tiles --
+a distinction essential to the conclusions of
+chapter~\ref{ch:npu}.
 
-Three quantities per scope are derived from the 50 measured repetitions
-of each case: the mean, on which comparisons are based; the standard
-deviation, an indication of measurement
-stability under the pinned conditions of section~\ref{sec:meth-conditions};
-and the minimum, a lower bound on the achievable time. The meters used
-have nanosecond-scale resolution, against measured regions of a few tens
-of microseconds to hundreds of milliseconds, so the cost of the timing
-itself is negligible and is not subtracted.
+From the 50 measured repetitions of each case, three quantities
+follow per scope: the mean, on which the comparisons are based; the
+standard deviation, an indication of the measurement's stability
+under the pinned conditions of section~\ref{sec:meth-conditions}; and
+the minimum, a lower bound on the achievable time. The meters have
+nanosecond-scale resolution, against measured regions ranging from a
+few tens of microseconds to hundreds of milliseconds, so the cost of
+the timing itself is negligible and is not subtracted.
 
 \subsection{Energy measurement}
 \label{sec:meth-energy}
 
-Energy is measured by the executable itself rather than by an external
-wrapper monitoring the process. An external tool measures the whole
-process, whereas the measurement loop occupies only part of it, and that
-part differs systematically by architecture. Such a tool would introduce
-a systematic bias in favour of architectures with lower initialisation
-cost. The meters are therefore read from within the process, at exactly
-the same points in the code as the timers of section~\ref{sec:meth-timing}.
+Energy is measured by the executable itself, not by an external
+wrapper that monitors the process, for a specific reason: an external
+tool measures the whole process, whereas the measurement loop
+occupies only part of it, a part that moreover differs systematically
+by architecture, which would introduce bias in favour of
+architectures with lower initialisation cost. The meters are
+therefore read from within the process, at exactly the same points in
+the code as the timers of section~\ref{sec:meth-timing}.
 
-The sources differ by architecture, but the scope remains symmetric. For
-all architectures the energy of the processor package is measured via the
-RAPL counters, and for the graphics unit the power draw of the card is
-added. The end-to-end scope therefore corresponds to the total cost of
-solving the problem for all three, and the graphics unit does not hide
-the cost it imposes on the host.
+The sources differ by architecture, but the scope remains symmetric.
+For all architectures the energy of the processor package is measured
+via the RAPL counters, while for the graphics unit the card's power
+draw is added. The end-to-end scope thus corresponds to the total
+cost of solving the problem for all three, without the graphics unit
+concealing the cost it imposes on the host.
 
-The reported energy is the sum, not the mean, of the 50 repetitions: the
-RAPL counters quantise each individual reading but accumulate without
-reset, so the sum remains accurate even when each individual difference
-is on the order of the quantisation step. Reading the counters requires
-elevated privileges. When these are unavailable, the executable states
-the measurement as unavailable rather than reporting zero as data.
+The reported energy is the sum, not the mean, of the 50 repetitions.
+The RAPL counters quantise each individual reading, but accumulate
+without reset, so the sum stays accurate even when each individual
+difference is on the order of the quantisation step. Reading the
+counters requires elevated privileges, and when these are missing the
+executable states explicitly that the measurement is unavailable,
+rather than reporting zero values as data.
 
-Of the RAPL fields, only the package one is used: the core subfield was
-found unreliable on this processor, recording only \qty{6}{\watt} under
-full eight-thread load while package power increases by about
+Of the RAPL fields, only package is used: the core subfield was found
+unreliable on this processor, recording only \qty{6}{\watt} under
+full eight-thread load, while package power rises by about
 \qty{53}{\watt}.
 
-For the graphics unit, the total-energy counter exposed by NVML also
-proved unsuitable: it advances in steps of about \qty{20}{\joule} every
-few tens of milliseconds, so bracketing a millisecond-scale kernel
-returns an arbitrary multiple of the step. Three identical runs gave
-values differing by more than a factor of four, while the corresponding
-time differed by \qty{0.2}{\percent}. Instead, a helper thread samples
-the card's instantaneous power every \qty{2}{\milli\second} and
-integrates it over time. The underlying power reading itself refreshes
-less often than this sampling period, so a single algo window of a few
-milliseconds relies on a reading that has not had time to refresh.
-Summing over 50 repetitions smooths this inaccuracy out without
-eliminating it, unlike the millisecond-refreshing RAPL counters.
+For the graphics unit, the total-energy counter of the NVML library
+also proved unsuitable. It advances in steps of about
+\qty{20}{\joule} every few tens of milliseconds, so bracketing a
+millisecond-scale kernel returns an arbitrary multiple of the step:
+three identical runs gave values differing by more than a factor of
+four, while the corresponding time differed by \qty{0.2}{\percent}.
+Instead, a helper thread samples the card's instantaneous power every
+\qty{2}{\milli\second} and integrates it over time. The power reading
+itself refreshes less often than this sampling period, so an algo
+window of a few milliseconds relies on a reading that has not had
+time to refresh. Summing over the 50 repetitions smooths out this
+inaccuracy without eliminating it, unlike the RAPL counters, which
+refresh on a millisecond scale.
 
-Beyond the gross value, net energy is also reported: the gross value
-minus the energy the system would consume at idle over the same
-interval, with idle power measured before each sweep for the full set of
-counters of each architecture. The net quantity is preferable especially
-for the neural processing unit, where static consumption of the rest of
-the system dominates, and for the graphics unit, where it cancels the
-cost of the sampling mechanism itself.
+Beyond the gross value, net energy is also reported, i.e., the gross
+value minus the energy the system would consume idle over the same
+interval, with idle power measured before every sweep for the full
+set of counters of each architecture. The net figure is preferable
+especially for the neural processing unit, where the static
+consumption of the rest of the system dominates, and for the graphics
+unit, where it cancels out the cost of the sampling mechanism itself.
 
-What these measurements cannot show must be stated. The package meter
-covers the entire system-on-chip die: host cores, NPU tiles, uncore, and
-memory controller, all under one shared meter, so a run on the neural
-processing unit is measured as the total energy of the system while it
-works, including host-side data preparation. This is a fair, symmetric
-comparison of the cost of solving the problem, but it cannot show that
-the unit performs the computation itself while consuming less energy,
-since its own consumption is never separated from the host's. Isolating
-it would require external metering equipment.
+This methodology has an inherent limitation, worth stating
+explicitly. The package meter covers the entire die: host cores, NPU
+tiles, uncore, and memory controller, all under one shared meter. A
+run on the neural processing unit is therefore measured as the total
+energy of the system while it works, including host-side data
+preparation. This is a fair, symmetric comparison of the cost of
+solving the problem, but not proof that the unit performs the
+computation while itself consuming less energy, since its own
+consumption is never separated from the host's; isolating it would
+require external metering equipment.
 
 \subsection{Data traffic measurement}
 \label{sec:meth-traffic}
 
-Beyond time and energy, each run records the bytes it moved and the
-operations it performed. These are the coordinates that place the run on
-the plot of section~\ref{sec:meth-roofline}, so an error here does not
-merely add imprecision, it can imply an entirely
+Beyond time and energy, every run records the bytes it moved and the
+operations it performed -- the coordinates that place the run on the
+plot of section~\ref{sec:meth-roofline}. An error in counting them
+does not merely introduce imprecision; it can lead to an entirely
 wrong conclusion about what limits the implementation.
 
-For this reason traffic is not estimated from a model but accumulated by
-the code itself at the points where it occurs: per kernel launch on the
-graphics unit, per group of fused passes on the processor, and per data
-batch on the neural processing unit. This distinction matters because the
-obvious estimate, element count times type size, assumes each element
-is read once. Truncated bitonic sort instead traverses the working set
-repeatedly, by a factor that is not constant: roughly sevenfold for k
-much smaller than n, rising considerably and by architecture for the
-larger values of k, where truncation ceases to pay off. Using the naive
-estimate would make every implementation appear to use only a small
-fraction of the available bandwidth, wrongly suggesting none of them come
-close to the memory ceiling.
+For this reason traffic is not estimated from a model, but
+accumulated by the code itself at the point where it occurs: per
+group of fused passes on the processor, per kernel launch on the
+graphics unit, per data batch on the neural processing unit. The
+obvious estimate, element count times type size, assumes that every
+element is read once -- an assumption that does not hold here.
+Truncated bitonic sort traverses the working set repeatedly, by a
+factor that is not constant: roughly sevenfold the naive estimate for
+$k$ much smaller than $n$, rising considerably and differing by
+architecture for larger $k$, where truncation stops paying off. The
+naive estimate would make every implementation appear to use only a
+small fraction of the available bandwidth, wrongly suggesting that
+none of them approach the memory ceiling.
 
-The count is checked by independent verification where feasible. For
-bitonic sort with k up to 4096, the processor and the graphics unit
-execute the same stage schedule and compute their traffic in entirely
-separate code, yet arrive at the same value down to the last byte. This is
-strong evidence the traffic model is correct. For map-reduce the two
-values differ, as expected: although both maintain a local heap per
-thread, the processor runs only a few threads while the graphics unit
-runs thousands, with a correspondingly larger working space and an
-additional tree merge within each thread block, so the two implementations
-genuinely move different volumes of data.
+The count is checked by independent verification wherever feasible.
+For bitonic sort with $k$ up to 4096, the processor and the graphics
+unit run the same layer schedule and compute their traffic in
+entirely separate code, yet arrive at the same value down to the last
+byte -- strong evidence that the model is correct. For map-reduce the
+two values differ, as expected: although both maintain a local heap
+per thread, the processor runs a handful of threads while the
+graphics unit runs thousands, with a correspondingly larger working
+space and an additional tree merge within each thread group. The two
+implementations genuinely move different volumes of data.
 
-Not every quantity is equally observable, and each run states the
-quality of its own numbers. For bitonic sort, both bytes and operation
-count are exact, since the stage schedule is fully enumerable. For
-map-reduce the bytes are exact, while the comparison count is a lower
-bound, because the local heaps' reordering is data-dependent. For the
-reference implementation both quantities are lower bounds, since the
-libraries' internal passes are not observable from the calling code.
+Not every quantity is equally observable, and every run states the
+quality of its own numbers. For bitonic sort the bytes and the
+operation count are exact, since the schedule is fully enumerable.
+For map-reduce both the bytes and the comparison count are lower
+bounds, because the merge traffic and the reordering of the local
+heaps are data-dependent. For the reference implementation both quantities are
+lower bounds, since the libraries' internal passes are not observable
+from the calling code.
 
-Operations are measured in compare-exchanges rather than in
-floating-point operations: top-k selection performs no arithmetic, so a
-FLOP-based quantity would not correspond to anything actually executed,
-whereas the compare-exchange is the natural unit of work for the problem.
+Operations are measured in compare-exchanges rather than
+floating-point operations: top-k selection performs no arithmetic
+operations, so a figure in FLOPs would not correspond to anything
+actually executed, whereas the compare-exchange is the natural unit
+of work for the problem.
 
 \section{Roofline model}
 \label{sec:meth-roofline}
 
-Execution time says how fast an implementation is, but not why it is not
-faster. The roofline model~\cite{williams2009} answers this by comparing
-each measurement against the two upper bounds imposed by the machine: a
-bandwidth $\beta$ and a compute capability $\pi$. Which of the two binds
-is a property neither of the machine alone nor of the algorithm alone,
-but of their relationship, expressed by the operational intensity, the
-ratio of operations $W$ to bytes $Q$ moved:
+Execution time says how fast an implementation is, not why it is not
+faster. The roofline model~\cite{williams2009} answers this,
+comparing every measurement against the machine's two upper bounds: a
+bandwidth $\beta$ and a compute capability $\pi$. Which of the two
+binds is a property neither of the machine alone nor of the algorithm
+alone, but of their relationship, expressed by the operational
+intensity, the ratio of operations $W$ to bytes $Q$ moved:
 \[ I = \frac{W}{Q}, \qquad P = \min(\pi,\ \beta I) \]
-Figure~\ref{fig:meth-roofline} shows how the resulting plot is read.
+Figure~\ref{fig:meth-roofline} shows how the plot is read.
 
 \input{figures/meth-roofline}
 
-Applying the model here departs from usual practice in three respects,
-all necessary for the comparisons to be honest.
+Applying the model here departs from usual practice in three
+respects, necessary for the comparisons to be honest.
 
 First, both ceilings are measured on the same machine with separate
-executables rather than taken from manufacturer datasheets, since what is
-sought is what is actually achieved rather than what the hardware could
-achieve ideally.
+executables, rather than taken from manufacturer datasheets, since
+what matters is what is actually achieved, not what the hardware
+could achieve under ideal conditions.
 
-Second, the memory ceiling is not just a single number: achievable bandwidth
-depends on the working-set size, since data arrives much faster while it
-fits in some level of cache than from main memory. Bandwidth is therefore
-measured over successive working-set sizes, starting at
-\qty{32}{\kibi\byte} and doubling each time, and each measurement is
-compared against the ceiling for its own working set. This scale
-measures bandwidth under reuse, which might seem unsuitable for an
-algorithm that traverses the input only once. Here, however, the input is
-restored from its backup copy immediately before the timed region
-(section~\ref{sec:meth-conditions}), so for working sets up to the last
-cache level's size the data are already present in it and the measurement
-corresponds to a second pass. Beyond that size, the scale converges on
-its own to the rate of main memory.
+Second, the memory ceiling is not just one number: achievable
+bandwidth depends on the size of the working set, since data arrive
+far faster while they fit in some level of cache than from main
+memory. Bandwidth is therefore measured over successive working-set
+sizes, starting at \qty{32}{\kibi\byte} and doubling each time, and
+every measurement is compared against the ceiling of its own working
+set. This scale measures bandwidth under reuse, which might seem
+unsuitable for an algorithm that traverses the input only once; the
+objection does not hold here, though, since the input is restored
+from its backup copy immediately before the timed region
+(section~\ref{sec:meth-conditions}), so that for working sets up to
+the size of the last cache level the data are already present in it
+and the measurement corresponds to a second pass. Beyond that size
+the scale converges on its own to the rate of main memory.
 
 Third, the compute ceiling is measured in compare-exchanges, for the
-reason given in section~\ref{sec:meth-traffic}. If each compare-exchange
-used the result of the previous one, the measurement would capture the
-latency of a single operation rather than the rate at which many can
-execute, and the ceiling would come out several times too low, with every
-implementation appearing, incorrectly, to be touching it. The measurement
-kernel therefore runs 64 independent chains in parallel, alternating
-between three registers so no operation can be elided by the compiler.
+reason given in section~\ref{sec:meth-traffic}. If every
+compare-exchange used the result of the previous one, a dependency
+chain would form, measuring the latency of a single operation instead
+of the throughput of executing many, and the ceiling would come out
+several times lower, with every implementation wrongly appearing to
+be touching it. The measurement kernel therefore runs 64 independent
+chains in parallel, alternating between three registers so that no
+operation is elided by the compiler.
 
-For the neural processing unit the model carries a different meaning.
-There is no available AIE kernel with tunable operational intensity, so
-the measured ceilings concern the unit's feed path rather than tile
-computation: they read as "how fast can the host prepare the data the
-unit consumes," which is, in any case, the implementation's actual
+For the neural processing unit the model carries a different meaning:
+there is no available AIE kernel with tunable operational intensity,
+so the measured ceilings concern the unit's feed path rather than the
+computation on the tiles. They are read as ``how fast the host can
+prepare the data the unit consumes'' -- the implementation's actual
 bottleneck.
 
 \section{Baseline libraries}
 \label{sec:meth-baseline-libraries}
 
 The performance baseline is an established library implementation per
-architecture. A new implementation has value only if it is faster than
-what a developer already has available.
+architecture. A new implementation has value only if it is faster
+than what the programmer already has available.
 
 For the processor, std::partial\_sort is used. Its choice over
-std::nth\_element is not self-evident, but for k much smaller than n it
-is clearly faster, since it maintains a heap of size k that stays in
-cache and rejects most elements with a single comparison.
+std::nth\_element is not self-evident: for $k$ much smaller than $n$
+it is clearly faster, since it maintains a heap of size $k$ that
+stays in cache and rejects most elements with a single comparison.
 
-For the graphics unit, cub::DeviceTopK is used, which implements radix
-selection. It is important that this is a genuine top-k selection
-function and not a full sort followed by truncation, so the comparison
-is against an opponent that solves the same problem in an optimised way.
+For the graphics unit, cub::DeviceTopK is used, which implements
+radix selection. It matters that this is a genuine top-k selection
+function and not a full sort followed by truncation, so the
+comparison is against an opponent that solves the same problem in an
+optimised way.
 
-For the neural processing unit there is no equivalent baseline: the AIE
-toolchain provides a compiler and example kernels, not an algorithms
-library, so no established top-k implementation exists for this hardware,
-from the manufacturer or otherwise, to compare against. The same
-std::partial\_sort used for the processor is used instead, running
-entirely on the host without touching the unit at all. This changes the
-question the comparison answers: not "is our implementation better than
-an optimised AIE kernel," since no such kernel exists, but "is it worth
-offloading the computation to the unit, or preferable to run it with the
-means the host already has". This is the question anyone actually
-considering its use faces in practice.
+For the neural processing unit there is no equivalent baseline. The
+AIE toolchain provides a compiler and example kernels, not an
+algorithms library: no established top-k implementation exists for
+this hardware, neither from the manufacturer nor from third parties.
+The same std::partial\_sort used for the processor is used instead,
+run entirely on the host without any use of the unit. This changes
+the question the comparison answers: not ``is our implementation
+better than an optimised AIE kernel'', since no such kernel exists,
+but ``is it worth offloading the computation to the unit, or is it
+preferable to run it with the means the host already has'' -- exactly
+the question anyone actually considering the unit's use faces in
+practice.
 
-Sharing the baseline between the two architectures also provides an
-independent check on the harness: because it is literally the same code
-on the same hardware, the two measurements ought to agree, and their
-agreement in chapter~\ref{ch:evaluation} confirms the harness introduces
-no systematic bias depending on which architecture is declared.
+The shared baseline additionally offers an independent check on the
+harness: because it is literally the same code on the same hardware,
+the two measurements ought to agree, and their agreement in the
+results of chapter~\ref{ch:evaluation} confirms that the harness
+introduces no systematic bias depending on which architecture is
+declared.
 
 \section{Correctness checking}
 \label{sec:meth-correctness}
 
 A timing measurement is meaningful only if the result is correct, so
-every case of every sweep is verified, and failures are recorded as such
-rather than included among the results.
+every case of every sweep is verified, and those that fail are
+recorded as failures rather than included among the results.
 
-Checking is done against a separate ground truth, not to be confused
-with the baseline libraries of section~\ref{sec:meth-baseline-libraries}:
-those are a performance baseline, this one judges correctness. It is the
-simplest possible implementation: a copy of the input fully sorted on
-the host, keeping the first k elements. It is slow, not meant to compete
-with anything, and obviously correct enough that its verdict can be
-trusted.
+Checking is done against a separate ground truth, which must not be
+confused with the baseline libraries of
+section~\ref{sec:meth-baseline-libraries}: those are a performance
+baseline, while this one judges whether a result is correct. It is
+the simplest possible implementation: a copy of the input is fully
+sorted on the host and the first $k$ elements are kept. It is slow,
+with no intention of competing; its only role is to be obviously
+correct, so that its verdict can be trusted.
 
-The comparison is not identical for all types: integer types require
-exact equality, floating-point types a relative or absolute tolerance
-depending on magnitude, since different architectures perform operations
-in a different order and with different intermediate precision. Because
-every implementation returns its result sorted, in the same order as the
-ground truth (section~\ref{sec:bg-problem}), the comparison is made
-position by position rather than as a set. When both
-the full and the truncated network are run, the two results are
-additionally cross-checked, confirming that truncation does not corrupt
-the result.
+The comparison is not made the same way for every type: integers
+require exact equality, floating-point types a tolerance, relative or
+absolute depending on the magnitude of the values, since different
+architectures perform operations in a different order and with
+different intermediate precision. Because every implementation
+returns its result sorted, in the same order as the ground truth
+(section~\ref{sec:bg-problem}), the comparison is made position by
+position rather than as a set. When both the full and the truncated
+network are run, the two results are additionally cross-checked
+against each other, as an independent confirmation that truncation
+does not corrupt the result.
 
-In the main sweep of this work, all 2700 cases were verified with no
+In this work's main sweep all 2700 cases were verified with no
 failures.
 
 \section{Parameter space}
 \label{sec:meth-parameters}
 
-Each run is fully determined by its command-line parameters. None are
-read from a configuration file or environment variable, so a
-measurement's description is always complete and reproducible. The full
-list is given in appendix~\ref{app:reproducibility}.
+Every run is fully determined by its command-line parameters. None is
+read from a configuration file or environment variable, so that the
+description of a measurement is always complete and reproducible.
+The full list is given in appendix~\ref{app:reproducibility}.
 
-The input size is a power of two, n equal to $2^q$, with q swept from 3
-to 24. The upper bound, about 16.8 million elements, is large enough that
-the working set far exceeds the cache and the measurement concerns main
-memory. The lower bound is not arbitrary, since for q smaller than 3 the
-input has fewer elements than the smallest requested k.
+The input size is a power of two, $n$ equal to $2^q$, with $q$ swept
+from 3 to 24. The upper bound, about 16.8 million elements, is large
+enough that the working set exceeds the cache by far and the
+measurement concerns main memory. The lower bound is not arbitrary
+either, since for $q$ smaller than 3 the input has fewer elements
+than the smallest requested $k$.
 
-The parameter k takes the values 8, 256, 4096, and 131072, orders of
-magnitude apart, covering regimes from a k so small the heap fits in a
-handful of registers to a k that is a significant fraction of the input
-itself. Where k exceeds n, it is clamped to n.
+The parameter $k$ takes the values 8, 256, 4096, and 131072, orders
+of magnitude apart, covering situations from a $k$ so small that the
+heap fits in a handful of registers, to a $k$ that is a significant
+fraction of the input itself. Where $k$ exceeds $n$, it is clamped to
+$n$.
 
 \subsection{Data types}
 \label{sec:meth-dtypes}
@@ -456,20 +478,22 @@ Five data types are swept, given in table~\ref{tab:dtypes}.
 \end{table}
 
 The type affects the measurement in two ways: it determines how many
-bytes move per element, so the same implementation shifts relative to
-the memory ceiling depending on type, and it determines the cost of a
-comparison, which is not the same for all types.
+bytes move per element, so the position of the same implementation
+relative to the memory ceiling shifts with the type, and it
+determines the cost of a comparison, which is not the same across
+types.
 
 \subsection{Input distributions}
 \label{sec:meth-distributions}
 
-The input distribution is not immaterial: heap-based algorithms perform
-work only when a new element exceeds the heap's root, so the order in
-which values appear drastically changes their running time. The five
-distributions of table~\ref{tab:distributions} are swept. The executable
-additionally supports the normal distribution, not used here since
-trimodal covers clustered values more sharply. Each is shown in
-figure~\ref{fig:meth-dists}.
+The distribution of the input values is not immaterial: heap-based
+algorithms do work only when a new element exceeds the heap's root,
+so the order in which values appear drastically changes their
+running time. The five distributions of
+table~\ref{tab:distributions} are swept. The executable additionally
+supports the normal distribution, not used here since trimodal covers
+the case of clustered values more sharply. The shape of each is shown
+in figure~\ref{fig:meth-dists}.
 
 \begin{table}[H]
     \centering
@@ -491,30 +515,31 @@ figure~\ref{fig:meth-dists}.
 \input{figures/meth-dists}
 The two ordered distributions form the two extremes for heap-based
 selection (section~\ref{sec:bg-mapreduce}): descending is the most
-favourable case and ascending the least. Adversarial preserves this
-unfavourable behaviour without being fully sorted: most values lie in the
-lower half of the range, with ascending spikes interspersed at regular
-intervals.
+favourable case and ascending the least favourable. Adversarial
+retains this unfavourable behaviour without being fully sorted: most
+of the values lie in the lower half of the range, with ascending
+spikes at regular intervals.
 
-Bitonic sort is data-oblivious, executing the same comparison network
-regardless of the values, so it serves as a witness: if its time changes
-across distributions, the change is due to the measurement, not the
-algorithm.
+Bitonic sort is data-oblivious, since it executes the same comparison
+network regardless of the values, and so serves as a witness: if its
+time changes across distributions, the change is due to the
+measurement and not to the algorithm.
 
 \section{Measurement conditions and reproducibility}
 \label{sec:meth-conditions}
 
-The system is not, by default, in a state suitable for measurement: the
-frequency governor is powersave and boost is active, so operating
-frequency varies with load and temperature. This is a systematic drift
-over the course of a sweep as the system heats up, not random noise, so
-the standard deviation of samples taken under drifting conditions would
+The system is not, by default, in a state suitable for measurement.
+In its default configuration the frequency governor is powersave and
+frequency boost is active, with the result that operating frequency
+varies with load and temperature. This is a systematic drift over the
+course of a sweep as the system heats up, not random noise, so the
+standard deviation of samples taken under drifting conditions would
 not capture the measurement's true uncertainty.
 
-Before each sweep the system is therefore pinned to a fixed, documented
-state, summarised in table~\ref{tab:conditions}, recorded before the
-sweep and restored after. The corresponding commands are given in
-appendix~\ref{app:reproducibility}.
+For this reason, before every sweep the system is pinned to a fixed,
+documented state, summarised in table~\ref{tab:conditions}, recorded
+before the sweep and restored afterwards. The corresponding commands
+are given in appendix~\ref{app:reproducibility}.
 
 \begin{table}[H]
     \centering
@@ -532,39 +557,41 @@ appendix~\ref{app:reproducibility}.
         Measured repetitions & 50 per case \\
         \hline
     \end{tabular}
-    \caption{The conditions to which the system is pinned before each sweep.}
+    \caption{The conditions to which the system is pinned before every
+    sweep.}
     \label{tab:conditions}
 \end{table}
 
 The graphics unit's power limit is chosen once, within the bounds of
-table~\ref{tab:machine}, and held fixed throughout. Its specific value is
-arbitrary, but any change to it during a sweep would alter time and
-energy simultaneously.
+table~\ref{tab:machine}, and kept fixed. Its value is arbitrary, but
+any change to it during a sweep would alter time and energy at the
+same time.
 
 As noted in section~\ref{sec:meth-machine}, the three units share a
-common thermal budget. A \qty{15}{\second} cool-down between successive
-units prevents each from starting from the thermal state left by the
-previous one, and no other computational load runs during a sweep. This
-is a mitigation rather than an elimination, since on a laptop the thermal
-coupling between units cannot be removed, and this remains an
-acknowledged limitation of the measurements.
+common thermal budget. A \qty{15}{\second} cool-down period between
+successive units keeps each one from starting out from the thermal
+state left by the previous one, and no other computational load runs
+during a sweep. This does not eliminate the problem, only mitigates
+it: on a laptop the thermal coupling between the units cannot be
+fully removed, which remains an acknowledged limitation of these
+measurements.
 
-Each case runs 5 times as warm-up and 50 times under measurement, with
-mean, standard deviation, and minimum reported. Before each repetition
-the input is restored from a backup copy, outside the timed region, so
-the cost of the copy is not counted and every repetition starts from an
-identical input. This is critical, since data-dependent implementations
-would otherwise show artificially improved times on an already partially
-sorted input.
+Every case is run 5 times as warm-up and 50 times under measurement,
+with the mean, standard deviation, and minimum reported. Before every
+repetition the input is restored from a backup copy, outside the
+timed region, so that the cost of the copy is not counted and every
+repetition starts from an identical input. This is critical for
+data-dependent implementations: without this care they would show
+artificially improved times on an already partially sorted input.
 
-Beyond the repetitions within a case, each combination of input
-distribution and random-number-generator seed constitutes an independent
-sample. The plots in this work aggregate these samples and depict their
-spread as error bands, distinguishing uncertainty due to the data from
-uncertainty due to the measurement.
+Beyond the repetitions within a case, every combination of
+distribution and random-number-generator seed constitutes an
+independent sample. The plots aggregate these samples and depict
+their spread as error bands, distinguishing uncertainty due to the
+data from uncertainty due to the measurement.
 
-Finally, each run records the environment in which it executed: the
-repository revision, kernel, compiler, and each unit's driver and runtime
-versions. This is stored alongside the results, so each set of
-measurements documents its own production conditions independently of
-external records that might drift out of sync.
+Finally, every run records the environment in which it ran: the
+repository revision, the kernel, the compiler, and the driver and
+runtime library versions of each unit. In this way, every set of
+measurements documents its own production conditions without
+depending on external records that might drift out of sync.
