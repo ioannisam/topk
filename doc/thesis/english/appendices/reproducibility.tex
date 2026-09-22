@@ -1,121 +1,105 @@
-\chapter{Reproducing the Measurements}
+\chapter{Reproducing the measurements}
 \label{app:reproducibility}
 
-This appendix describes the steps required to reproduce the thesis's
-measurements, from installing the tools to generating the plots. The commands
-are given for the system described in Section~\ref{sec:meth-machine} and are
-executed from the root of the repository, available at
-\url{https://github.com/ioannisam/topk}.
+This appendix describes the steps for reproducing the measurements of this
+work. The procedure covers installing the tools, running the code, and
+generating the plots and the report. The commands concern the system of
+section~\ref{sec:meth-machine} and are run from the root of the repository
+(\url{https://github.com/ioannisam/topk}).
 
-\section{Software Requirements}
+\section{Software requirements}
 \label{sec:repro-requirements}
 
 All three implementations require a C++ compiler that supports the C++20
-standard, together with CMake version 3.18 or newer. Vector instructions are
-not a compilation requirement: the choice between AVX-512, AVX2 and scalar
-execution is made at run time, based on the capabilities reported by the
-processor. The thesis's measurements were obtained on a processor with
-AVX-512, so on a machine without it the CPU follows a different code path and
-its results are not directly comparable. Beyond these, each architecture has
-its own requirements.
+standard, as well as cmake version 3.18 or newer. Vector instructions are not a
+compilation requirement. The choice between AVX-512, AVX2 and scalar execution
+is made at run time, based on the capabilities reported by the processor.
+Because the measurements were made on a machine with AVX-512, its absence leads
+to a different code path and the results are not directly comparable.
 
-The GPU requires the CUDA toolkit with the nvcc compiler and the CUB library,
-which is distributed together with it. Power measurements additionally
-require the NVML library, which ships with the driver.
+The graphics unit requires the CUDA toolkit, which includes the nvcc compiler
+and the CUB library. Power measurements additionally require the driver's NVML
+library.
 
-The NPU requires the XRT runtime stack together with the XDNA device plugin,
-and, for compiling the kernels, MLIR-AIE within a Python environment. This
-environment must reside at the root of the repository under the name
-npu\_venv, since both kernel compilation and the automated execution of the
-measurements look for it there. The user must belong to the groups that have
-access to the device, and the locked-memory limit must be sufficient;
-otherwise the device is not visible to the runtime stack. The XILINX\_XRT
-variable must point to the installation location of XRT.
+The neural processing unit requires the XRT runtime stack and the XDNA plugin.
+Compiling the kernels needs MLIR-AIE in a Python environment. This environment
+must reside at the root of the repository under the name npu\_venv, since that
+is where the run scripts look for it. The user must belong to the device's
+access groups and have a sufficient locked-memory limit; otherwise the device
+is not recognised. The XILINX\_XRT variable must point to the XRT installation.
 
-Energy measurement reads the RAPL counters through /sys/class/powercap,
-which requires elevated privileges. In a single run, without these the
-measurement is explicitly reported as unavailable rather than reporting zero
-values, as described in Section~\ref{sec:meth-energy}; the corresponding
-sweep, by contrast, does not even start and terminates with an error, so that
-no empty dataset is produced. Finally, the analysis infrastructure requires
-Python with the libraries declared in the repository; the corresponding
-environment is created automatically the first time it is run.
+Energy measurement reads the RAPL counters from /sys/class/powercap, which
+requires administrator privileges. In a single run without them, the
+measurement is explicitly declared unavailable instead of recording zeros
+(section~\ref{sec:meth-energy}). The automated sweep, in contrast, is aborted
+entirely to avoid producing an empty dataset. Finally, the analysis
+infrastructure requires the repository's Python libraries. The corresponding
+environment is created automatically on the first run.
 
 \section{Compilation}
 \label{sec:repro-build}
 
-Compiling all implementations is done with a single command:
+All implementations are compiled with a single command:
 
 \begin{verbatim}
 make build-all
 \end{verbatim}
 
-Each architecture can also be compiled separately, using the build-cpu,
-build-gpu and build-npu targets, which is useful on a system that does not
-have all three units. The resulting executables are placed in the build
-directory, two per architecture: one for the top-k measurements and one for
-the roofline measurements of Section~\ref{sec:meth-roofline}.
+Each architecture can also be compiled on its own, with the targets build-cpu,
+build-gpu and build-npu, which is useful on a system that does not have all
+three units. The resulting executables are placed in the build directory, two
+per architecture: one for the top-k measurements and one for the ceiling
+measurements of section~\ref{sec:meth-roofline}.
 
-Compilation for the NPU additionally produces the hardware configuration
-files. Because their absence leads to the corresponding measurements being
-silently skipped, their presence is checked explicitly:
+Compilation for the neural processing unit additionally produces the hardware
+configuration files. Because their absence leads to the corresponding
+measurements being silently skipped, their presence is checked explicitly:
 
 \begin{verbatim}
 make verify-artifacts
 \end{verbatim}
 
-The check covers the two configuration files and the three top-k measurement
-executables, so it presupposes a full compilation of all three
-implementations; after compiling only a single architecture it fails by
-default.
+The check examines the two configuration files and the three top-k executables.
+It presupposes a full compilation, so it fails automatically if only one
+architecture has been compiled.
 
-\section{Running the Experiments}
+\section{Running the experiments}
 \label{sec:repro-run}
 
-The recommended way to reproduce the results is not to run the individual
-steps, but a single command that executes the entire procedure:
+The recommended way to reproduce the results is to run the whole procedure with
+a single command:
 
 \begin{verbatim}
 make benchmark GPU_W=50
 \end{verbatim}
 
-The reason this is the preferred route is not convenience, but consistency.
-The order of the steps matters: if the system conditions are pinned after the
-measurements have started, or if a sweep is run with executables from an
-earlier compilation, the results are not comparable to one another. The
-command enforces the correct order and leaves no room for a step to be
-skipped.
+This command ensures the correct sequence of steps. If the conditions are
+pinned after the fact or old executables are used, the results lose their
+comparability. The command enforces the proper order and prevents omissions.
 
-The sequence that runs consists of six stages. First, the previous results
-and old executables are deleted, so that nothing survives from an earlier
-run. Next, all three implementations are compiled and the presence of the
-resulting files is checked, using the check from Section~\ref{sec:repro-build}.
-In the third stage, the system conditions are pinned and read access to the
-energy counters is granted. In the fourth, the four sweeps are run in
-sequence; in the fifth, the plots for each of them are generated; and in the
-sixth, the original system conditions are restored.
+The sequence comprises six stages. First, the old results and executables are
+deleted. Compilation and the check of the files follow
+(section~\ref{sec:repro-build}). In the third stage the system conditions are
+pinned and access to the energy counters is granted. The four measurement
+sweeps follow, then the generation of the plots and, finally, the restoration
+of the system.
 
-Two preconditions are checked before anything else: the availability of sudo
-and the existence of the npu\_venv environment from
-Section~\ref{sec:repro-requirements}. If either is missing, the command
-terminates immediately, without altering the system or the existing results.
+The procedure first checks the availability of sudo and of the npu\_venv
+environment. If either is missing, the command terminates immediately, without
+altering the system or the data.
 
-Three properties of the command are worth noting. Administrator privileges
-are requested only once, at the beginning, and remain active for the entire
-duration, so the run requires no further intervention afterwards. The
-conditions are restored in every case, even if the run is interrupted by the
-user or terminates with an error, so that the system is not left pinned.
-Finally, the failure of one sweep does not cancel the rest: it is logged as a
-warning and the procedure continues, so that a partial run nonetheless
-produces whatever data it was possible to measure.
+Administrator privileges are requested once and remain active. The conditions
+are always restored at the end, even in case of an error or an interruption by
+the user, preventing the system from being left in a pinned state. The failure
+of an individual sweep does not stop the rest; it is simply logged as a
+warning.
 
-The GPU\_W argument sets the power limit of the GPU, which, according to
-Section~\ref{sec:meth-conditions}, must remain constant throughout the
-sweep. It should also be stressed that the command deletes the existing
-results as its first step, so any previous measurements that need to be kept
-must first be copied elsewhere.
+The GPU\_W argument sets the power limit of the graphics unit, which must
+remain constant (section~\ref{sec:meth-conditions}). The procedure deletes the
+existing results immediately, so the user must first keep copies of any data
+they want to preserve.
 
-\subsection{Running Individual Steps}
+\subsection{Running individual steps}
 \label{sec:repro-steps}
 
 For a partial or repeated run, each stage is also available separately. The
@@ -127,8 +111,7 @@ make pin-show         # report the current state
 make unpin            # restore governor, boost, GPU cap
 \end{verbatim}
 
-The measurements are divided into four independent sweeps, each of which
-writes its raw results to a separate file:
+The four independent sweeps write their raw results to separate files:
 
 \begin{verbatim}
 make measure-cases      # timing over the parameter space
@@ -137,45 +120,37 @@ make measure-dists      # input-distribution sensitivity
 make measure-roofline   # bandwidth, compare-exchange roofs
 \end{verbatim}
 
-Each target accepts additional arguments through the ARGS variable, which are
-forwarded to the sweep driver and allow the parameter space to be restricted
-to a subset of it. This is useful for quickly checking the installation,
-where a full sweep would be excessively time-consuming. When the stages are
-run separately, responsibility for the correct order and for the stability of
-the conditions between sweeps rests with the user.
+The targets accept additional arguments through the ARGS variable, restricting
+the parameter space. This makes it easy to check the installation quickly. In a
+manual run, the user takes responsibility for the correct order and for keeping
+the conditions constant.
 
-\subsection{Execution Parameters}
+\subsection{Execution parameters}
 \label{sec:repro-cli}
 
-Table~\ref{tab:cli} gives the full set of parameters accepted by each
-executable, their permitted values, their defaults, and the values with
-which the thesis's sweeps were run.
+Table~\ref{tab:cli} summarises the parameters of each executable, the permitted
+values, the defaults and the values used in the sweeps.
 
-The defaults are those of the executable and in several cases do not match
-the values used in the sweeps. The value range extends up to $10^9$ instead
-of the default, and the reason is substantive: with a range of only a few
-thousand values and an input of millions of elements, value repetitions
-would be so dense that the problem would turn into a choice among ties,
-which would artificially favour algorithms that reject quickly.
+The defaults often differ from the final sweep values. The value range was set
+up to $10^9$ instead of the default, to avoid an excessive accumulation of ties
+in inputs of millions of elements. Many ties would artificially favour the
+algorithms that reject elements quickly.
 
-This range applies to four of the five types. For half, the executable
-clamps the bounds to $\pm 65504$, the largest finite value it can represent,
-so sampling actually takes place over $[0, 65504]$. For this type, ties are
-not avoided, both because of the narrower range and because above $2048$
-half does not represent every integer. This is an inherent property of the
-type rather than a methodological choice, but it must be taken into account
-when interpreting its results.
+This range applies to four of the five types. For half, the executable clamps
+the bounds to $\pm 65504$, the largest finite value of the type. In this case
+ties remain unavoidable, because of the narrow range and the inability of half
+to represent all integers above $2048$. This property stems from the type
+itself and directly affects the interpretation of the results.
 
-The seed is not fixed, but is generated deterministically from the q and k
-of each case, so that two different cases never receive the same input
-while each case remains reproducible.
+The random seed is generated deterministically from the q and k of each case.
+This ensures reproducibility without the same input ever being given under
+different conditions.
 
-The values in the fourth column refer to the main sweep. The two special
-sweeps restrict certain parameters: the distribution sweep examines q from
-20 to 24, only the float and half types, and the k extremes 8 and 131072,
-with two seeds per case; the energy sweep examines q from 16 to 24 with
-three repetitions and without correctness checking, so that the check is
-not counted toward the consumption.
+The main sweep uses the values of the fourth column. The special sweeps
+restrict the parameters: the distribution sweep examines q from 20 to 24, the
+float and half types, and the k extremes 8 and 131072, with two seeds per case.
+The energy sweep examines q from 16 to 24 with three repetitions, skipping the
+correctness check so as not to inflate the consumed power needlessly.
 
 \begin{table}[H]
     \centering
@@ -184,17 +159,17 @@ not counted toward the consumption.
         \hline
         Parameter & Values & Default & In the sweeps & Meaning \\
         \hline
-        q & integer 0--63 & --- & 3--24 & Input size $n = 2^q$; the only mandatory parameter \\
-        k & positive integer & n & 8, 256, 4096, 131072 & Number of requested elements; capped at n \\
+        q & integer 0--63 & --- & 3--24 & Input size $n = 2^q$ (the only mandatory one) \\
+        k & positive integer & n & 8, 256, 4096, 131072 & Number of requested elements (capped at n) \\
         mode & min $|$ max & max & max & Selects the smallest or largest elements \\
         dtype & int $|$ uint $|$ float $|$ double $|$ half & int & all five & Element type \\
         algo & bitonic $|$ map\_reduce $|$ gt & bitonic & all three & Algorithm to run \\
         run & full $|$ trunc $|$ both & trunc & trunc & Variant of the bitonic network \\
         seed & non-negative integer & 42 & generated from q, k & Seed of the random-number generator \\
-        dist & \mbox{uniform} $|$ \mbox{normal} $|$ \mbox{trimodal} $|$ \mbox{sorted} $|$ \mbox{reverse} $|$ \mbox{adversarial} & uniform & uniform; five in the distribution sweep & Input distribution \\
-        min / max & integers & 0 / 1000 & 0 / $10^9$ & Value range; requires max $\geq$ min; clamped to the range of the type \\
-        threads & positive integer & 0 (automatic) & 8 & Number of threads; ignored by the NPU \\
-        verify & true $|$ false & false & true & Checks correctness against the ground truth \\
+        dist & \mbox{uniform} $|$ \mbox{normal} $|$ \mbox{trimodal} $|$ \mbox{sorted} $|$ \mbox{reverse} $|$ \mbox{adversarial} & uniform & uniform (all five in the distribution sweep) & Input distribution \\
+        min / max & integers & 0 / 1000 & 0 / $10^9$ & Value range (requires max $\geq$ min, clamped to the range of the type) \\
+        threads & positive integer & 0 (automatic) & 8 & Number of threads (ignored by the NPU) \\
+        verify & true $|$ false & false & true & Check against the verification implementation \\
         debug & true $|$ false & true & false & Verbose diagnostic output \\
         \hline
     \end{tabular}
@@ -202,21 +177,19 @@ not counted toward the consumption.
     \label{tab:cli}
 \end{table}
 
-\section{Generating the Plots}
+\section{Generating the plots}
 \label{sec:repro-plots}
 
-The analysis infrastructure reads the raw results of the sweeps, converts
-them into tables in CSV format, and generates the plots:
+The analysis infrastructure reads the raw results, converts them into CSV
+tables and generates the plots:
 
 \begin{verbatim}
 make plot ARGS="--plot all"
 \end{verbatim}
 
-The --plot argument selects which plots will be produced, while --input
-specifies which sweep will be read; the default is the timing sweep. The
-energy, distribution and roofline plots read their own files, so it is
-usually preferable to use the combined targets, which run the measurement
-and the corresponding plot generation together:
+The --plot argument selects the plots and --input the sweep (the default is the
+timing sweep). Because the other plots use their own files, the combined
+targets are recommended, which run the measurement and the generation directly:
 
 \begin{verbatim}
 make benchmark-cases
@@ -225,20 +198,14 @@ make benchmark-dists
 make benchmark-roofline
 \end{verbatim}
 
-The resulting files are organised by data type and by measurement category,
-together with the tables from which they were derived. Plots that concern
-the machine itself, such as the bandwidth scale of
-Section~\ref{sec:meth-roofline}, are placed in a separate directory, since
-they do not depend on the data type.
+The files are organised by data type and category. Plots that concern only the
+hardware (e.g.\ the bandwidth scale) are stored in a separate directory, since
+they do not depend on the type.
 
-Two options affect the interpretation of the plots and are worth mentioning.
---energy-metric selects between gross energy, net energy, or both together,
-which is also the executable's default; the thesis's sweeps explicitly
-request the net figure, for the reasons given in
-Section~\ref{sec:meth-energy}. --error-bars selects the kind of dispersion
-band drawn around the values, among standard deviation, deciles, or no band
-at all, with standard deviation as the default. A band is drawn only where
-there are at least two samples per point, namely in the distribution sweep,
-which uses two seeds per case, and in the energy sweep, which repeats each
-case three times. In the automated run, the bands are disabled for all four
-sweeps, so the plots it produces do not include them.
+Two parameters determine the presentation. --energy-metric selects between
+gross and net energy. The sweeps of this work use the net figure
+(section~\ref{sec:meth-energy}). The --error-bars parameter sets the dispersion
+band (standard deviation, deciles or none). The band is drawn only if there are
+at least two samples per point, that is, in the distribution sweep (two seeds)
+and the energy sweep (three repetitions). In the automated run, the bands are
+disabled entirely.

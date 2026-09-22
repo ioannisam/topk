@@ -4,345 +4,290 @@
 \section{Design choices}
 \label{sec:gpu-design}
 
-Two issues run through both implementations in this chapter: the
-handling of data types and the mapping of work onto the device's
-execution structure.
+Both algorithms here face two basic challenges: the handling of data types and
+the distribution of the workload across the device's execution resources.
 
-Type handling follows the same logic as on the processor, but in a
-simpler form. A structure is defined per type that exposes the
-operations the algorithms need, namely comparisons and the minimum
-and maximum, and the algorithms are written once against it. The
-essential difference from the processor's case is that here there is
-no question of selecting a width at run time: the compiler generates
-code for the device's specific architecture, so the abstraction
-serves only to distinguish types.
+Type handling follows the processor's philosophy in a simpler form.
+Specifically, a structure per type exposes all the operations the algorithms
+need (comparisons, finding the minimum/maximum), allowing the main code to be
+written only once, regardless of type. The distinguishing difference from the
+processor is that on the graphics unit there is no question of selecting a
+width dynamically at run time. The compiler directly generates optimal code for
+the device's specific architecture, so the abstract interface serves
+exclusively to distinguish types.
 
-A mapping between the host's types and the device's types is also
-required, since half precision is represented by a different type in
-the two environments. This mapping happens at a single point and is
-transparent to the algorithms, which have no knowledge of which side
-they run on.
+In addition, an explicit mapping between the types of the host and the device
+is required, given that half precision is represented by a different type in
+the two environments. This mapping is implemented centrally at a single point,
+remaining completely transparent to the algorithms, which are written so as to
+be unaware of the environment in which they run.
 
 \subsection{Mapping onto the grid and thread blocks}
 \label{sec:gpu-mapping}
 
-The device executes threads organised into blocks, and blocks into a
-grid. The distinction is not administrative: threads of the same
-block can share fast memory and synchronise with one another, while
-threads of different blocks have neither capability. Each algorithm
-must therefore place its dependencies within blocks wherever this is
-possible.
+The device executes threads organised into blocks, and the blocks into a grid.
+The distinction is essential, because threads of the same block share fast
+memory and synchronise with one another, whereas threads of different blocks
+lack such capabilities. Each algorithm must therefore place its dependencies
+within blocks, wherever this is possible.
 
-Both implementations use blocks of 256 threads, a size that balances
-having enough threads to cover memory latency against not so many
-that the number of blocks able to coexist on each multiprocessor is
-restricted.
+Both implementations use 256 threads per block, a number sufficient to cover
+memory latency without limiting the number of blocks that coexist on each
+multiprocessor.
 
-The way the grid size arises differs between the two algorithms. In
-bitonic sort it is determined strictly by the data: each block takes
-on one tile, so the number of blocks matches the number of tiles into
-which the active segment is split, a direct mapping with no freedom
-of choice. In map-reduce, by contrast, the grid is a matter of
-design, constrained by the occupancy the hardware allows, the
-heap-filling condition, and the available workspace
+The grid size arises differently in the two algorithms. In bitonic sort it is
+determined strictly by the data. Each block takes on one tile, so the number of
+blocks matches the number of tiles into which the active segment is split. The
+mapping is absolute, with no freedom of choice. In map-reduce, by contrast, the
+grid is a design decision, constrained by the occupancy the hardware allows,
+the heap-filling condition and the available workspace
 (section~\ref{sec:gpu-mapreduce-limit}).
 
-Regardless of grid size, the order in which threads access memory is
-decisive. Simultaneous accesses by neighbouring threads are coalesced
-into single transactions only if they touch neighbouring addresses.
+Regardless of the grid size, the order of memory access is decisive.
+Simultaneous accesses by neighbouring threads are coalesced into single
+transactions only if they concern neighbouring addresses.
 
 \section{Bitonic sort}
 \label{sec:gpu-bitonic}
 
-The layer schedule is the same as in section~\ref{sec:cpu-bitonic},
-since it is built from shared code. What changes is how it is
-executed, while the problem the implementation must solve stays the
-same: the number of layers is large, and the naive mapping of one
-layer to one kernel launch would mean dozens of successive passes
-over global memory.
+The layer schedule is the same as in section~\ref{sec:cpu-bitonic}; after all,
+it is built by shared code. Only the way of executing it changes, but the
+problem stays the same. There are many layers, and the naive mapping of one
+layer to one kernel launch would mean dozens of successive passes over global
+memory.
 
-On the graphics unit a second cost is added that does not exist on
-the processor. Every kernel launch carries a fixed overhead, and a
-scan with hundreds of launches pays this overhead hundreds of times.
-For this reason the entire network is not launched kernel by kernel,
-but is instead captured once as an execution graph and then replayed;
-scheduling thus happens once rather than for every layer.
+Here a second cost is added that does not exist on the processor. Every kernel
+launch has a fixed overhead, which hundreds of launches pay hundreds of times.
+The entire network is therefore captured once as an execution graph, instead of
+being launched kernel by kernel, and is replayed. Scheduling thus happens once
+and only once for the whole network.
 
-The kernels that compose the graph are of three kinds, and the choice
-between them is determined by the distance $j$ of the layer, exactly
-as on the processor. When the distance is small, an entire sequence
-of layers executes inside the shared memory of a thread block, as
-described in section~\ref{sec:gpu-bitonic-tiles}. When it is too
-large to fit in a tile, the data stays in global memory and a single
-kernel executes up to five successive layers, holding the
-intermediate results in registers. The truncation layers, finally,
-have their own kernel, which reads two elements and writes one to a
-second array, with the two arrays alternating just as on the
-processor.
+The graph is composed of three kinds of kernels, with the choice determined by
+the distance $j$ of the layer, as on the processor. When the distance is small,
+an entire sequence of layers runs inside the shared memory of a thread block
+(section~\ref{sec:gpu-bitonic-tiles}). When it is too large to fit in a tile,
+the data stays in global memory and one kernel executes up to five successive
+layers, keeping the intermediate results in registers. The truncation layers
+have their own kernel, which reads two elements and writes one to a second
+array, with alternation as on the processor.
 
 \subsection{Organisation into tiles and shared memory}
 \label{sec:gpu-bitonic-tiles}
 
 The shared memory of a thread block is explicitly managed, unlike the
-processor's cache, which operates automatically. The implementation
-loads each block's tile into it (section~\ref{sec:gpu-mapping}),
-executes as many layers as possible entirely within it, and writes it
-back once. Any layers fused this way cost no additional traffic to
-global memory.
+processor's automatic cache. The implementation loads each block's tile into it
+(section~\ref{sec:gpu-mapping}), executes as many layers as possible entirely
+within it and writes it back once. No additional traffic to global memory is
+needed for the layers fused this way.
 
-For 32-bit integers the tile ends up at 8192 elements, a size arrived
-at through testing with larger and smaller tiles, revolving around
-two constraints: on the one hand it cannot exceed the 48 KB available
-per thread block without special configuration, and on the other it
-shrinks when the working set fits in the device's second-level cache,
-where the bottleneck shifts from traffic toward main memory to the
-number of blocks simultaneously active.
+For 32-bit integers the tile ends up at 8192 elements, a size arrived at after
+testing larger and smaller tiles, around two constraints: it does not exceed 48
+KB per block without special configuration, and it shrinks when the working set
+fits in the second-level cache, where the bottleneck shifts from traffic to
+main memory to the number of simultaneously active blocks.
 
-The constraint is not specific to this implementation: published
-partial-sorting methods for graphics units are subject to the same
-bound and do not support $k$ beyond a few hundred, precisely because
-their structures must fit in shared memory and in
+This constraint is inherent to the architecture. Published partial-sorting
+methods for graphics units are subject to the same bound, limiting k to a few
+hundred, since their structures must fit in shared memory and in
 registers~\cite{shanbhag2018,zhang2023gputopk}.
 
-This limit determines the behaviour of the whole implementation. A
-layer can only be fused if the distance between the elements it
-compares fits in the tile, that is, if it is smaller than half the
-tile's size. Because the distances of the first phase reach up to
-half the size of the sorted blocks, the critical size is the $k'$ of
-section~\ref{sec:cpu-bitonic}: as long as the blocks fit in the tile,
-almost all layers are fused.
+A layer is fused only if the distance between the elements it compares fits in
+the tile, smaller than half its size. The distances of the first phase reach
+half the size of the sorted blocks, so the critical size is the $k'$ of
+section~\ref{sec:cpu-bitonic}. As long as the blocks fit in the tile, almost
+all layers are fused (figure~\ref{fig:gpu-tiling}).
 
-Figure~\ref{fig:gpu-tiling} contrasts the two cases. For small and
-medium values of $k$ this holds, and the data traffic turns out
-essentially identical to that of the processor: about seven times the
-naive estimate, with the two architectures agreeing down to the last
-byte for $k$ up to 4096, as noted in
-section~\ref{sec:meth-traffic}, since the same schedule executes with
-an equivalent fusion strategy, only in explicitly managed memory
-instead of automatic.
+For small and medium values of k this holds, and the data traffic turns out
+essentially the same as on the processor (about seven times the naive
+estimate), with the two architectures agreeing down to the last byte for k up
+to 4096 (section~\ref{sec:meth-traffic}). They have the same schedule, an
+equivalent fusion strategy, only explicitly managed memory instead of
+automatic.
 
-For the largest value of $k$ examined, this condition breaks down.
-The sorted blocks reach a size of 131072 elements, sixteen times
-larger than the tile, so most of the first phase's layers can no
-longer be fused and instead execute as passes over global memory.
-Measured traffic rises correspondingly, from sevenfold to between
-twenty-two and twenty-nine times the naive estimate depending on
-input size.
+At the largest value of k the condition breaks down. The sorted blocks reach
+131072 elements, sixteen times the tile. Most of the layers of the first phase
+are no longer fused and execute as passes over global memory. The measured
+traffic rises correspondingly, from sevenfold to between twenty-two and
+twenty-nine times the naive estimate, depending on the input size.
 
 \input{figures/gpu-tiling}
 
 \section{Map-reduce with local heaps}
 \label{sec:gpu-mapreduce}
 
-The algorithm is the same as in section~\ref{sec:cpu-mapreduce}: each
-thread maintains a heap of size $k$ with the best elements it has
-seen, the root acts as a threshold, and the partial results are
-merged at the end. The difference lies in the scale of the
+The algorithm is the same as in section~\ref{sec:cpu-mapreduce}. Each thread
+keeps a heap of size k, where the root acts as a threshold and the partial
+results are merged at the end. The difference is the scale of the
 decomposition.
 
-On the processor the threads are few and each takes on a contiguous
-segment of the input. On the graphics unit the threads are thousands,
-and stride through the input with a stride equal to their total
-number, so that simultaneous accesses by neighbouring threads touch
-neighbouring addresses and are coalesced into single memory
-transactions.
+On the processor the threads are few, each with a contiguous segment of the
+input. On the graphics unit thousands of threads stride through the input with
+a stride equal to their total number, so that neighbouring accesses are
+coalesced into single memory transactions.
 
-Each thread maintains its own heap, not one shared per block. The
-heaps do not fit in shared memory, since the product of the number of
-threads and $k$ far exceeds the 48 KB available per block, so they
-are kept in a workspace in global memory. This is exactly where the
-implementation diverges from the processor's in terms of data
-traffic: the workspace is proportional to the product of the threads
-and $k$, and with thousands of threads this term ceases to be
-negligible. Because each thread requires a heap of size $k$, the
-total number of threads is subject to an upper bound on memory,
-binding for large $k$.
+Each thread keeps its own heap. The heaps do not fit in shared memory, because
+the product of threads and k far exceeds the available 48 KB, and they are kept
+in a workspace in global memory. This is where the implementation diverges from
+the processor with respect to data traffic. With thousands of threads, the term
+that was negligible there no longer is. Because each thread requires a heap of
+size k, the total number of threads is subject to an upper memory bound,
+binding for large k.
 
-The merging happens at two levels. Within each thread block, the
-heaps are combined pairwise in a tree, with a number of steps
-logarithmic in the block size. The result of each block is then
-merged with the rest. This structure avoids the serial phase that
-burdens the processor, but introduces its own cost, since every step
-of the tree reads and writes heaps from global memory.
+The merge happens at two levels. Within each block the heaps are combined
+pairwise in a tree, with a number of steps logarithmic in the block size. The
+result of each block is then merged with the rest. This structure avoids the
+serial phase of the processor, but introduces its own cost, since every step of
+the tree reads and writes heaps from global memory.
 
 \subsection{Parallelism limit for large k}
 \label{sec:gpu-mapreduce-limit}
 
-The constraint is binding exactly where the graphics unit would be
-most useful. For the largest value of $k$ examined and an input of
-sixteen million elements, the ratio $n/k$ is only 128. A device
-with thousands of cores can therefore effectively occupy only one
-hundred and twenty-eight threads, a mere fraction of the available
-threads.
+The constraint is binding where the graphics unit would be most useful. At the
+largest value of k and an input of sixteen million elements, the ratio $n/k$ is
+only 128. A device with thousands of cores can effectively occupy one hundred
+and twenty-eight threads, a tiny fraction of the available threads.
 
-The algorithm's effectiveness rests entirely on rejection: an element
-that does not exceed the heap's root costs only a single comparison.
-The root, however, only becomes meaningful as a threshold once the
-heap is full. As long as it holds fewer than $k$ elements, every new
-element is inserted regardless and no rejection takes place.
+All effectiveness depends on rejection. Every element that does not exceed the
+root costs one comparison. The root, however, becomes meaningful as a threshold
+only after the heap has filled. With fewer than k elements inside, every new
+one is inserted regardless, without any rejection.
 
-This gives rise to the exact constraint. If an input of size $n$ is
-split among $P$ threads, each thread sees $n/P$ elements and its heap
-fills only if $n/P \geq k$, that is,
-\[ P \leq \frac{n}{k} \]
-the upper bound on the number of threads that can contribute
-substantially. Beyond it, the extra threads do not speed up the
-computation but burden it: they fill the workspace with heaps that
-never filter and add levels to the merge tree. No code avoids this
-underutilisation, since it stems from the way the algorithm itself
-works.
+This gives rise to the exact constraint. If an input of size n is split among
+$P$ threads, each thread sees $n/P$ elements and its heap fills only if $n/P
+\geq k$, that is,
+\[ P \leq \frac{n}{k}, \]
+the upper bound on the number of threads that contribute substantially. Beyond
+it, the extra threads do not speed up the computation; they burden it. They
+fill the workspace with heaps that never filter and add levels to the merge
+tree. No code avoids this underutilisation, since it stems from the very way
+the algorithm works.
 
-The implementation reacts to this condition. Before launch it
-computes whether the heaps manage to fill under full occupancy of the
-device. When this holds, the number of blocks is deliberately
-restricted, inversely proportional to $k$, so that each thread takes
-on a larger share of the input and its heap filters effectively:
-nominal parallelism is sacrificed for actual rejection. When the
-heaps are not going to fill under any circumstance, the reduction
-would offer nothing, and the device is used at full occupancy
-(figure~\ref{fig:gpu-mapreduce-limit}).
+The implementation reacts to this condition. Before launch it computes whether
+the heaps manage to fill under full occupancy of the device. If so, the number
+of blocks is deliberately limited, inversely proportional to k, so that each
+thread takes on a larger share and its heap filters efficiently. Nominal
+parallelism is sacrificed for actual rejection. When the heaps are not going to
+fill in any case, the reduction would offer nothing and the device works at
+full occupancy (figure~\ref{fig:gpu-mapreduce-limit}).
 
-In every run, the stricter of the two constraints prevails. The
-memory limit of section~\ref{sec:gpu-mapreduce} acts alongside this
-one, together explaining why the implementation is unable to make use
-of the device at large values of $k$.
+In every run the stricter of the constraints prevails. The memory limit of
+section~\ref{sec:gpu-mapreduce} acts alongside this one, together explaining
+why the implementation is unable to make use of the device at large k.
 
 \input{figures/gpu-mapreduce-limit}
 
 \section{Memory management and data traffic}
 \label{sec:gpu-memory}
 
-The graphics unit is characterised by two separate memory systems
-connected by a bus incomparably slower than either. The device's
-local memory delivers about 320 GB/s, while the bus to the host
-delivers a mere 14 GB/s: a difference greater than twentyfold.
+The graphics unit is characterised by two separate memory systems connected by
+a bus incomparably slower than either. The device's local memory delivers about
+320 GB/s, the bus to the host only 14 GB/s, a difference of more than
+twentyfold.
 
-Within the device, the picture resembles that of the processor. For
-small $k$, bitonic sort moves the same sevenfold volume. Map-reduce's
-traffic, though, depends noticeably on input size, due to the
-per-thread workspace (section~\ref{sec:gpu-mapreduce}).
+Within the device the picture resembles that of the processor. For small k,
+bitonic sort moves the same sevenfold volume. The traffic of map-reduce,
+however, depends noticeably on the input size, due to the per-thread workspace
+(section~\ref{sec:gpu-mapreduce}).
 
-What actually dominates, though, is the transfer to and from the
-device. For an input of four million integers, the roughly seventeen
-MB take more than one millisecond just to arrive, at a point where
-the bitonic sort kernel itself completes in half that time: the
-transfer, that is, costs more than twice the computation it serves.
+It is the transfer to and from the device, however, that dominates. For four
+million integers, the roughly seventeen MB take more than a millisecond just to
+arrive, while the bitonic sort kernel itself finishes in half that. The
+transfer costs more than twice the computation it serves.
 
-This work measures two scopes (section~\ref{sec:meth-energy-scope}); a
-comparison relying solely on the algorithmic scope would credit the
-graphics unit with an advantage it does not have once the problem is
-framed as data transfer to and from main memory.
+This work measures two scopes (section~\ref{sec:meth-energy-scope}). A
+comparison in the algorithmic scope alone would give the graphics unit an
+advantage it does not have when the problem is posed as a transfer from main
+memory and back.
 
-The established technique for improving transfers, namely the use of
-pinned host memory to avoid an intermediate copy, offers no
-substantial benefit here: measurements of the two paths differ by a
-margin on the order of two percent, which indicates that the limiting
-factor is the bus itself, not the way data is prepared on either side
-of it.
+The established technique for improving transfers (pinned memory on the host to
+avoid an intermediate copy) offers no substantial benefit here. The two paths
+differ by about two percent, an indication that the limit is set by the bus
+itself.
 
-As for the memory footprint on the device, the two implementations
-follow the logic of their processor counterparts: bitonic sort
-allocates the two arrays of size $n$ from
-section~\ref{sec:gpu-bitonic}, and map-reduce the per-thread heaps
-from section~\ref{sec:gpu-mapreduce}. For large values of $k$, the
-heap workspace can approach the size of the input itself.
+As for the footprint on the device, the two implementations follow the logic of
+the processor. Bitonic sort allocates two arrays of size n
+(section~\ref{sec:gpu-bitonic}) and map-reduce the per-thread heaps
+(section~\ref{sec:gpu-mapreduce}). For large k, the heap workspace can approach
+the size of the input itself.
 
 \section{Reference implementation}
 \label{sec:gpu-reference}
 
-The baseline for the graphics unit is the top-k selection function of
-the CUB library, which ships with the CUDA toolkit. Unlike the
-processor's case, where the reference implementation is
-single-threaded and the comparison conflates two causes, here there
-is no such asymmetry: the library runs on the same device, exploits
-the same parallelism, and is measured the same way, so the comparison
-is rigorous.
+The baseline is the top-k selection function of CUB, which ships with the CUDA
+toolkit. On the processor the reference implementation was single-threaded and
+the comparison conflated two causes. Here the library runs on the same device,
+exploits the same parallelism and is measured the same way. The comparison is
+therefore rigorous.
 
-Its integration follows the two-call protocol the library requires.
-The first call performs no computation, but reports how much
-auxiliary space is required, which is then allocated, and the second
-call performs the selection. Only the second is bracketed by the
-events that define the algorithmic scope, while the allocation and
-the transfers stay outside it, exactly as in the two implementations
-developed in this work.
+The integration follows the library's two-call protocol. The first declares the
+required auxiliary space without computing anything, the space is allocated,
+and the second performs the selection. Only the second is bracketed by the
+events that define the algorithmic scope. Allocation and transfers stay
+outside, as in the two implementations of this work.
 
-The recorded data traffic and comparison count are, here too,
-reported as a lower bound, for the same reason as for the reference
-implementation on the processor (section~\ref{sec:cpu-reference}):
-they include only input and output, since the library's internal
-passes are not observable.
+The counted traffic and number of comparisons are reported here too as a lower
+bound, for the reason of section~\ref{sec:cpu-reference}. Only input and
+output; the internal passes are not observable.
 
-On the largest input examined, the library completes the selection in
-a time that stays nearly constant as $k$ varies over four orders of
-magnitude, while both of this work's implementations are burdened
-significantly. Only for the smallest $k$ does map-reduce edge it out.
+On the largest input examined the library completes in nearly constant time as
+k varies over four orders of magnitude, while the two implementations of this
+work are burdened significantly. Only for the smallest k does map-reduce
+overtake it.
 
 \subsection{Radix selection in CUB}
 \label{sec:gpu-reference-cub}
 
-The library~\cite{cccl} uses radix selection
-(section~\ref{sec:bg-radix}). It never sorts the entire input; it
-performs a few passes, each a sequential read accompanied by a
-frequency count, exactly the pattern the architecture executes best.
-The number of passes is also determined by the width of the data
-type: selecting eight elements costs essentially the same as
-selecting one hundred and thirty thousand.
+The library~\cite{cccl} uses radix selection (section~\ref{sec:bg-radix}). It
+never sorts the entire input; it performs a few passes, each a sequential read
+with frequency counting, exactly the pattern the architecture executes best.
+Moreover, the number of passes is determined by the width of the data type.
+Selecting eight elements costs essentially as much as selecting one hundred and
+thirty thousand.
 
-This independence from $k$ is the fundamental difference from both
-of this work's algorithms. Bitonic sort is burdened as $k$ grows: the
-sorted blocks grow and cease to fit in the tile
-(section~\ref{sec:gpu-bitonic-tiles}). Map-reduce is burdened even
-more (section~\ref{sec:gpu-mapreduce-limit}). Radix selection has no
-equivalent breaking point. It is not indifferent to the data, though,
-in the sense of section~\ref{sec:bg-radix}: it depends on the
-distribution of digits in the values.
+Independence from k is the fundamental difference from both algorithms of this
+work. Bitonic sort is burdened as k grows: the sorted blocks grow and stop
+fitting in the tile (section~\ref{sec:gpu-bitonic-tiles}). Map-reduce is
+burdened even more (section~\ref{sec:gpu-mapreduce-limit}). Radix selection has
+no equivalent collapse point. It is not, however, indifferent to the data, in
+the sense of section~\ref{sec:bg-radix}. It depends on the distribution of
+digits in the values.
 
 \section{Limiting factors}
 \label{sec:gpu-bottlenecks}
 
-On the graphics unit the limiting factors must be examined separately
-for each measurement scope, because they are not the same. In the
-end-to-end scope the bus to the host dominates
-(section~\ref{sec:gpu-memory}). What follows therefore concerns the
-algorithmic scope, where the limits of the device itself become
-visible.
+Here the two measurement scopes mean different limiting factors. In end-to-end,
+the bus to the host dominates (section~\ref{sec:gpu-memory}). What follows
+concerns the algorithmic scope, where the limits of the device itself show.
 
-For small $k$, bitonic sort is clearly memory-bound, reaching about
-three-fifths of the measured bandwidth ceiling, while exploiting only
-about two and a half percent of the compute one. The implementation,
-in other words, exploits the device efficiently; it simply has to
-move more volume.
+For small k, bitonic sort is clearly memory-bound, reaching about three-fifths
+of the measured bandwidth ceiling, with utilisation of the compute ceiling of
+only two and a half percent. It exploits the device efficiently; it simply has
+to move more volume.
 
-The reference library makes this distinction quantitative, and it is
-the most instructive point of the chapter. It exploits only about
-one-fifth of the bandwidth ceiling, clearly less than bitonic sort,
-and yet finishes faster. Proximity to the ceiling measures the
-quality of the implementation, while the total volume of traffic
-measures the quality of the algorithm.
+The reference library makes the distinction quantitative, and it is the most
+instructive point of the chapter. It exploits only about one-fifth of the
+bandwidth ceiling, clearly less than bitonic sort, and yet finishes faster.
+Proximity to the ceiling measures the quality of the implementation, while the
+total volume of traffic measures the quality of the algorithm.
 
-Map-reduce for small $k$ is the only point where an implementation
-developed in this work outperforms the library. It reads the input
-once and rejects almost everything, so it approaches the minimum
-possible work for the problem. Ceiling utilisation stays modest,
-which points to room for improvement in the organisation of
-accesses.
+Map-reduce for small k is the only point where an implementation of this work
+outperforms the library. It reads the input once and rejects almost everything,
+approaching the minimum possible work. Ceiling utilisation stays modest,
+pointing to room for improvement in the organisation of accesses.
 
-For large $k$ the picture changes radically: map-reduce collapses to
-the point where utilisation of both ceilings becomes a fraction of
-one percent, for lack of work to perform. As explained in
-section~\ref{sec:gpu-mapreduce-limit}, at these large values of $k$
-the overwhelming majority of threads fail to fill their local heap in
-time, leaving most of the device idle.
+For large k, map-reduce collapses to the point where utilisation of both
+ceilings becomes a fraction of one percent, for lack of work to perform. As
+explained in section~\ref{sec:gpu-mapreduce-limit}, at the large values of k
+the overwhelming majority of threads fail to fill their local heap in time,
+leaving most of the device idle.
 
-Bitonic sort is burdened as well, but far more mildly: utilisation of
-the memory ceiling drops to roughly one-third, as the loss of fusion
-in shared memory increases traffic without a corresponding increase
-in useful work. It nevertheless stays functional and, for the largest
-$k$, ends up two orders of magnitude faster than map-reduce.
+Bitonic sort is burdened far more mildly. Bandwidth utilisation drops to about
+one-third, as the loss of fusion in shared memory increases traffic without a
+corresponding increase in useful work. It stays functional, and at the largest
+k it ends up two orders of magnitude faster than map-reduce.
 
-Overall, neither implementation is limited by a factor that further
-code optimisation could lift. Bitonic sort would benefit only from a
-reduction in traffic, that is, a different network. Map-reduce would
-benefit only from a different decomposition for large $k$, so that
-parallelism would not depend on the ratio $n/k$. In both cases the
-limit is algorithmic, not implementational.
+Neither of the two is ultimately limited by something that further code
+optimisation would fix, since the obstacle lies in the algorithm itself.
+Bitonic sort would benefit only from less traffic, that is, a different
+network, while map-reduce only from a different decomposition for large k, so
+that parallelism does not depend on the ratio $n/k$.

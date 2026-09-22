@@ -30,12 +30,12 @@
 
         % (b) map-reduce
         \begin{scope}[yshift=-3.55cm]
-            \node[panel, font=\scriptsize\bfseries] at (-0.55,1.10) {(b) the map-reduce scheme};
+            \node[panel, font=\scriptsize\bfseries, anchor=west] at (-1.0, 1.10) {(b) the map-reduce scheme};
 
             \foreach \i in {0,1,2,3} {
                 \pgfmathsetmacro{\xc}{1.05+\i*1.85}
                 \node[blk, minimum width=1.55cm, minimum height=0.40cm] (ch\i) at (\xc,0.52)
-                    {\tiny chunk \i};
+                    {\tiny chunk $\i$};
                 \node[blkreg, minimum width=0.85cm, minimum height=0.38cm] (hp\i) at (\xc,-0.42)
                     {\tiny heap k};
                 \draw[flow] (ch\i.south) -- (hp\i.north);

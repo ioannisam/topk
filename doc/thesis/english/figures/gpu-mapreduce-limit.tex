@@ -39,12 +39,12 @@
              regardless of grid size.};
 
     \end{tikzpicture}
-    \caption[The parallelism limit of map-reduce]{The parallelism limit of map-reduce for large $k$. Each thread
-    maintains its own heap of size $k$ and can reject elements only
-    after the heap fills, i.e., only after it has seen at least $k$ elements. When
-    the chunk assigned to each thread is larger than $k$ (a), the threshold
+    \caption[The parallelism limit of map-reduce]{The parallelism limit of map-reduce for large k. Each thread
+    maintains its own heap of size k and can reject elements only
+    after the heap fills, i.e., only after it has seen at least k elements. When
+    the chunk assigned to each thread is larger than k (a), the threshold
     engages early and the rest of the chunk is filtered. But when
-    the number of threads increases enough that the chunk becomes smaller than $k$
+    the number of threads increases enough that the chunk becomes smaller than k
     (b), no heap ever fills and filtering never engages.
     This is a property of the algorithm, not the implementation: neither the grid
     size nor the workspace layout can remove it.}

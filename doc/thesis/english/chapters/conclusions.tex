@@ -4,128 +4,109 @@
 \section{Conclusions}
 \label{sec:concl-summary}
 
-This work implemented two top-k selection algorithms on three
-architectures and measured them over the same parameter space, with a
-common harness and common correctness checking. The conclusions that
-follow do not repeat the measurements of
-chapter~\ref{ch:evaluation}, but rather what generalises from them
-beyond the specific hardware.
+This work implemented two top-k selection algorithms on three architectures,
+using a common harness for their evaluation. This section summarises the
+conclusions of chapter~\ref{ch:evaluation}, focusing on the findings that hold
+regardless of the underlying hardware.
 
-\paragraph{Top-k selection is a data-traffic problem.}
-For small $k$, every combination of algorithm and architecture is
-limited by bandwidth rather than by the devices' computational
-capability (section~\ref{sec:eval-roofline}). Performance depends
-solely on reducing the volume of data moved, not on speeding up the
-computation. Bitonic sort on the graphics unit confirms this clearly:
-although it makes use of a larger fraction of its bandwidth ceiling
-than the reference library, it still loses, because it is forced to
-move several times as much data.
+\paragraph{Data movement.} For small k, every combination of algorithm and
+architecture is limited by bandwidth and not by the computational capability of
+the devices (section~\ref{sec:eval-roofline}). Performance depends solely on
+reducing the volume of data moved. Bitonic sort on the graphics unit confirms
+this clearly. Although it uses a larger fraction of the bandwidth ceiling than
+the reference library, it ultimately falls behind because it is forced to move
+several times as much data.
 
-\paragraph{The appropriate algorithm is determined by the ratio $n/k$,
-not by the architecture.} The fastest implementation for $k$ equal to 8
-is the slowest for $k$ equal to 131072 regardless of platform
-(section~\ref{sec:eval-time-k}), while the sorting network's
-performance stays far more stable. The cause is structural rather than
-implementation-specific: the heap only begins to filter once it is full,
-so the available parallelism is capped by the ratio $n/k$. Similar
-behaviour has also been observed in the
-literature~\cite{lin2026adaptivetopk}, underscoring the need for
-algorithms that adapt to the input data.
+\paragraph{The ratio $n/k$.} The fastest implementation for k=8 becomes the
+slowest for k=131072 regardless of platform (section~\ref{sec:eval-time-k}).
+The performance of the sorting network stays far more stable. The heap
+algorithm starts filtering elements only once it is full, which caps the
+available parallelism by the ratio $n/k$. Similar behaviour has also been
+observed in the literature~\cite{lin2026adaptivetopk}, highlighting the need
+for adaptive algorithm switching depending on the input data.
 
-\paragraph{The measurement boundary determines which architecture
-``wins''.} In the algorithmic scope the graphics unit is faster only at
-the two extremes of the size range; in the end-to-end scope the
-processor is faster across the entire range, including those same
-extremes. The ranking, that is, overturns exactly where the graphics
-unit appeared to win, and the only difference between the two answers is
-where the measurement boundary is placed. This finding has methodological
-significance beyond the specific problem: any speed-up claim for
-offloading to an accelerator that reports only kernel time is not
-verifiable, because it conceals precisely the cost that determines
-whether offloading is worthwhile.
+\paragraph{The measurement boundary.} While the graphics unit wins in pure
+kernel execution time at the extreme sizes of the experiment, the overall
+end-to-end measurement shows the processor to be faster in every case. Shifting
+the measurement boundary completely changes the final ranking. The evaluation
+of an implementation must account for the cost of data transfer; otherwise the
+comparison of whether offloading to the card pays off remains incomplete.
 
-\paragraph{Power and energy.} The neural processing unit has the lowest
-power draw of any implementation and at the same time the highest
-energy consumption, since duration dominates the product
-(section~\ref{sec:eval-energy}).
+\paragraph{Power and energy.} The neural processing unit has the lowest power
+draw of all implementations and at the same time the highest consumption, since
+duration dominates the product (section~\ref{sec:eval-energy}).
 
-For top-k selection with small values of $k$, offloading the
-computation to an accelerator proves disadvantageous in both energy and
-time compared to running map-reduce on the processor. Architectures
-such as NPUs (section~\ref{sec:bg-arch-npu}) presuppose high local
-reuse of data to amortise the cost of moving it. Top-k selection offers
-no such reuse, so most of the time ends up spent preparing the data,
-leaving the device idle (section~\ref{sec:npu-pipeline}).
+For top-k selection with small values of k, offloading the computation to an
+accelerator proves disadvantageous in both energy and time compared to running
+map-reduce on the processor. Architectures such as NPUs
+(section~\ref{sec:bg-arch-npu}) presuppose high local data reuse to amortise
+their transfer cost. Top-k selection does not offer this, so most of the time
+is spent preparing the data, leaving the device idle
+(section~\ref{sec:npu-pipeline}).
 
-The sole exception is bitonic sort on the neural processing unit for
-half-precision numbers, where it outperforms the corresponding
-reference implementation. The advantage is attributable to the
-processor library's poor optimisation for this particular data type
+The only exception is bitonic sort on the neural processing unit for
+half-precision numbers, where it surpasses the corresponding reference
+implementation. The advantage is attributed to the incomplete optimisation of
+the processor's library for this particular data type
 (section~\ref{sec:eval-dtypes}).
 
 \section{Limitations}
 \label{sec:concl-limitations}
 
-The most significant asymmetry concerns the processor's baseline.
-std::partial\_sort is strictly single-threaded, whereas this work's
-implementations exploit parallelism, so every ratio of times between
-them conflates two causes, the difference in algorithm and the
-difference in thread count, as already noted in
-section~\ref{sec:cpu-reference}. This choice is justified by
-the question this work asks, which concerns comparison with what the
-programmer already has available; the reader should nonetheless bear
-it in mind.
+The comparison with std::partial\_sort on the processor involves an inherent
+asymmetry. The library runs strictly single-threaded, unlike the
+implementations of this work, which exploit parallelism
+(section~\ref{sec:cpu-reference}). The recorded speed-up results jointly from
+both the algorithmic improvement and the use of multiple threads. This choice
+stems from the intention to compare the new implementation with the tools a
+programmer has immediately available, but the difference should be kept in mind
+when reading the results.
 
-The measured data traffic of the reference implementations is a lower
-bound rather than an actual measurement, since only the input and output
-are counted while the libraries' internal passes are not observable.
-Every ceiling-utilisation percentage reported for them in
-section~\ref{sec:eval-bandwidth} is consequently an underestimate.
+In addition, the volume of data counted for the reference libraries is merely a
+lower bound. Because their internal memory passes are not directly observable,
+the ceiling-utilisation percentages reported in
+section~\ref{sec:eval-bandwidth} are underestimates.
 
-For the neural processing unit there is no on-device baseline, because
-no top-k selection library exists for that architecture. The reference
-implementation runs on the host, so the relevant comparisons answer the
-question ``is offloading worthwhile'' rather than ``how good is the
-implementation relative to the best possible one on the device''.
-Correspondingly, the phase-breakdown analysis in
-section~\ref{sec:npu-pipeline} comes from separate runs with debug mode
-enabled rather than the standard sweep, so its percentages rest on a
-smaller sample of repetitions than the rest of the measurements in
+For the neural processing unit no native top-k library is available for direct
+comparison. The comparison was made against the host, answering the practical
+question of whether offloading is worthwhile, without evaluating the maximum
+theoretical performance of the device itself. Correspondingly, the phase
+analysis of section~\ref{sec:npu-pipeline} comes from separate runs with debug
+enabled rather than from the standard sweep, so its percentages rest on a
+smaller sample of repetitions than the other measurements of
 appendix~\ref{app:reproducibility}.
 
-Finally, the experimental space was limited to a single system and
-specific ranges of values. The qualitative trends -- in particular the
-dependence on the ratio $n/k$ and the role of the measurement boundary
--- are expected to generalise to comparable systems; the exact
-numerical factors, however, remain closely tied to this particular
+Finally, the experimental space was limited to a specific system and specific
+ranges of values. Although the qualitative trends around the ratio $n/k$ and
+the role of the measurement boundary are expected to generalise to similar
+systems, the exact numerical factors remain closely tied to this particular
 test platform.
 
 \section{Future work}
 \label{sec:concl-future}
 
-In terms of systematic optimizations, the execution of multiple simultaneous
-\tl{top-k} queries is the primary future extension, especially for the neural
-processing unit. Since the main bottleneck lies in the preparation and
-dispatch of data, batching the calls would crucially help amortize this cost.
-Such repeated queries dominate the applications of Section~\ref{sec:bg-problem}.
-In the same direction, leveraging direct memory access mechanisms of the
-device to the system memory, avoiding explicit data copying from the \tl{host},
-would significantly improve total latency. The implementation of such a
-capability depends largely on the specifications and interfaces of the
-respective platform.
+In terms of system-level optimisations, executing multiple simultaneous top-k
+queries is the main future extension, especially for the neural processing
+unit. Since the main obstacle lies in preparing and dispatching the data,
+batching the calls would help decisively in amortising this cost. Such repeated
+queries dominate the applications of section~\ref{sec:bg-problem}. In the same
+direction, exploiting mechanisms for direct device access to system memory,
+avoiding explicit copying of data by the host, could significantly improve
+overall latency. Implementing such a capability depends to a large extent on
+the specifications and interfaces of each platform.
 
-Regarding algorithmic extensions, a dynamic algorithm selection mechanism
-would directly exploit the finding on the $n/k$ ratio. Knowing now how the ratio
-affects performance, an adaptive implementation could automatically choose
-between a heap and a sorting network to ensure smooth performance across the
-entire range of sizes. Furthermore, for larger values of $k$ where selection
-approaches full sorting, managing inputs that do not fit in device memory
-represents a natural continuation, transforming flow management from a
-responsibility of the infrastructure into an organic part of the algorithm itself.
+As for algorithmic extensions, a mechanism for dynamic algorithm switching
+would directly exploit the finding about the ratio $n/k$. Knowing now how the
+ratio affects performance, an adaptive implementation could automatically
+choose between a heap and a sorting network to ensure smooth performance across
+the whole range of sizes. Furthermore, for larger values of $k$, where
+selection approaches full sorting, handling inputs that do not fit in device
+memory is a natural continuation, turning stream management from a
+responsibility of the harness into an organic part of the algorithm itself.
 
-Finally, the evaluation framework developed in this work can be reused in
-the future for studying other computational loads as well. The separation of
-algorithmic time from transfer time, the unified energy logging across different
-architectures, and the analysis via the roofline model offer a reusable
-framework capable of being applied to any other problem considered for
-offloading to specialized hardware.
+Finally, the evaluation harness developed in this work can be used in the
+future to study other workloads as well. Separating algorithmic time from
+transfer time, recording energy uniformly across the different architectures
+and analysing through the roofline model offer a reusable framework, capable of
+being applied to any other problem considered for offloading to heterogeneous
+hardware.

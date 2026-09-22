@@ -4,67 +4,66 @@
 \section{Scope of the work}
 \label{sec:intro-scope}
 
-This work examines the acceleration of top-k selection, that is, finding
-the k largest elements of a set of n values, on three architectures: a
-general-purpose processor, a graphics unit, and a neural processing unit
+This work examines the acceleration of top-k selection, that is, finding the k
+largest elements of a set of n values, on three architectures: a
+general-purpose processor, a graphics unit and a neural processing unit
 integrated into the same die as the processor.
 
-For each architecture, two algorithms with fundamentally different
-behaviour are implemented. Truncated bitonic sort executes a fixed
-sequence of comparisons, independent of the data; selection with local
-heaps under the map-reduce scheme adapts its work to the input values.
-The six implementations are measured over the same parameter space, with
-a common harness and common measurement semantics, so that whatever
-differences emerge are owed to the algorithms and the hardware and not to
-the way of measuring.
+For each architecture, two algorithmic approaches with radically different
+execution characteristics are developed. Truncated bitonic sort executes a
+fixed sequence of comparisons independent of the data, while selection with
+local heaps under the map-reduce scheme adapts its work to the values of the
+input. All six implementations are measured over the same parameter space, with
+a common harness and common measurement semantics, so that the differences that
+emerge are owed to the algorithms and the hardware, not to the way of
+measuring.
 
-The central question is under what conditions offloading to an
-accelerator pays off, weighing both the speed of the architecture and the
-additional cost of the process.
+The central question is under what conditions offloading to an accelerator pays
+off, weighing both the speed of the architecture and the additional cost of the
+process.
 
 \section{Motivation}
 \label{sec:intro-motivation}
 
-Neural processing units are now integrated on the same die as the
-processor of modern laptops, share its main memory, and are available to
-any application that could make use of them. Whether it is worth
-offloading this computation to the accelerator has become a timely
-question for developing software on such hardware.
+Neural processing units are now integrated on the same die as the processor of
+modern laptops, share its main memory and are available to any application that
+can make use of them. Whether it is worth offloading this computation to the
+accelerator has become a timely question for developing software on such
+hardware.
 
-The answer is not obvious. These units were designed for a specific
-workload: their software is organised around neural-network operators, and
-their architecture rests on the assumption that every piece of data
-transferred will be used many times. What happens when the workload does
-not have this shape remains largely unexplored.
+They were, however, designed for a specific workload. Their programming model
+is organised mainly around neural-network operators, and their architecture
+around the assumption that every piece of data will be used many times after it
+is transferred. What happens when the workload does not have this shape remains
+largely unexplored.
 
-Top-k selection is a suitable vehicle for posing this question: a problem
-simple to state, widespread in nearest-neighbour search, retrieval and
-recommendation systems, the sampling of language models, and many other
-applications. Yet it sits at the opposite end of the spectrum from the
-workloads these accelerators were designed for: it performs minimal
-operations per element and reuses nothing.
+Top-k selection is a suitable problem for posing this question. It is simple to
+state and widespread in practice, as it appears in nearest-neighbour search, in
+retrieval and recommendation systems, in the sampling of language models and
+many other applications. At the same time, accelerators were designed for
+workloads with many operations per element and extensive data reuse, whereas
+top-k selection has minimal operations per element and no reuse at all.
 
 \section{Contribution}
 \label{sec:intro-contribution}
 
-\paragraph{Implementations.} Six implementations were built, two
-algorithms across three architectures, with support for five data types.
-The processor implementation exploits AVX-512 vector extensions and
-multiple threads; the graphics unit implementation is organised into
-tiles with shared memory; the neural processing unit implementation
-was written entirely at the level of the MLIR-AIE framework. The
-correctness of every combination was verified over 2700 cases.
+\paragraph{Implementations.} Six implementations were built, two algorithms on
+three architectures, with support for five data types. On the processor, the
+AVX-512 vector extensions and multiple threads are exploited. On the graphics
+unit, the work is organised into tiles with shared memory. The neural
+processing unit implementation was written entirely at the level of the
+MLIR-AIE framework. The implementations were verified over 2700 cases in total.
 
-\paragraph{Measurement harness.} A harness was developed that measures
-each case in two explicitly distinct scopes, algorithmic and end-to-end.
-It records energy with common semantics across the three architectures,
-measures the volume of data moved, and places each run against a
-roofline ceiling measured on the same machine. It is not built
-specifically for the top-k problem: it applies to any workload being
-considered for offloading.
+\paragraph{Measurement harness.} Each case is measured in two explicitly
+distinct scopes, algorithmic and end-to-end. Energy consumption is recorded
+with a common methodology on all three architectures, the volume of data moved
+is measured directly, and the performance of each run is analysed against the
+roofline model derived for the same machine. This methodology is independent of
+the top-k problem and can be applied to any workload considered for offloading
+to an accelerator.
 
-\paragraph{Findings.} Top-k selection is a data-traffic problem on every
-architecture examined; no implementation is limited by computational
+\paragraph{Findings.} Top-k selection is a data-movement problem on every
+architecture examined, and no implementation is limited by computational
 capability. The ranking of the two algorithms depends on the ratio $n/k$ and
 stays the same across all architectures. The measurement scope completely
 overturns the ranking of the architectures. Energy-wise, the neural processing
@@ -72,35 +71,32 @@ unit draws the lowest power of all implementations, and yet ends up with a
 particularly high energy footprint, simply because it needs far more time.
 
 \paragraph{Reproducibility.} The entire experimental procedure runs from
-scripts included in the repository. Measurement conditions are recorded
-alongside the results. Details are given in
-appendix~\ref{app:reproducibility}.
+scripts included in the repository. The measurement conditions are recorded
+alongside the results. Details are given in appendix~\ref{app:reproducibility}.
 
 \section{Structure of the work}
 \label{sec:intro-outline}
 
 Chapter~\ref{ch:background} defines the problem, presents the algorithm
-families that solve it, and describes the execution models of the three
-architectures, concluding with the gap this work is called to fill.
+families that solve it, describes the execution models of the three
+architectures and concludes with the gap this work is called to fill.
 
-Chapter~\ref{ch:methodology} presents what is measured, with what
-semantics, against which baselines, and under what conditions, a
-prerequisite for reading the results of Chapter~\ref{ch:evaluation}.
+The methodology follows (chapter~\ref{ch:methodology}). It presents what is
+measured, with what semantics, against which baselines and under what
+conditions. It is a prerequisite for reading the results of
+chapter~\ref{ch:evaluation}.
 
-Chapters~\ref{ch:cpu},~\ref{ch:gpu}, and~\ref{ch:npu} present the
-implementations on each of the three architectures. They follow a common
-structure, so that corresponding sections can be compared directly:
-design choices, the two algorithms, memory management, the reference
-implementation, and finally the limiting factors identified.
+Next come the implementation chapters, one per architecture
+(chapters~\ref{ch:cpu}, \ref{ch:gpu}, \ref{ch:npu}), with a common internal
+structure so that corresponding sections can be compared directly: design
+choices, the two algorithms, memory management, the reference implementation,
+limiting factors.
 
-Chapter~\ref{ch:evaluation} presents and interprets the results:
-execution time, comparison across architectures, memory footprint, and
-energy consumption, across different parameters, data types, and input
-distributions.
+Chapter~\ref{ch:evaluation} presents and interprets the results, namely
+execution time, the comparison of architectures, memory footprint and energy
+consumption, for different parameters, data types and input distributions.
 
-Chapter~\ref{ch:conclusions} summarises what generalises, states the
-limits within which it holds, and proposes directions for continuation.
+Chapter~\ref{ch:conclusions} closes with the conclusions, the limits within
+which they hold and possible directions for continuation.
 
-The appendices include a list of acronyms, a glossary of the Greek terms
-with their English equivalents, and instructions for reproducing the
-measurements.
+Acronyms and reproduction instructions are found in the appendices.
