@@ -52,7 +52,8 @@ Main memory is arranged as two identical \qty{16}{\gibi\byte} modules
 in dual-channel mode, at 5600 MT/s. A single-channel arrangement
 would halve the available bandwidth, and a memory-bound
 implementation would give substantially different results on an
-otherwise identical system.
+otherwise identical system. This was empirically confirmed after upgrading
+the system memory from one to two channels.
 
 The neural processing unit has no memory of its own; it is fed from
 the same DDR5, and through the same memory controllers, as the
@@ -430,9 +431,6 @@ position rather than as a set. When both the full and the truncated
 network are run, the two results are additionally cross-checked
 against each other, as an independent confirmation that truncation
 does not corrupt the result.
-
-In this work's main sweep all 2700 cases were verified with no
-failures.
 
 \section{Parameter space}
 \label{sec:meth-parameters}

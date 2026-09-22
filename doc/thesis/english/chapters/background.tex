@@ -253,7 +253,7 @@ algorithms have an advantage.
 Warps are grouped into thread blocks, and blocks into a grid. Each block
 has shared memory, a small region managed explicitly by software, with
 latency far lower than global memory. This is the tool by which a
-multi-pass algorithm is converted into a single-pass one: if the chunk of
+multi-pass algorithm is converted into a single-pass one. If the chunk of
 data processed by a block fits there, all intermediate steps execute
 without returning to global memory.
 

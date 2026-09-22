@@ -65,12 +65,11 @@ considered for offloading.
 
 \paragraph{Findings.} Top-k selection is a data-traffic problem on every
 architecture examined; no implementation is limited by computational
-capability. The ranking of the two algorithms depends on the ratio $n/k$
-and stays the same across all architectures, by a margin reaching three
-orders of magnitude. The measurement scope completely overturns the
-ranking of the architectures. Energy-wise, the neural processing unit
-draws the lowest power of all implementations, and yet consumes the most
-energy, simply because it needs far more time.
+capability. The ranking of the two algorithms depends on the ratio $n/k$ and
+stays the same across all architectures. The measurement scope completely
+overturns the ranking of the architectures. Energy-wise, the neural processing
+unit draws the lowest power of all implementations, and yet ends up with a
+particularly high energy footprint, simply because it needs far more time.
 
 \paragraph{Reproducibility.} The entire experimental procedure runs from
 scripts included in the repository. Measurement conditions are recorded

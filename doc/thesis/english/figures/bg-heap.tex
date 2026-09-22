@@ -3,7 +3,7 @@
     \begin{tikzpicture}[x=1.0cm, y=1.0cm]
 
         % (a) the threshold test
-        \node[panel, font=\scriptsize\bfseries] at (-0.55,1.55) {(a) the root threshold, $k=4$};
+        \node[panel, font=\scriptsize\bfseries, anchor=west] at (-1.0, 1.55) {(a) the root threshold, $k=4$};
 
         \node[blkreg, minimum width=0.66cm] (r)  at (1.55,0.85) {$6$};
         \node[blkreg, minimum width=0.66cm] (c1) at (0.85,-0.05) {$8$};
@@ -40,12 +40,12 @@
                     {\tiny heap k};
                 \draw[flow] (ch\i.south) -- (hp\i.north);
             }
-            \node[rowlab, font=\tiny] at (ch0.west) {map};
+            \node[rowlab, font=\tiny, anchor=west] at (-0.45, 0.52) {map};
 
             \node[blkreg, minimum width=1.55cm, minimum height=0.40cm] (mg) at (3.83,-1.45)
                 {\tiny final k};
             \foreach \i in {0,1,2,3} { \draw[flowmute] (hp\i.south) -- (mg.north); }
-            \node[rowlab, font=\tiny] at (0.10,-1.45) {reduce};
+            \node[rowlab, font=\tiny, anchor=west] at (-0.45, -1.45) {reduce};
 
             \node[note, font=\scriptsize, anchor=west, align=left] at (7.70,-0.42)
                 {no communication\\ in the map phase};

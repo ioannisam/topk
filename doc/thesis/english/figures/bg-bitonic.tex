@@ -3,7 +3,7 @@
     \begin{tikzpicture}[x=0.66cm, y=0.40cm]
 
         % (a) bitonic network
-        \node[panel] at (-1.5,2.55) {(a) full bitonic network, $n=8$};
+        \node[panel, anchor=west] at (-2.42,2.55) {(a) full bitonic network, $n=8$};
 
         \foreach \w in {0,...,7} {
             \draw[draw=figmute, line width=0.4pt] (0.2,-\w) -- (10.0,-\w);
@@ -33,7 +33,7 @@
         % (b) truncated network
         \begin{scope}[yshift=-5.55cm, x=1.0cm, y=1.0cm]
 
-            \node[panel] at (-1.60,1.62) {(b) truncated network, $n=16$, $k'=4$};
+            \node[panel, anchor=west] at (-1.60,1.62) {(b) truncated network, $n=16$, $k'=4$};
 
             \tikzset{
                 blkkeep/.style={blkreg, minimum width=1.15cm, minimum height=0.42cm},

@@ -23,7 +23,7 @@
 σε κάθε αρχιτεκτονική. Η κατάταξη των δύο αλγορίθμων ανατρέπεται με τον λόγο
 $n/k$ και η επιλογή του πεδίου μέτρησης αλλάζει εντελώς την κατάταξη των
 αρχιτεκτονικών. Ενεργειακά, η μονάδα νευρωνικής επεξεργασίας εμφανίζει τη
-χαμηλότερη ισχύ και ταυτόχρονα την υψηλότερη κατανάλωση, καθώς η διάρκεια
+χαμηλότερη ισχύ αλλά δυσανάλογα υψηλή κατανάλωση, καθώς η διάρκεια
 κυριαρχεί του γινομένου. Καμία εκτέλεση σε επιταχυντή δεν είναι βέλτιστη κατά
 \tl{Pareto} και ειδικά για μικρό \tl{k} η ανάθεση είναι μετρήσιμα χειρότερη από
 τον υπολογισμό στον επεξεργαστή.
@@ -59,10 +59,11 @@ capabilities.
 The results show that the problem is limited by data movement on every
 architecture. The ranking of the two algorithms is overturned by the ratio
 $n/k$ and the choice of measurement scope completely overturns the ranking of
-the architectures. In energy terms the neural processing unit exhibits the
-lowest power draw and simultaneously the highest consumption, since duration
-dominates the product. No accelerator run is Pareto-optimal. For small k,
-offloading is measurably worse than computing on the processor.
+the architectures. In energy terms, the neural processing unit exhibits the
+lowest power draw but a disproportionately high energy consumption, since
+duration dominates the product. No accelerator run is Pareto-optimal.
+Especially for small k, offloading is measurably worse than computing on the
+processor.
 
 \vspace{1em}
 

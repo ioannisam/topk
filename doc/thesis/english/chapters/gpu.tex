@@ -170,10 +170,10 @@ of the tree reads and writes heaps from global memory.
 
 The constraint is binding exactly where the graphics unit would be
 most useful. For the largest value of $k$ examined and an input of
-sixteen million elements, the ratio $n/k$ is a mere 128. A device
-with thousands of cores can therefore substantially occupy only one
-hundred and twenty-eight threads, a fraction on the order of one
-percent of those available.
+sixteen million elements, the ratio $n/k$ is only 128. A device
+with thousands of cores can therefore effectively occupy only one
+hundred and twenty-eight threads, a mere fraction of the available
+threads.
 
 The algorithm's effectiveness rests entirely on rejection: an element
 that does not exceed the heap's root costs only a single comparison.
@@ -275,8 +275,7 @@ passes are not observable.
 On the largest input examined, the library completes the selection in
 a time that stays nearly constant as $k$ varies over four orders of
 magnitude, while both of this work's implementations are burdened
-significantly. Only for the smallest $k$ does map-reduce edge it out,
-marginally.
+significantly. Only for the smallest $k$ does map-reduce edge it out.
 
 \subsection{Radix selection in CUB}
 \label{sec:gpu-reference-cub}
@@ -322,11 +321,11 @@ quality of the implementation, while the total volume of traffic
 measures the quality of the algorithm.
 
 Map-reduce for small $k$ is the only point where an implementation
-developed in this work outperforms the library, if only marginally.
-It reads the input once and rejects almost everything, so it
-approaches the minimum possible work for the problem. Ceiling
-utilisation stays modest, which points to room for improvement in the
-organisation of accesses.
+developed in this work outperforms the library. It reads the input
+once and rejects almost everything, so it approaches the minimum
+possible work for the problem. Ceiling utilisation stays modest,
+which points to room for improvement in the organisation of
+accesses.
 
 For large $k$ the picture changes radically: map-reduce collapses to
 the point where utilisation of both ceilings becomes a fraction of

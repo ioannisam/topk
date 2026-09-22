@@ -103,33 +103,29 @@ test platform.
 \section{Future work}
 \label{sec:concl-future}
 
-The clearest direction follows directly from the limiting factor
-identified for the neural processing unit. Since most of the time is
-spent preparing and sending data per call, a workload that runs many
-top-k queries at once would amortise exactly this cost; batched
-selection, moreover, arises naturally in the applications mentioned in
-section~\ref{sec:bg-problem}, where selection repeats at every step or
-for every query.
+In terms of systematic optimizations, the execution of multiple simultaneous
+\tl{top-k} queries is the primary future extension, especially for the neural
+processing unit. Since the main bottleneck lies in the preparation and
+dispatch of data, batching the calls would crucially help amortize this cost.
+Such repeated queries dominate the applications of Section~\ref{sec:bg-problem}.
+In the same direction, leveraging direct memory access mechanisms of the
+device to the system memory, avoiding explicit data copying from the \tl{host},
+would significantly improve total latency. The implementation of such a
+capability depends largely on the specifications and interfaces of the
+respective platform.
 
-In the same direction, reducing the host's involvement in pipelining --
-with the device accessing data directly instead of explicit copying per
-chunk -- would attack the same cost from the other side. This
-possibility depends on the tools and interfaces the platform exposes.
+Regarding algorithmic extensions, a dynamic algorithm selection mechanism
+would directly exploit the finding on the $n/k$ ratio. Knowing now how the ratio
+affects performance, an adaptive implementation could automatically choose
+between a heap and a sorting network to ensure smooth performance across the
+entire range of sizes. Furthermore, for larger values of $k$ where selection
+approaches full sorting, managing inputs that do not fit in device memory
+represents a natural continuation, transforming flow management from a
+responsibility of the infrastructure into an organic part of the algorithm itself.
 
-A second direction is adaptive algorithm selection. Given that the
-overturn in section~\ref{sec:eval-time-k} is systematic and predictable
-from the ratio $n/k$, an implementation that dynamically chooses between
-the heap and the sorting network would cover the entire parameter range
-without a point of collapse.
-
-A third direction is extending the parameter space toward points this
-work touched on but did not exhaust: values of $k$ larger than those
-examined, where selection approaches sorting, and inputs that do not fit
-in a single device's memory, where managing the stream becomes part of
-the algorithm rather than of the infrastructure.
-
-Finally, the measurement harness developed here is independent of the
-specific problem. The separation of the two measurement scopes, the
-recording of energy with common semantics across three architectures,
-and the placement of kernels against a measured ceiling are tools that
-can be applied to any workload being considered for offloading.
+Finally, the evaluation framework developed in this work can be reused in
+the future for studying other computational loads as well. The separation of
+algorithmic time from transfer time, the unified energy logging across different
+architectures, and the analysis via the roofline model offer a reusable
+framework capable of being applied to any other problem considered for
+offloading to specialized hardware.

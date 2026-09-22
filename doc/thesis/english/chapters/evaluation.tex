@@ -135,18 +135,10 @@ intermediate crossover bitonic sort shows. In sharp contrast to its
 bitonic behaviour, the neural processing unit is not close to the
 processor here: it stays roughly an order of magnitude slower than both
 architectures at every size, reaching its already-noted time at the
-largest input. The reason follows from
-section~\ref{sec:npu-bottlenecks}: the array's part in map-reduce is
-only a per-chunk filter, not a shared network schedule, so none of the
-structural similarity that keeps bitonic sort's curve on the neural
-processing unit close to the processor's carries over to this algorithm.
+largest input.
 
 \subsection{Dependence on the parameter k}
 \label{sec:eval-time-k}
-
-The dependence on $k$ is the point at which the ranking of the
-algorithms is overturned, and is perhaps this work's most significant
-finding.
 
 \begin{figure}[H]
     \centering
@@ -166,12 +158,6 @@ finding.
     map-reduce curves diverge by orders of magnitude.}
     \label{fig:eval-k-colored}
 \end{figure}
-
-The juxtaposition in figure~\ref{fig:eval-k-colored} captures the
-phenomenon directly. For bitonic sort the curves of the four values of
-$k$ nearly coincide, since $k$ affects only the size of the sorted
-blocks. For map-reduce on the graphics unit the same curves are
-separated by three orders of magnitude.
 
 \begin{table}[H]
     \centering
@@ -193,6 +179,14 @@ separated by three orders of magnitude.
     does not include the reference libraries.}
     \label{tab:eval-k-inversion}
 \end{table}
+
+The dependence on $k$ is the point at which the ranking of the
+algorithms is overturned. The juxtaposition in
+figure~\ref{fig:eval-k-colored} captures the phenomenon directly.
+For bitonic sort the curves of the four values of $k$ nearly
+coincide, since $k$ affects only the size of the sorted blocks.
+For map-reduce on the graphics unit the same curves are separated
+by three orders of magnitude.
 
 The fastest implementation for small $k$ becomes the slowest for large
 $k$, a difference of three orders of magnitude. Map-reduce on the
@@ -294,8 +288,7 @@ fits exactly in the processor's L3 cache
 (figure~\ref{fig:eval-cache-ladder}), and falls back again once the
 input exceeds this limit. It should be remembered, though, that the
 limitation of section~\ref{sec:cpu-reference} applies here: the library
-is single-threaded while the implementation uses eight threads, so this
-factor is not purely algorithmic.
+is single-threaded, so this factor is not purely algorithmic.
 
 The largest speed-up in the whole figure appears elsewhere, and is a
 consequence of the overturn in section~\ref{sec:eval-time-k}. For large
@@ -308,11 +301,10 @@ traffic starts to dominate, narrowing to just above unity at the largest
 input.
 
 On the graphics unit the comparison is strict, since the library runs on
-the same device with the same parallelism. There, map-reduce marginally
-outperforms for $k$ equal to 8, while for large $k$ the library is
-faster by more than a thousand times. Radix selection has no point of
-collapse with respect to $k$, as explained in
-section~\ref{sec:gpu-reference-cub}.
+the same device with the same parallelism. There, map-reduce outperforms
+for $k$ equal to 8, while for large $k$ the library is faster by more than
+a thousand times. Radix selection has no point of collapse with respect to
+$k$, as explained in section~\ref{sec:gpu-reference-cub}.
 
 On the neural processing unit, for the integer types the figure covers,
 no implementation surpasses the library in any parameter region, since
@@ -607,37 +599,13 @@ words, not where the device is strongest.
 \section{Sensitivity to the input distribution}
 \label{sec:eval-distributions}
 
-\begin{figure}[H]
-    \centering
-    \begin{subfigure}{\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{float/dist/dist_sensitivity_k8}
-        \caption{k=8.}
-        \label{fig:eval-dists-k8}
-    \end{subfigure}
-
-    \vspace{0.3em}
-
-    \begin{subfigure}{\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{float/dist/dist_sensitivity_k131072}
-        \caption{k=131072.}
-        \label{fig:eval-dists-k131072}
-    \end{subfigure}
-    \caption[Sensitivity of time to the input distribution]{Sensitivity of time to the input distribution, for single precision
-    and $2^{24}$ elements. Each bar gives the time of one distribution
-    relative to the time of the uniform distribution for the same
-    implementation; unity means complete independence from the data.}
-    \label{fig:eval-dists}
-\end{figure}
-
 Normalising against the uniform distribution lets all nine combinations
 be compared on the same figure, even though their absolute times differ
 by orders of magnitude. An implementation unaffected by the data appears
 as five equal bars of height one, while a sensitive one appears with
 bars diverging in both directions.
 
-The figure first confirms the expected: bitonic sort on the processor
+The figure below first confirms the expected: bitonic sort on the processor
 and the graphics unit is practically unaffected by the distribution at
 both values of $k$, with overall variation below a factor of 1.09. This
 property makes it a reliable witness: if its time were to change, the
@@ -678,3 +646,27 @@ behaviour because the limiting factor changes: in the second case it is
 not rejection that limits it but the lack of parallelism described in
 section~\ref{sec:gpu-mapreduce-limit}. When the limiting factor is not
 the data, their distribution stops mattering.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{\textwidth}
+        \centering
+        \includegraphics[width=0.9\textwidth]{float/dist/dist_sensitivity_k8}
+        \caption{k=8.}
+        \label{fig:eval-dists-k8}
+    \end{subfigure}
+
+    \vspace{0.3em}
+
+    \begin{subfigure}{\textwidth}
+        \centering
+        \includegraphics[width=0.9\textwidth]{float/dist/dist_sensitivity_k131072}
+        \caption{k=131072.}
+        \label{fig:eval-dists-k131072}
+    \end{subfigure}
+    \caption[Sensitivity of time to the input distribution]{Sensitivity of time to the input distribution, for single precision
+    and $2^{24}$ elements. Each bar gives the time of one distribution
+    relative to the time of the uniform distribution for the same
+    implementation; unity means complete independence from the data.}
+    \label{fig:eval-dists}
+\end{figure}

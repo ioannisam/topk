@@ -21,11 +21,11 @@ authoritative version of this thesis. Some passages in this translation may
 read awkwardly or imprecisely as a result of the automated process.
 \end{tcolorbox}
 
-Top-k selection, the task of identifying the k largest elements of a set, appears
-across a wide range of applications and is repeated often enough that its cost is
-noticeable. The recent integration of neural processing units into the same
-die as the processor makes the question of whether offloading such
-computations to an accelerator is worthwhile a reasonable one.
+Top-k selection identifies the k largest elements of a set. It appears across a
+wide range of applications and is repeated often enough that its cost is
+noticeable. The recent integration of neural processing units into the same die
+as the processor makes the question of whether offloading such computations to
+an accelerator is worthwhile a reasonable one.
 
 This work implements two algorithms with fundamentally different behaviour:
 truncated bitonic sorting, which is data-oblivious, and map-reduce selection
@@ -40,10 +40,11 @@ capabilities.
 The results show that the problem is limited by data movement on every
 architecture. The ranking of the two algorithms is overturned by the ratio
 $n/k$ and the choice of measurement scope completely overturns the ranking of
-the architectures. In energy terms the neural processing unit exhibits the
-lowest power draw and simultaneously the highest consumption, since duration
-dominates the product. No accelerator run is Pareto-optimal: for small k,
-offloading is measurably worse than computing on the processor.
+the architectures. In energy terms, the neural processing unit exhibits the
+lowest power draw but a disproportionately high energy consumption, since
+duration dominates the product. No accelerator run is Pareto-optimal.
+Especially for small k, offloading is measurably worse than computing on the
+processor.
 
 \vspace{1em}
 
