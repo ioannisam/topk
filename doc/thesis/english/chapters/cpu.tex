@@ -131,8 +131,6 @@ form. The output range of each group is divided among the threads, with
 boundaries aligned to the chunk size or the cache line, so that two threads
 never write to the same line.
 
-\input{figures/cpu-layer-fusion}
-
 The resulting traffic is predictable from the structure of the schedule. The
 first phase collapses into one in-place pass, that is, one read and one write
 per element, $2n$ in total. Each step of the second reads $n_i$ elements and
@@ -150,6 +148,8 @@ The truncation layers do not run in place, since each output element results
 from two input elements at different positions. A second array of the same size
 is maintained, with the two swapped after each such group. The extra memory is
 the price for avoiding intermediate copies.
+
+\input{figures/cpu-layer-fusion}
 
 \section{Map-reduce with local heaps}
 \label{sec:cpu-mapreduce}

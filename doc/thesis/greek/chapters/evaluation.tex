@@ -149,17 +149,18 @@ $2^{16}$ στοιχεία, κυριαρχούμενες από το σταθερ
 \begin{table}[H]
     \centering
     \begin{tabular}{lrrrr}
-        \hline
+        \toprule
         & \multicolumn{2}{c}{\tl{k}=8} & \multicolumn{2}{c}{\tl{k}=131072} \\
+        \cmidrule(lr){2-3} \cmidrule(lr){4-5}
         Υλοποίηση & \tl{ms} & θέση & \tl{ms} & θέση \\
-        \hline
+        \midrule
         \tl{CPU} διτονική & 8,01 & 4 & 43,33 & 2 \\
         \tl{CPU map-reduce} & 1,23 & 2 & 60,37 & 5 \\
         \tl{GPU} διτονική & 1,34 & 3 & 8,22 & 1 \\
         \tl{GPU map-reduce} & 0,43 & 1 & 1191,37 & 6 \\
         \tl{NPU} διτονική & 8,17 & 5 & 56,70 & 3 \\
         \tl{NPU map-reduce} & 9,97 & 6 & 59,69 & 4 \\
-        \hline
+        \bottomrule
     \end{tabular}
     \caption[Αλγοριθμικός χρόνος για τα δύο άκρα του \tl{k}]{Αλγοριθμικός
     χρόνος για τα δύο άκρα του \tl{k}, σε είσοδο $2^{24}$ στοιχείων. Η κατάταξη
@@ -525,15 +526,15 @@ $n/k$. Για τα μεγέθη του πίνακα~\ref{tab:eval-k-inversion} �
 \begin{table}[H]
     \centering
     \begin{tabular}{lrrrrr}
-        \hline
+        \toprule
         Υλοποίηση & \tl{half} & \tl{int} & \tl{uint} & \tl{float} & \tl{double} \\
-        \hline
+        \midrule
         \tl{CPU} διτονική & 4,60 & 8,01 & 7,93 & 8,01 & 14,03 \\
         \tl{CPU map-reduce} & 0,39 & 1,23 & 1,22 & 1,22 & 2,35 \\
         \tl{CPU} αναφορά & 13,27 & 4,65 & 4,63 & 5,50 & 5,54 \\
         \tl{GPU} διτονική & 0,88 & 1,34 & 1,37 & 1,34 & 2,89 \\
         \tl{NPU} διτονική & 7,71 & 8,17 & 8,37 & 8,23 & 25,38 \\
-        \hline
+        \bottomrule
     \end{tabular}
     \caption[Αλγοριθμικός χρόνος ανά τύπο δεδομένων]{Αλγοριθμικός χρόνος ανά
     τύπο δεδομένων, σε \tl{ms}, για $2^{24}$ στοιχεία και \tl{k} ίσο με 8.}
@@ -627,7 +628,7 @@ $n/k$. Για τα μεγέθη του πίνακα~\ref{tab:eval-k-inversion} �
     \centering
     \begin{subfigure}{\textwidth}
         \centering
-        \includegraphics[width=0.9\textwidth]{float/dist/dist_sensitivity_k8}
+        \includegraphics[width=0.85\textwidth]{float/dist/dist_sensitivity_k8}
         \caption{\tl{k}=8.}
         \label{fig:eval-dists-k8}
     \end{subfigure}
@@ -636,7 +637,7 @@ $n/k$. Για τα μεγέθη του πίνακα~\ref{tab:eval-k-inversion} �
 
     \begin{subfigure}{\textwidth}
         \centering
-        \includegraphics[width=0.9\textwidth]{float/dist/dist_sensitivity_k131072}
+        \includegraphics[width=0.85\textwidth]{float/dist/dist_sensitivity_k131072}
         \caption{\tl{k}=131072.}
         \label{fig:eval-dists-k131072}
     \end{subfigure}

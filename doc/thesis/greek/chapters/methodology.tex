@@ -12,24 +12,24 @@
 \begin{table}[H]
     \centering
     \begin{tabular}{ll}
-        \hline
+        \toprule
         Σύστημα & \tl{Lenovo Legion 5 15AHP10} \\
         Λειτουργικό σύστημα & \tl{Arch Linux x86\_64}, πυρήνας \tl{7.1.5-arch1-2} \\
         Κύρια μνήμη & \qty{32}{\gibi\byte} \tl{DDR5-5600}, δύο κανάλια \\
-        \hline
+        \midrule
         \tl{CPU} & \tl{AMD Ryzen 7 260} \\
         Πυρήνες / νήματα & 8 / 16, έως \qty{5.10}{\giga\hertz} \\
         Κρυφή μνήμη & \qty{8}{\mebi\byte} \tl{L2}, \qty{16}{\mebi\byte} \tl{L3} \\
         Διανυσματικές επεκτάσεις & \tl{AVX-512} \\
-        \hline
+        \midrule
         \tl{GPU} & \tl{NVIDIA GeForce RTX 5060 Laptop} \\
         Μνήμη & \qty{8}{\gibi\byte} \\
         Λογισμικό & \tl{driver} \tl{610.43.03}, \tl{CUDA 13.3} \\
         Όρια ισχύος & \qty{50}{\watt} προεπιλογή, \qty{115}{\watt} μέγιστο \\
-        \hline
+        \midrule
         \tl{NPU} & \tl{AMD XDNA} (\tl{RyzenAI-npu1}) \\
         Λογισμικό & \tl{XRT 2.21.75}, \tl{firmware 1.5.5.391} \\
-        \hline
+        \bottomrule
     \end{tabular}
     \caption{Το σύστημα αναφοράς στο οποίο εκτελέστηκαν όλες οι μετρήσεις.}
     \label{tab:machine}
@@ -114,23 +114,6 @@
 της ετερογένειας, όπως συνοψίζεται στον πίνακα~\ref{tab:scopes} και στο
 σχήμα~\ref{fig:meth-scopes}.
 
-\begin{table}[H]
-    \centering
-    \begin{tabular}{llp{5.1cm}}
-        \hline
-        Αρχιτεκτονική & Περιεχόμενο του \tl{algo} & Διαφορά από το \tl{end-to-end} \\
-        \hline
-        \tl{CPU} & ταυτίζεται με το \tl{end-to-end} & - \\
-        \tl{GPU} & περιοχή μεταξύ συμβάντων \tl{CUDA} & μεταφορές \tl{H2D}/\tl{D2H}, δεσμεύσεις μνήμης \\
-        \tl{NPU} & περιοχή της εκφόρτωσης & εντοπισμός συσκευής, φόρτωση ρύθμισης εκφόρτωσης \\
-        \hline
-    \end{tabular}
-    \caption{Το περιεχόμενο των δύο πεδίων μέτρησης ανά αρχιτεκτονική.}
-    \label{tab:scopes}
-\end{table}
-
-\input{figures/meth-scopes}
-
 Στον επεξεργαστή τα δύο ταυτίζονται εξ ορισμού, αφού πρόκειται για τον ίδιο τον
 επιταχυντή και δεν υπάρχει κόστος \tl{host} προς αφαίρεση.
 
@@ -138,6 +121,23 @@
 το χρονόμετρο. Χρόνος και ενέργεια αναφέρονται έτσι στην ίδια περιοχή και είναι
 άμεσα συγκρίσιμα. Καταγράφεται και τρίτο, ευρύτερο παράθυρο γύρω από ολόκληρο
 τον βρόχο μέτρησης, ως άνω φράγμα ελέγχου (ενότητα~\ref{sec:meth-energy}).
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{ll >{\raggedright\arraybackslash}X}
+        \toprule
+        Αρχιτεκτονική & Περιεχόμενο του \tl{algo} & Διαφορά από το \tl{end-to-end} \\
+        \midrule
+        \tl{CPU} & ταυτίζεται με το \tl{end-to-end} & - \\
+        \tl{GPU} & περιοχή μεταξύ συμβάντων \tl{CUDA} & μεταφορές \tl{H2D}/\tl{D2H}, δεσμεύσεις μνήμης \\
+        \tl{NPU} & περιοχή της εκφόρτωσης & εντοπισμός συσκευής, φόρτωση ρύθμισης εκφόρτωσης \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Το περιεχόμενο των δύο πεδίων μέτρησης ανά αρχιτεκτονική.}
+    \label{tab:scopes}
+\end{table}
+
+\input{figures/meth-scopes}
 
 Το \tl{end-to-end} είναι το δίκαιο πεδίο για σύγκριση μεταξύ αρχιτεκτονικών,
 αφού περιλαμβάνει το κόστος μεταφοράς για όλες. Το \tl{algo} παραλείπει τις
@@ -396,15 +396,15 @@
 \begin{table}[H]
     \centering
     \begin{tabular}{llrl}
-        \hline
+        \toprule
         Τύπος & Αντιστοίχιση σε \tl{C++} & Μέγεθος & Περιγραφή \\
-        \hline
+        \midrule
         \tl{int} & \tl{std::int32\_t} & 32 \tl{bit} & ακέραιος με πρόσημο \\
         \tl{uint} & \tl{std::uint32\_t} & 32 \tl{bit} & ακέραιος χωρίς πρόσημο \\
         \tl{float} & \tl{float} & 32 \tl{bit} & κινητής υποδιαστολής απλής ακρίβειας \\
         \tl{double} & \tl{double} & 64 \tl{bit} & κινητής υποδιαστολής διπλής ακρίβειας \\
         \tl{half} & \tl{\_Float16} & 16 \tl{bit} & κινητής υποδιαστολής μισής ακρίβειας \\
-        \hline
+        \bottomrule
     \end{tabular}
     \caption{Οι τύποι δεδομένων που σαρώνονται.}
     \label{tab:dtypes}
@@ -428,15 +428,15 @@
 \begin{table}[H]
     \centering
     \begin{tabular}{ll}
-        \hline
+        \toprule
         Κατανομή & Περιγραφή \\
-        \hline
+        \midrule
         \tl{uniform} & ομοιόμορφη στο εύρος τιμών \\
         \tl{trimodal} & τρεις στενές συστάδες εντός του εύρους \\
         \tl{sorted} & αύξουσα σειρά \\
         \tl{reverse} & φθίνουσα σειρά \\
         \tl{adversarial} & τιμές στο κάτω ήμισυ με αύξουσες αιχμές \\
-        \hline
+        \bottomrule
     \end{tabular}
     \caption{Οι κατανομές εισόδου που σαρώνονται.}
     \label{tab:distributions}
@@ -470,9 +470,9 @@
 \begin{table}[H]
     \centering
     \begin{tabular}{ll}
-        \hline
+        \toprule
         Παράμετρος & Κατάσταση κατά τη μέτρηση \\
-        \hline
+        \midrule
         Διαχειριστής συχνότητας \tl{CPU} & \tl{performance} \\
         Ενίσχυση συχνότητας \tl{CPU} & απενεργοποιημένη \\
         Νήματα \tl{CPU} & 8, ένα ανά φυσικό πυρήνα \\
@@ -481,10 +481,9 @@
         Περίοδος ψύξης μεταξύ μονάδων & \qty{15}{\second} \\
         Επαναλήψεις προθέρμανσης & 5 ανά περίπτωση \\
         Μετρούμενες επαναλήψεις & 50 ανά περίπτωση \\
-        \hline
+        \bottomrule
     \end{tabular}
-    \caption{Οι συνθήκες στις οποίες καθηλώνεται το σύστημα πριν από κάθε
-    σάρωση.}
+    \caption{Οι συνθήκες στις οποίες καθηλώνεται το σύστημα πριν από κάθε σάρωση.}
     \label{tab:conditions}
 \end{table}
 

@@ -173,18 +173,18 @@ the time is distributed as in table~\ref{tab:npu-phases}.
 \begin{table}[H]
     \centering
     \begin{tabular}{lrr}
-        \hline
+        \toprule
         Stage & Time (ms) & Percentage \\
-        \hline
+        \midrule
         Batch preparation & 4.84 & 58\,\% \\
         Result merging & 2.07 & 25\,\% \\
         Waiting for the array & 0.69 & 8\,\% \\
         Dispatching work & 0.10 & 1\,\% \\
         Initialisation & 0.08 & 1\,\% \\
         Other & 0.56 & 7\,\% \\
-        \hline
+        \midrule
         Total & 8.34 & 100\,\% \\
-        \hline
+        \bottomrule
     \end{tabular}
     \caption[Time breakdown of the offload region by stage]{Time
     breakdown of the offload region by stage. The ``Other'' row covers

@@ -12,24 +12,24 @@ three units share a common thermal and power budget.
 \begin{table}[H]
     \centering
     \begin{tabular}{ll}
-        \hline
+        \toprule
         System & Lenovo Legion 5 15AHP10 \\
         Operating system & Arch Linux x86\_64, kernel 7.1.5-arch1-2 \\
         Main memory & \qty{32}{\gibi\byte} DDR5-5600, dual channel \\
-        \hline
+        \midrule
         CPU & AMD Ryzen 7 260 \\
         Cores / threads & 8 / 16, up to \qty{5.10}{\giga\hertz} \\
         Cache & \qty{8}{\mebi\byte} L2, \qty{16}{\mebi\byte} L3 \\
         Vector extensions & AVX-512 \\
-        \hline
+        \midrule
         GPU & NVIDIA GeForce RTX 5060 Laptop \\
         Memory & \qty{8}{\gibi\byte} \\
         Software & driver 610.43.03, CUDA 13.3 \\
         Power limits & \qty{50}{\watt} default, \qty{115}{\watt} maximum \\
-        \hline
+        \midrule
         NPU & AMD XDNA (RyzenAI-npu1) \\
         Software & XRT 2.21.75, firmware 1.5.5.391 \\
-        \hline
+        \bottomrule
     \end{tabular}
     \caption{The reference system on which all measurements were run.}
     \label{tab:machine}
@@ -107,23 +107,6 @@ only the region in which the computation runs. Their difference is the cost of
 heterogeneity itself, as summarised in table~\ref{tab:scopes} and in
 figure~\ref{fig:meth-scopes}.
 
-\begin{table}[H]
-    \centering
-    \begin{tabular}{llp{5.1cm}}
-        \hline
-        Architecture & Content of algo & Difference from end-to-end \\
-        \hline
-        CPU & identical to end-to-end & - \\
-        GPU & region between CUDA events & H2D/D2H transfers, memory allocations \\
-        NPU & region of the offload & device discovery, loading the offload configuration \\
-        \hline
-    \end{tabular}
-    \caption{The content of the two measurement scopes per architecture.}
-    \label{tab:scopes}
-\end{table}
-
-\input{figures/meth-scopes}
-
 On the processor the two coincide by definition, since it is the accelerator
 itself and there is no host cost to subtract.
 
@@ -131,6 +114,23 @@ The energy meter opens and closes at exactly the same points in the code as the
 timer. Time and energy thus refer to the same region and are directly
 comparable. A third, wider window around the entire measurement loop is also
 recorded, as an upper-bound sanity check (section~\ref{sec:meth-energy}).
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{ll >{\raggedright\arraybackslash}X}
+        \toprule
+        Architecture & Content of algo & Difference from end-to-end \\
+        \midrule
+        CPU & identical to end-to-end & - \\
+        GPU & region between CUDA events & H2D/D2H transfers, memory allocations \\
+        NPU & region of the offload & device discovery, loading the offload configuration \\
+        \bottomrule
+    \end{tabularx}
+    \caption{The content of the two measurement scopes per architecture.}
+    \label{tab:scopes}
+\end{table}
+
+\input{figures/meth-scopes}
 
 End-to-end is the fair scope for comparison across architectures, since it
 includes the transfer cost for all of them. Algo omits the transfers, so it is
@@ -377,15 +377,15 @@ clamped to it.
 \begin{table}[H]
     \centering
     \begin{tabular}{llrl}
-        \hline
+        \toprule
         Type & C++ mapping & Size & Description \\
-        \hline
+        \midrule
         int & std::int32\_t & 32 bit & signed integer \\
         uint & std::uint32\_t & 32 bit & unsigned integer \\
         float & float & 32 bit & single-precision floating point \\
         double & double & 64 bit & double-precision floating point \\
         half & \_Float16 & 16 bit & half-precision floating point \\
-        \hline
+        \bottomrule
     \end{tabular}
     \caption{The data types that are swept.}
     \label{tab:dtypes}
@@ -410,15 +410,15 @@ clustered values more sharply.
 \begin{table}[H]
     \centering
     \begin{tabular}{ll}
-        \hline
+        \toprule
         Distribution & Description \\
-        \hline
+        \midrule
         uniform & uniform over the value range \\
         trimodal & three narrow clusters within the range \\
         sorted & ascending order \\
         reverse & descending order \\
         adversarial & values in the lower half with ascending spikes \\
-        \hline
+        \bottomrule
     \end{tabular}
     \caption{The input distributions that are swept.}
     \label{tab:distributions}
@@ -452,9 +452,9 @@ afterwards.
 \begin{table}[H]
     \centering
     \begin{tabular}{ll}
-        \hline
+        \toprule
         Parameter & State during measurement \\
-        \hline
+        \midrule
         CPU frequency governor & performance \\
         CPU frequency boost & disabled \\
         CPU threads & 8, one per physical core \\
@@ -463,7 +463,7 @@ afterwards.
         Cool-down period between units & \qty{15}{\second} \\
         Warm-up repetitions & 5 per case \\
         Measured repetitions & 50 per case \\
-        \hline
+        \bottomrule
     \end{tabular}
     \caption{The conditions to which the system is pinned before every
     sweep.}

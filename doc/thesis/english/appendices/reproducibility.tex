@@ -90,9 +90,7 @@ altering the system or the data.
 
 Administrator privileges are requested once and remain active. The conditions
 are always restored at the end, even in case of an error or an interruption by
-the user, preventing the system from being left in a pinned state. The failure
-of an individual sweep does not stop the rest; it is simply logged as a
-warning.
+the user, preventing the system from being left in a pinned state.
 
 The GPU\_W argument sets the power limit of the graphics unit, which must
 remain constant (section~\ref{sec:meth-conditions}). The procedure deletes the
@@ -154,25 +152,26 @@ correctness check so as not to inflate the consumed power needlessly.
 
 \begin{table}[H]
     \centering
-    \small
-    \begin{tabular}{@{}lp{2.9cm}lp{2.6cm}p{4.0cm}@{}}
-        \hline
-        Parameter & Values & Default & In the sweeps & Meaning \\
-        \hline
-        q & integer 0--63 & --- & 3--24 & Input size $n = 2^q$ (the only mandatory one) \\
-        k & positive integer & n & 8, 256, 4096, 131072 & Number of requested elements (capped at n) \\
-        mode & min $|$ max & max & max & Selects the smallest or largest elements \\
-        dtype & int $|$ uint $|$ float $|$ double $|$ half & int & all five & Element type \\
-        algo & bitonic $|$ map\_reduce $|$ gt & bitonic & all three & Algorithm to run \\
-        run & full $|$ trunc $|$ both & trunc & trunc & Variant of the bitonic network \\
-        seed & non-negative integer & 42 & generated from q, k & Seed of the random-number generator \\
-        dist & \mbox{uniform} $|$ \mbox{normal} $|$ \mbox{trimodal} $|$ \mbox{sorted} $|$ \mbox{reverse} $|$ \mbox{adversarial} & uniform & uniform (all five in the distribution sweep) & Input distribution \\
-        min / max & integers & 0 / 1000 & 0 / $10^9$ & Value range (requires max $\geq$ min, clamped to the range of the type) \\
-        threads & positive integer & 0 (automatic) & 8 & Number of threads (ignored by the NPU) \\
-        verify & true $|$ false & false & true & Check against the verification implementation \\
-        debug & true $|$ false & true & false & Verbose diagnostic output \\
-        \hline
-    \end{tabular}
+    \footnotesize
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabularx}{\textwidth}{@{} l >{\raggedright\arraybackslash}X l >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X @{}}
+        \toprule
+        \textbf{Parameter} & \textbf{Values} & \textbf{Default} & \textbf{In the sweeps} & \textbf{Meaning} \\
+        \midrule
+        q & integer 0--63 & --- & 3--24 & Input size $n = 2^q$ (only mandatory) \\
+        k & positive integer & n & 8, 256, 4096, 131072 & Number of requested elements (up to n) \\
+        mode & min, max & max & max & Select smallest or largest elements \\
+        dtype & int, uint, float, double, half & int & all five & Element type \\
+        algo & bitonic, map\_reduce, gt & bitonic & all three & Algorithm to run \\
+        run & full, trunc, both & trunc & trunc & Variant of bitonic network \\
+        seed & $\ge 0$ integer & 42 & from q, k & Random-number generator seed \\
+        dist & uniform, normal, trimodal, sorted, reverse, adversarial & uniform & uniform (all 5 in sweep) & Input distribution \\
+        min/max & integers & 0/1000 & 0/$10^9$ & Value range (max $\ge$ min) \\
+        threads & positive integer & 0 (auto) & 8 & Number of threads (ignored by NPU) \\
+        verify & true, false & false & true & Check against verification \\
+        debug & true, false & true & false & Verbose diagnostic output \\
+        \bottomrule
+    \end{tabularx}
     \caption{The execution parameters and their defaults.}
     \label{tab:cli}
 \end{table}
@@ -187,9 +186,9 @@ tables and generates the plots:
 make plot ARGS="--plot all"
 \end{verbatim}
 
-The --plot argument selects the plots and --input the sweep (the default is the
-timing sweep). Because the other plots use their own files, the combined
-targets are recommended, which run the measurement and the generation directly:
+The -{-}plot argument selects the plots and -{-}input the sweep (the default is
+the timing sweep). Because the other plots use their own files, the combined
+targets are recommended (measurement and generation):
 
 \begin{verbatim}
 make benchmark-cases
@@ -202,10 +201,7 @@ The files are organised by data type and category. Plots that concern only the
 hardware (e.g.\ the bandwidth scale) are stored in a separate directory, since
 they do not depend on the type.
 
-Two parameters determine the presentation. --energy-metric selects between
-gross and net energy. The sweeps of this work use the net figure
-(section~\ref{sec:meth-energy}). The --error-bars parameter sets the dispersion
-band (standard deviation, deciles or none). The band is drawn only if there are
-at least two samples per point, that is, in the distribution sweep (two seeds)
-and the energy sweep (three repetitions). In the automated run, the bands are
-disabled entirely.
+The -{-}energy-metric parameter selects between gross and net energy. The
+sweeps of this work use the net figure (section~\ref{sec:meth-energy}). The
+-{-}error-bars parameter sets the dispersion band (standard deviation, deciles
+or none). In the automated run, the bands are disabled entirely.

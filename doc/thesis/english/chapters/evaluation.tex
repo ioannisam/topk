@@ -145,17 +145,18 @@ about an order of magnitude slower than both at every size.
 \begin{table}[H]
     \centering
     \begin{tabular}{lrrrr}
-        \hline
+        \toprule
         & \multicolumn{2}{c}{k=8} & \multicolumn{2}{c}{k=131072} \\
+        \cmidrule(lr){2-3} \cmidrule(lr){4-5}
         Implementation & ms & rank & ms & rank \\
-        \hline
+        \midrule
         CPU bitonic & 8.01 & 4 & 43.33 & 2 \\
         CPU map-reduce & 1.23 & 2 & 60.37 & 5 \\
         GPU bitonic & 1.34 & 3 & 8.22 & 1 \\
         GPU map-reduce & 0.43 & 1 & 1191.37 & 6 \\
         NPU bitonic & 8.17 & 5 & 56.70 & 3 \\
         NPU map-reduce & 9.97 & 6 & 59.69 & 4 \\
-        \hline
+        \bottomrule
     \end{tabular}
     \caption[Algorithmic time for the two extremes of k]{Algorithmic time for
     the two extremes of k, on an input of $2^{24}$ elements. The ranking
@@ -509,15 +510,15 @@ space.
 \begin{table}[H]
     \centering
     \begin{tabular}{lrrrrr}
-        \hline
+        \toprule
         Implementation & half & int & uint & float & double \\
-        \hline
+        \midrule
         CPU bitonic & 4.60 & 8.01 & 7.93 & 8.01 & 14.03 \\
         CPU map-reduce & 0.39 & 1.23 & 1.22 & 1.22 & 2.35 \\
         CPU reference & 13.27 & 4.65 & 4.63 & 5.50 & 5.54 \\
         GPU bitonic & 0.88 & 1.34 & 1.37 & 1.34 & 2.89 \\
         NPU bitonic & 7.71 & 8.17 & 8.37 & 8.23 & 25.38 \\
-        \hline
+        \bottomrule
     \end{tabular}
     \caption[Algorithmic time by data type]{Algorithmic time by data type, in
     ms, for $2^{24}$ elements and k equal to 8.}
@@ -609,7 +610,7 @@ Naturally, the data distribution stops mattering.
     \centering
     \begin{subfigure}{\textwidth}
         \centering
-        \includegraphics[width=0.9\textwidth]{float/dist/dist_sensitivity_k8}
+        \includegraphics[width=0.85\textwidth]{float/dist/dist_sensitivity_k8}
         \caption{k=8.}
         \label{fig:eval-dists-k8}
     \end{subfigure}
@@ -618,7 +619,7 @@ Naturally, the data distribution stops mattering.
 
     \begin{subfigure}{\textwidth}
         \centering
-        \includegraphics[width=0.9\textwidth]{float/dist/dist_sensitivity_k131072}
+        \includegraphics[width=0.85\textwidth]{float/dist/dist_sensitivity_k131072}
         \caption{k=131072.}
         \label{fig:eval-dists-k131072}
     \end{subfigure}
